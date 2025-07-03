@@ -1,0 +1,154 @@
+{% extends "app_3dmage_management/base.html" %}
+{% load static %}
+{% block title %}Magazzino - 3DMAGE MANAGEMENT{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="text-white">Magazzino Oggetti Prodotti</h2>
+    <div>
+        <button class="btn btn-sm btn-primary-custom" data-bs-toggle="modal" data-bs-target="#addStockItemModal"><i class="bi bi-plus-circle me-1"></i>Aggiungi Oggetto</button>
+        <!--<a class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse" href="#inventoryFiltersCollapse" role="button" aria-expanded="false" aria-controls="inventoryFiltersCollapse">
+            <i class="bi bi-funnel-fill me-1"></i> Filtra
+        </a>-->
+    </div>
+</div>
+
+<!--<div class="collapse {% if filters_applied %}show{% endif %}" id="inventoryFiltersCollapse">-->
+    <div class="card bg-dark-card mb-4">
+        <div class="card-body">
+            <form method="get" action="{% url 'inventory_dashboard' %}" class="row g-3 align-items-end">
+                <div class="col-md-6">
+                    <label for="q" class="form-label">Cerca per Nome o ID</label>
+                    <input type="text" class="form-control form-control-sm" name="q" id="q" value="{{ search_query }}">
+                </div>
+                <div class="col-md-4">
+                    <label for="status" class="form-label">Filtra per Stato</label>
+                    <select name="status" id="status" class="form-select form-select-sm">
+                        <option value="">Tutti gli Stati</option>
+                        {% for value, display in all_statuses %}
+                        {% if value != 'SOLD' %}
+                        <option value="{{ value }}" {% if value == status_filter %}selected{% endif %}>{{ display }}</option>
+                        {% endif %}
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-1 d-grid">
+                    <button type="submit" class="btn btn-sm btn-primary-custom">Filtra</button>
+                </div>
+                <div class="col-md-1 d-grid">
+                    <a href="{% url 'inventory_dashboard' %}" class="btn btn-sm btn-outline-secondary">Azzera</a>
+                </div>
+            </form>
+        </div>
+    </div>
+<!--</div>-->
+
+<div class="card bg-dark-card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-dark table-hover align-middle">
+                <thead>
+                    <tr>
+                        <th><a href="?sort=custom_id&order={% if sort_by == 'custom_id' and order == 'asc' %}desc{% else %}asc{% endif %}&{{ request.GET.urlencode|cut:'sort'|cut:'order' }}">ID</a></th>
+                        <th class="text-center"><a href="?sort=quantity&order={% if sort_by == 'quantity' and order == 'asc' %}desc{% else %}asc{% endif %}&{{ request.GET.urlencode|cut:'sort'|cut:'order' }}">Quantità</a></th>
+                        <th><a href="?sort=name&order={% if sort_by == 'name' and order == 'asc' %}desc{% else %}asc{% endif %}&{{ request.GET.urlencode|cut:'sort'|cut:'order' }}">Oggetto</a></th>
+                        <th><a href="?sort=status&order={% if sort_by == 'status' and order == 'asc' %}desc{% else %}asc{% endif %}&{{ request.GET.urlencode|cut:'sort'|cut:'order' }}">Stato</a></th>
+                        <th class="text-end"><a href="?sort=suggested_price&order={% if sort_by == 'suggested_price' and order == 'asc' %}desc{% else %}asc{% endif %}&{{ request.GET.urlencode|cut:'sort'|cut:'order' }}">Prezzo Previsto</a></th>
+                    </tr>
+                </thead>
+                <tbody id="inventory-table-body">
+                    {% for item in stock_items %}
+                    <tr style="cursor: pointer;" data-bs-toggle="modal" data-bs-target="#editStockItemModal" data-item-id="{{ item.id }}">
+                        <td class="fw-bold">#{{ item.custom_id|default:"N/A" }}</td>
+                        <td class="text-center">{{ item.quantity }}</td>
+                        <td><div class="fw-bold">{{ item.name }}</div><small class="text-muted">Da progetto: {{ item.project.name|default:"N/A" }}</small></td>
+                        <td><span class="badge rounded-pill bg-stock-status-{{ item.status|lower }}">{{ item.get_status_display }}</span></td>
+                        <td class="text-end text-info">{{ item.suggested_price|floatformat:2 }}€</td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="5" class="text-center py-5"><p class="lead">Nessun oggetto trovato per i filtri selezionati.</p></td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Modale per AGGIUNGERE un oggetto manualmente -->
+<div class="modal fade" id="addStockItemModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-dark-card text-white">
+            <div class="modal-header border-secondary"><h5 class="modal-title">Aggiungi Oggetto</h5></div>
+            <form id="addStockItemForm" action="{% url 'add_stock_item' %}" method="post">
+                {% csrf_token %}
+                <div class="modal-body">
+                    {{ manual_form.as_p }}
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button>
+                    <button type="submit" class="btn btn-primary-custom">Aggiungi Oggetto</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+
+<!-- Modale per MODIFICARE/VENDERE un oggetto -->
+<div class="modal fade" id="editStockItemModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-dark-card text-white">
+            <div class="modal-header border-secondary"><h5 class="modal-title" id="editStockItemModalLabel"></h5></div>
+            <form id="editStockItemForm" method="post" novalidate>
+                <div class="modal-body">
+                    {% csrf_token %}
+                    <p class="item-project-subtitle mb-2">Da progetto: <strong id="itemProjectName"></strong> <span id="itemProjectID" class="text-muted"></span></p>
+                    <hr class="border-secondary">
+
+                    <div class="mb-3">{{ form.name.label_tag }}{{ form.name }}</div>
+                    <div class="mb-3">{{ form.quantity.label_tag }}{{ form.quantity }}</div>
+                    <div class="mb-3">{{ form.suggested_price.label_tag }}{{ form.suggested_price }}</div>
+                    <div class="mb-3">{{ form.status.label_tag }}{{ form.status }}</div>
+
+                    <div id="sale-details-section" class="d-none">
+                        <hr class="border-secondary">
+                        <h6 class="text-primary-custom mb-3">Dettagli Vendita</h6>
+                        <div class="mb-3">{{ form.quantity_to_sell.label_tag }}{{ form.quantity_to_sell }}</div>
+                        <div class="mb-3">{{ form.sold_at.label_tag }}{{ form.sold_at }}</div>
+                        <div class="mb-3">{{ form.sale_price.label_tag }}{{ form.sale_price }}</div>
+                        <div class="mb-3">{{ form.payment_method.label_tag }}{{ form.payment_method }}</div>
+                        <div class="mb-3">{{ form.sold_to.label_tag }}{{ form.sold_to }}</div>
+                        <div class="mb-3">{{ form.notes.label_tag }}{{ form.notes }}</div>
+                    </div>
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-danger me-auto" id="deleteStockItemBtn">Elimina</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button>
+                    <button type="submit" class="btn btn-primary-custom">Salva Modifiche</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modale di conferma eliminazione -->
+<div class="modal fade" id="confirmDeleteModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-dark-card text-white">
+            <div class="modal-header border-danger bg-danger"><h5 class="modal-title">Conferma Eliminazione</h5></div>
+            <div class="modal-body">
+                <p>Sei sicuro di voler eliminare l'oggetto <strong id="itemNameToDelete"></strong>?</p>
+                <p class="text-danger small">Questa azione è permanente e non può essere annullata.</p>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteBtn">Sì, Elimina</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{% static 'js/inventory.js' %}" defer></script>
+{% endblock %}

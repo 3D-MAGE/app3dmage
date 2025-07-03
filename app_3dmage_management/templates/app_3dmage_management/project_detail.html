@@ -1,0 +1,165 @@
+{% extends "app_3dmage_management/base.html" %}
+{% load static %}
+{% block title %}Dettaglio {{ project.name }} - 3DMAGE MANAGEMENT{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <a href="{% if referer == 'table' %}{% url 'project_dashboard' %}{% elif referer == 'queue' %}{% url 'print_queue_board' %}{% else %}{% url 'project_kanban_board' %}{% endif %}" class="btn btn-outline-secondary"><i class="bi bi-arrow-left me-2"></i>Indietro</a>
+    <div>
+        {% if project.status == 'DONE' %}
+            <form action="{% url 'reprint_project' project.id %}" method="post" class="d-inline">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-primary-custom"><i class="bi bi-printer-fill me-2"></i>Ristampa Progetto</button>
+            </form>
+        {% else %}
+            {% if can_be_completed %}
+                <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#completeProjectModal"><i class="bi bi-check-circle-fill me-2"></i>Completa</button>
+            {% else %}
+                <span class="d-inline-block" data-bs-toggle="tooltip" title="Tutti i file devono essere 'Stampato' o 'Fallito' per completare."><button class="btn btn-success" type="button" disabled style="pointer-events: none;"><i class="bi bi-check-circle-fill me-2"></i>Completa</button></span>
+            {% endif %}
+            <button class="btn btn-primary-custom" data-bs-toggle="modal" data-bs-target="#editProjectModal"><i class="bi bi-pencil-fill me-2"></i>Modifica</button>
+            <button class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#deleteProjectModal"><i class="bi bi-trash-fill me-2"></i>Elimina</button>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Info Progetto -->
+<div class="card bg-dark-card text-white mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <div><i class="bi bi-folder-fill me-2"></i><h5 class="mb-0 d-inline-block">Info Progetto - {{ project.name }} (ID #{{ project.id }})</h5></div>
+    </div>
+    <div class="card-body">
+        <div class="row">
+          <div class="col-md-4">
+              <p class="mb-2 d-flex align-items-center"><strong class="text-muted me-2">Status:</strong>
+                  {% if project.status == 'DONE' %}
+                      <span class="badge bg-status-done">{{ project.get_status_display }}</span>
+                  {% else %}
+                      <select class="form-select-inline" data-field="status" data-project-id="{{ project.id }}">
+                          {% for value, display in project.Status.choices %}{% if value != 'DONE' %}<option value="{{ value }}" {% if project.status == value %}selected{% endif %}>{{ display }}</option>{% endif %}{% endfor %}
+                      </select>
+                  {% endif %}
+              </p>
+              <p class="mb-1 d-flex align-items-center"><strong class="text-muted me-2">Priorità:</strong>
+                  {% if project.status == 'DONE' %}
+                       <span class="badge bg-priority-{{ project.priority|lower }}">{{ project.get_priority_display }}</span>
+                  {% else %}
+                      <select class="form-select-inline" data-field="priority" data-project-id="{{ project.id }}">
+                          {% for value, display in project.Priority.choices %}<option value="{{ value }}" {% if project.priority == value %}selected{% endif %}>{{ display }}</option>{% endfor %}
+                      </select>
+                  {% endif %}
+              </p>
+          </div>
+            <div class="col-md-4">
+                <p class="mb-2"><strong class="text-muted">Categoria:</strong> {{ project.category.name|default:"N/D" }}</p>
+                <!-- NUOVO BLOCCO QUANTITÀ -->
+                <p class="mb-1">
+                    <strong class="text-muted">Quantità:</strong>
+                    <span class="badge bg-secondary" data-bs-toggle="tooltip" title="Totale ordine">{{ project.quantity }}</span> /
+                    <span class="badge bg-success" data-bs-toggle="tooltip" title="Prodotti">{{ project.total_objects_printed }}</span> /
+                    <span class="badge {% if project.remaining_objects > 0 %}bg-warning text-dark{% else %}bg-secondary{% endif %}" data-bs-toggle="tooltip" title="Rimanenti">{{ project.remaining_objects }}</span>
+                </p>
+            </div>
+            <div class="col-md-4"><p class="mb-2"><strong class="text-muted">Tempo Totale:</strong> {{ project.total_print_time }}</p><p class="mb-1"><strong class="text-muted">Tempo Rimanente:</strong> {{ project.remaining_print_time }}</p></div>
+        </div>
+        <hr class="border-secondary my-3">
+        <div class="row"><div class="col-12" style="position: relative;"><p class="mb-1 text-center"><strong class="text-muted">Progresso:</strong> {{ project.progress }}</p><div class="progress" style="height: 10px; background-color: #444;"><div class="progress-bar" role="progressbar" style="width: {{ project.progress_percentage }}%; background-color: #ffa500;"></div></div></div></div>
+        <div class="row mt-3"><div class="col-12"><p class="mb-1"><strong class="text-muted">Annotazioni:</strong></p><div class="notes-text-display">{{ project.notes|default:"Nessuna annotazione." }}</div></div></div>
+    </div>
+</div>
+
+<!-- Tabella File di Stampa Associati -->
+<div class="card bg-dark-card text-white mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <div><i class="bi bi-file-earmark-code-fill me-2"></i><h5 class="mb-0 d-inline-block">File di Stampa Associati</h5></div>
+        {% if project.status != 'DONE' %}
+        <button class="btn btn-sm btn-primary-custom" data-bs-toggle="modal" data-bs-target="#printFileModal" data-action="add"><i class="bi bi-plus-lg me-1"></i> Aggiungi File</button>
+        {% endif %}
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-dark {% if project.status != 'DONE' %}table-hover{% endif %}">
+                <thead><tr><th>Nome</th><th>Stampante</th><th>Piatto</th><th>Filamenti Usati</th><th>Grammi Totali</th><th>Costo Filamenti</th><th>Tempo</th><th>Stato</th></tr></thead>
+                <tbody>
+                {% for file in project.print_files.all %}
+                    {% if project.status == 'DONE' %}
+                    <tr>
+                    {% else %}
+                    <tr class="clickable-row" data-bs-toggle="modal" data-bs-target="#printFileModal" data-action="edit" data-file-id="{{ file.id }}">
+                    {% endif %}
+                        <td>{{ file.name }}</td><td>{{ file.printer.name|default:"-" }}</td><td>{{ file.plate.name|default:"-" }}</td>
+                        <td>{% for usage in file.filament_usages.all %}<span class="filament-pill" style="background-color: {{ usage.spool.filament.color_hex }};">{{ usage.spool.filament }}</span>&nbsp;{% endfor %}</td>
+                        <td>{{ file.total_grams_used|floatformat:2 }}g</td>
+                        <td class="text-warning fw-bold">{{ file.material_cost|floatformat:2 }}€</td>
+                        <td>{{ file.print_time_formatted }}</td><td><span class="badge bg-print-status-{{ file.status|lower }}">{{ file.get_status_display }}</span></td>
+                    </tr>
+                {% empty %}
+                <tr><td colspan="8" class="text-center py-4"><p class="text-muted">Nessun file di stampa per questo progetto.</p></td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Tutti i Modal -->
+{% include 'app_3dmage_management/partials/add_edit_print_file_modal.html' %}
+{% include 'app_3dmage_management/partials/add_project_modal.html' %}
+<div class="modal fade" id="completeProjectModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content bg-dark-card text-white"><div class="modal-header border-secondary"><h5 class="modal-title" id="completeProjectModalLabel">Conferma Completamento</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><form action="{% url 'complete_project' project.id %}" method="post">{% csrf_token %}<div class="modal-body"><p>Stai per segnare il progetto <strong>"{{ project.name }}"</strong> come completato.</p><hr class="border-secondary"><div class="mb-3">{{ completion_form.stock_item_name.label_tag }}{{ completion_form.stock_item_name }}</div><div class="mb-3">{{ completion_form.stock_item_quantity.label_tag }}{{ completion_form.stock_item_quantity }}</div></div><div class="modal-footer border-secondary"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button><button type="submit" class="btn btn-success">Conferma e Completa</button></div></form></div></div></div>
+<div class="modal fade" id="editProjectModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content bg-dark-card text-white"><div class="modal-header border-secondary"><h5 class="modal-title">Modifica Progetto</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><form id="editProjectForm" action="{% url 'edit_project' project.id %}" method="post">{% csrf_token %}<div class="modal-body">{{ edit_project_form.as_p }}</div><div class="modal-footer border-secondary"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button><button type="submit" class="btn btn-primary-custom">Salva Modifiche</button></div></form></div></div></div>
+<div class="modal fade" id="deleteProjectModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content bg-dark-card text-white"><div class="modal-header border-danger bg-danger"><h5 class="modal-title">Conferma Eliminazione</h5></div><div class="modal-body"><p>Sei sicuro di voler eliminare il progetto <strong>"{{ project.name }}"</strong>?</p><p class="text-danger small">Questa azione è permanente e non può essere annullata.</p></div><div class="modal-footer border-secondary"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button><form id="deleteProjectForm" action="{% url 'delete_project' project.id %}" method="post">{% csrf_token %}<button type="submit" class="btn btn-danger">Sì, Elimina</button></form></div></div></div></div>
+
+<!-- MODALE PER CREAZIONE AUTOMATICA FILE -->
+<div class="modal fade" id="autoCreateFilesModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-dark-card text-white">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title">Creazione Automatica File</h5>
+            </div>
+            <div class="modal-body">
+                <p id="auto-create-message"></p>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" id="cancel-auto-create-btn" data-bs-dismiss="modal">No, grazie</button>
+                <button type="button" class="btn btn-primary-custom" id="confirm-auto-create-btn">Sì, crea copie</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="requeuePrintModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-dark-card text-white">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title">Stampa Fallita</h5>
+            </div>
+            <div class="modal-body">
+                <p>La stampa è stata segnata come 'Fallita'.</p>
+                <p class="mb-0">Vuoi rimettere in coda una nuova copia di questo file per ritentare la stampa?</p>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="requeue-no-btn">No, grazie</button>
+                <button type="button" class="btn btn-primary-custom" id="confirm-requeue-btn">Sì, rimetti in coda</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+
+{% block scripts %}
+<script id="project-detail-urls"
+    data-api-filaments-url="{% url 'api_get_all_filaments' %}"
+    data-ajax-plates-url="{% url 'ajax_load_plates' %}"
+    data-add-file-url="{% url 'add_print_file' %}"
+    data-clone-file-url="{% url 'clone_print_file' %}"
+    data-file-url-base="/printfile/"
+    data-project-id="{{ project.id }}"
+    data-project-url-base="/project/"
+    data-api-spools-url-base="{% url 'api_get_filament_spools' 0 %}"
+    data-referer="{{ referer }}"
+    defer>
+</script>
+
+<script src="{% static 'js/project_detail.js' %}" defer></script>
+{% endblock %}

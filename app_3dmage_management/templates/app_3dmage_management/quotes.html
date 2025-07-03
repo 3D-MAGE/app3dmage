@@ -1,0 +1,270 @@
+{% extends "app_3dmage_management/base.html" %}
+{% block title %}Preventivi - 3DMAGE MANAGEMENT{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="text-white">Calcolatore Preventivi</h2>
+</div>
+<div class="row g-5">
+    <!-- Colonna Input -->
+    <div class="col-lg-7">
+        <div class="card bg-dark-card p-4">
+            <div class="mb-3">
+                <label for="quoteName" class="form-label">Nome Preventivo</label>
+                <input type="text" class="form-control" id="quoteName" placeholder="Es. Set Scacchi Completo">
+            </div>
+            <div class="row g-3 mb-3">
+                <div class="col"><label class="form-label">Ore di Stampa</label><input type="number" class="form-control" id="printHours" value="0" min="0"></div>
+                <div class="col"><label class="form-label">Minuti di Stampa</label><input type="number" class="form-control" id="printMinutes" value="0" min="0" max="59"></div>
+            </div>
+            <hr class="border-secondary">
+            <h6 class="mb-3">Materiali Usati</h6>
+            <div id="materials-container"></div>
+            <button type="button" class="btn btn-sm btn-outline-light mt-2" id="add-material-btn"><i class="bi bi-plus-circle"></i> Aggiungi Materiale</button>
+        </div>
+    </div>
+    <!-- Colonna Risultati -->
+    <div class="col-lg-5">
+        <div class="card bg-dark-card p-4 sticky-top" style="top: 100px;">
+            <h4 class="text-primary-custom mb-3" id="result-title">Riepilogo Costi</h4>
+            <div id="cost-breakdown"><p class="text-muted">Inserisci i dati per calcolare il preventivo.</p></div>
+            <hr class="border-secondary">
+            <div class="d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">COSTO TOTALE</h5>
+                <h4 class="fw-bold mb-0" id="total-cost">0.00€</h4>
+            </div>
+            <div class="d-grid mt-4">
+                <button class="btn btn-primary-custom" id="save-quote-btn"><i class="bi bi-save-fill me-2"></i>Salva Preventivo</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tabella Preventivi Salvati -->
+<h3 class="text-white mt-5 mb-3">Preventivi Salvati</h3>
+<div class="card bg-dark-card">
+    <div class="table-responsive">
+        <table class="table table-dark table-hover align-middle">
+            <thead>
+                <tr>
+                    <th>Nome</th>
+                    <th>Data</th>
+                    <th class="text-end">Costo Totale</th>
+                    <th class="text-end">Azioni</th>
+                </tr>
+            </thead>
+            <tbody id="saved-quotes-table">
+                {% for quote in saved_quotes %}
+                <tr class="clickable-row saved-quote-row" data-quote-id="{{ quote.id }}" style="cursor: pointer;">
+                    <td class="fw-bold">{{ quote.name }}</td>
+                    <td>{{ quote.created_at|date:"d/m/Y H:i" }}</td>
+                    <td class="text-end text-primary-custom fw-bold">{{ quote.total_cost|floatformat:2 }}€</td>
+                    <td class="text-end">
+                        <button class="btn btn-sm btn-outline-danger delete-quote-btn" data-id="{{ quote.id }}" title="Elimina Preventivo"><i class="bi bi-trash"></i></button>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="4" class="text-center text-muted py-4">Nessun preventivo salvato.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<template id="material-row-template">
+    <div class="row g-2 mb-2 align-items-center material-row">
+        <div class="col-7"><select class="form-select filament-select"></select></div>
+        <div class="col-3"><input type="number" class="form-control grams-input" placeholder="grammi" min="0"></div>
+        <div class="col-2"><button type="button" class="btn btn-sm btn-outline-danger w-100 remove-row-btn" title="Rimuovi riga"><i class="bi bi-trash"></i></button></div>
+    </div>
+</template>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    let costs = { electricity_cost_kwh: 0.25, filaments: [] };
+    const AVG_PRINTER_WATTAGE = 150;
+    const csrftoken = getCookie('csrftoken');
+
+    const materialsContainer = document.getElementById('materials-container');
+    const addMaterialBtn = document.getElementById('add-material-btn');
+    const rowTemplate = document.getElementById('material-row-template');
+    const quoteNameInput = document.getElementById('quoteName');
+    const printHoursInput = document.getElementById('printHours');
+    const printMinutesInput = document.getElementById('printMinutes');
+    const resultTitle = document.getElementById('result-title');
+    const costBreakdown = document.getElementById('cost-breakdown');
+    const totalCostEl = document.getElementById('total-cost');
+    const saveQuoteBtn = document.getElementById('save-quote-btn');
+    const savedQuotesTable = document.getElementById('saved-quotes-table');
+
+    function calculateAndDisplay() {
+        const hours = parseFloat(printHoursInput.value) || 0;
+        const minutes = parseFloat(printMinutesInput.value) || 0;
+        const totalHours = hours + (minutes / 60);
+
+        const electricityKwh = totalHours * (AVG_PRINTER_WATTAGE / 1000);
+        const electricityCost = electricityKwh * costs.electricity_cost_kwh;
+
+        let totalMaterialCost = 0;
+        let breakdownHtml = `<p class="d-flex justify-content-between mb-1"><span>Costo Elettricità <small class="text-muted">(${electricityKwh.toFixed(2)} kWh)</small></span> <span>${electricityCost.toFixed(2)}€</span></p>`;
+
+        materialsContainer.querySelectorAll('.material-row').forEach(row => {
+            const filamentId = row.querySelector('.filament-select').value;
+            const grams = parseFloat(row.querySelector('.grams-input').value) || 0;
+            if (filamentId && grams > 0) {
+                const filament = costs.filaments.find(f => f.id == filamentId);
+                if (filament) {
+                    const materialCost = grams * filament.cost_per_gram;
+                    totalMaterialCost += materialCost;
+                    breakdownHtml += `<p class="d-flex justify-content-between mb-1"><span>${filament.name} <small class="text-muted">(${grams}g)</small></span> <span>${materialCost.toFixed(2)}€</span></p>`;
+                }
+            }
+        });
+
+        const totalCost = electricityCost + totalMaterialCost;
+        costBreakdown.innerHTML = breakdownHtml || '<p class="text-muted">Nessun costo da mostrare.</p>';
+        totalCostEl.textContent = `${totalCost.toFixed(2)}€`;
+        const name = quoteNameInput.value.trim();
+        resultTitle.textContent = name ? `Riepilogo Costi: ${name}` : 'Riepilogo Costi';
+    }
+
+    function addMaterialRow(usage = {}) {
+        const newRow = rowTemplate.content.cloneNode(true).firstElementChild;
+        const filamentSelect = newRow.querySelector('.filament-select');
+        const gramsInput = newRow.querySelector('.grams-input');
+
+        filamentSelect.innerHTML = '<option value="">Seleziona Materiale...</option>';
+        costs.filaments.forEach(f => {
+            if(f.cost_per_gram > 0) {
+                const option = new Option(`${f.name} (~${f.cost_per_gram.toFixed(3)}€/g)`, f.id);
+                filamentSelect.appendChild(option);
+            }
+        });
+        if (usage.filament_id) {
+            filamentSelect.value = usage.filament_id;
+        }
+        if (usage.grams) {
+            gramsInput.value = usage.grams;
+        }
+
+        filamentSelect.addEventListener('change', calculateAndDisplay);
+        gramsInput.addEventListener('input', calculateAndDisplay);
+        newRow.querySelector('.remove-row-btn').addEventListener('click', () => {
+            newRow.remove();
+            calculateAndDisplay();
+        });
+        materialsContainer.appendChild(newRow);
+    }
+
+    function initializeApp() {
+        addMaterialRow();
+        calculateAndDisplay();
+
+        addMaterialBtn.addEventListener('click', addMaterialRow);
+        quoteNameInput.addEventListener('input', calculateAndDisplay);
+        printHoursInput.addEventListener('input', calculateAndDisplay);
+        printMinutesInput.addEventListener('input', calculateAndDisplay);
+
+        saveQuoteBtn.addEventListener('click', function() {
+            const quoteName = quoteNameInput.value.trim();
+            if (!quoteName) {
+                showToast('Inserisci un nome per il preventivo.', 'error');
+                return;
+            }
+
+            const details = {
+                name: quoteName,
+                hours: printHoursInput.value,
+                minutes: printMinutesInput.value,
+                materials: []
+            };
+            materialsContainer.querySelectorAll('.material-row').forEach(row => {
+                details.materials.push({
+                    filament_id: row.querySelector('.filament-select').value,
+                    grams: row.querySelector('.grams-input').value,
+                });
+            });
+
+            const dataToSave = {
+                name: quoteName,
+                total_cost: parseFloat(totalCostEl.textContent.replace('€', '')),
+                details: details
+            };
+
+            fetch("{% url 'save_quote' %}", {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrftoken},
+                body: JSON.stringify(dataToSave)
+            }).then(res => {
+                if (res.ok) {
+                    showToast('Preventivo salvato!');
+                    setTimeout(() => window.location.reload(), 1000);
+                } else { showToast('Errore nel salvataggio.', 'error'); }
+            });
+        });
+
+        savedQuotesTable.addEventListener('click', function(e) {
+            const target = e.target;
+            const row = target.closest('tr.saved-quote-row');
+            if (!row) return;
+
+            if (target.closest('.delete-quote-btn')) {
+                e.stopPropagation();
+                if (confirm('Sei sicuro di voler eliminare questo preventivo?')) {
+                    const quoteId = target.closest('.delete-quote-btn').dataset.id;
+                    fetch(`/quotes/${quoteId}/delete/`, { method: 'POST', headers: {'X-CSRFToken': csrftoken} })
+                    .then(res => {
+                        if (res.ok) {
+                            row.remove();
+                            showToast('Preventivo eliminato.');
+                            if (savedQuotesTable.getElementsByTagName('tr').length === 0) {
+                                savedQuotesTable.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-4">Nessun preventivo salvato.</td></tr>';
+                            }
+                        } else {
+                            showToast('Errore durante l\'eliminazione.', 'error');
+                        }
+                    });
+                }
+            } else {
+                const quoteId = row.dataset.quoteId;
+                fetch(`/quotes/${quoteId}/details/`)
+                .then(res => res.json())
+                .then(data => {
+                    const details = data.details;
+                    quoteNameInput.value = details.name;
+                    printHoursInput.value = details.hours;
+                    printMinutesInput.value = details.minutes;
+
+                    materialsContainer.innerHTML = '';
+                    if(details.materials && details.materials.length > 0) {
+                        details.materials.forEach(mat => addMaterialRow(mat));
+                    } else {
+                        addMaterialRow();
+                    }
+
+                    setTimeout(() => {
+                        calculateAndDisplay();
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }, 50);
+
+                }).catch(err => {
+                    console.error("Failed to load quote details:", err);
+                    showToast("Impossibile caricare i dati del preventivo.", "error");
+                });
+            }
+        });
+    }
+
+    // Inizializzazione: prima scarica i dati, poi avvia l'app
+    fetch("{% url 'api_get_costs' %}").then(res => res.json()).then(data => {
+        costs = data;
+        initializeApp();
+    }).catch(err => {
+        console.error("Could not load cost data:", err);
+        costBreakdown.innerHTML = `<p class="text-danger">Errore nel caricamento dei dati iniziali.</p>`;
+    });
+});
+</script>
+{% endblock %}

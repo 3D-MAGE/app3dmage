@@ -1,0 +1,311 @@
+{% extends "app_3dmage_management/base.html" %}
+{% block title %}Impostazioni - 3DMAGE MANAGEMENT{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="text-white">Impostazioni</h2>
+</div>
+
+<div class="row g-5">
+    <!-- Menu di Navigazione Verticale -->
+    <div class="col-md-3">
+        <div class="nav flex-column nav-pills settings-nav" id="v-pills-tab" role="tablist" aria-orientation="vertical">
+            <button class="nav-link active text-start" id="v-pills-printers-tab" data-bs-toggle="pill" data-bs-target="#v-pills-printers" type="button" role="tab" aria-controls="v-pills-printers" aria-selected="true"><i class="bi bi-printer-fill me-2"></i>Stampanti e Piatti</button>
+            <button class="nav-link text-start" id="v-pills-maintenance-tab" data-bs-toggle="pill" data-bs-target="#v-pills-maintenance" type="button" role="tab"><i class="bi bi-wrench-adjustable-circle-fill me-2"></i>Manutenzioni</button>
+            <button class="nav-link text-start" id="v-pills-categories-tab" data-bs-toggle="pill" data-bs-target="#v-pills-categories" type="button" role="tab" aria-controls="v-pills-categories" aria-selected="false"><i class="bi bi-tags-fill me-2"></i>Categorie Progetti</button>
+            <button class="nav-link text-start" id="v-pills-payment-methods-tab" data-bs-toggle="pill" data-bs-target="#v-pills-payment-methods" type="button" role="tab" aria-controls="v-pills-payment-methods" aria-selected="false"><i class="bi bi-wallet2 me-2"></i>Metodi di Pagamento</button>
+            <button class="nav-link text-start" id="v-pills-expense-categories-tab" data-bs-toggle="pill" data-bs-target="#v-pills-expense-categories" type="button" role="tab" aria-controls="v-pills-expense-categories" aria-selected="false"><i class="bi bi-cash-stack me-2"></i>Categorie Spesa</button>
+            <button class="nav-link text-start" id="v-pills-general-tab" data-bs-toggle="pill" data-bs-target="#v-pills-general" type="button" role="tab"><i class="bi bi-sliders me-2"></i>Generali</button>
+        </div>
+    </div>
+
+    <!-- Contenuto delle Schede -->
+    <div class="col-md-9">
+        <div class="tab-content" id="v-pills-tabContent">
+            <!-- Scheda Stampanti e Piatti -->
+            <div class="tab-pane fade show active p-4 bg-dark-card rounded-3" id="v-pills-printers" role="tabpanel">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h4 class="text-white mb-0">Gestione Stampanti e Piatti</h4>
+                    <button class="btn btn-primary-custom" data-bs-toggle="modal" data-bs-target="#addPrinterModal"><i class="bi bi-plus-circle me-1"></i> Aggiungi Stampante</button>
+                </div>
+                <div class="accordion accordion-flush" id="printersAccordion">
+                    {% for printer in printers %}
+                    <div class="accordion-item bg-dark-card text-white">
+                        <h2 class="accordion-header d-flex align-items-center" id="heading-{{ printer.id }}">
+                            <button class="accordion-button bg-transparent text-white collapsed shadow-none py-3" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-{{ printer.id }}">
+                                <i class="bi bi-printer-fill me-3 fs-5 text-primary-custom"></i>
+                                <span class="fw-bold me-auto">{{ printer.name }} <small class="text-muted">({{ printer.model }})</small></span>
+                                <span class="badge rounded-pill bg-secondary me-2">{{ printer.plate_count }} Piatti</span>
+                            </button>
+                            <div class="ms-2 item-actions">
+                                <button class="btn btn-sm btn-outline-light edit-btn" data-type="printer" data-id="{{ printer.id }}" data-bs-toggle="modal" data-bs-target="#editModal" title="Modifica Stampante"><i class="bi bi-pencil-fill"></i></button>
+                                <button class="btn btn-sm btn-outline-danger delete-btn" data-type="printer" data-id="{{ printer.id }}" title="Elimina Stampante"><i class="bi bi-trash-fill"></i></button>
+                            </div>
+                        </h2>
+                        <div id="collapse-{{ printer.id }}" class="accordion-collapse collapse" data-bs-parent="#printersAccordion">
+                            <div class="accordion-body border-top border-secondary">
+                                {% if printer.plates.all %}
+                                <ul class="list-group list-group-flush settings-list-group">
+                                    {% for plate in printer.plates.all %}
+                                    <li class="list-group-item bg-transparent d-flex justify-content-between align-items-center ps-0">
+                                        - {{ plate.name }}
+                                        <div class="item-actions">
+                                            <button class="btn btn-sm btn-outline-light edit-btn" data-type="plate" data-id="{{ plate.id }}" data-bs-toggle="modal" data-bs-target="#editModal" title="Modifica Piatto"><i class="bi bi-pencil-fill"></i></button>
+                                            <button class="btn btn-sm btn-outline-danger delete-btn" data-type="plate" data-id="{{ plate.id }}" title="Elimina Piatto"><i class="bi bi-trash-fill"></i></button>
+                                        </div>
+                                    </li>
+                                    {% endfor %}
+                                </ul>
+                                {% else %}<p class="text-muted small mb-0">Nessun piatto associato.</p>{% endif %}
+                                <button class="btn btn-sm btn-outline-success mt-3 add-plate-btn" data-printer-id="{{ printer.id }}" data-bs-toggle="modal" data-bs-target="#addPlateModal"><i class="bi bi-plus-lg"></i> Aggiungi Piatto</button>
+                            </div>
+                        </div>
+                    </div>
+                    {% empty %}<div class="text-center text-muted p-5">Nessuna stampante configurata.</div>{% endfor %}
+                </div>
+            </div>
+
+            <!-- Scheda Manutenzioni -->
+            <div class="tab-pane fade p-4 bg-dark-card rounded-3" id="v-pills-maintenance" role="tabpanel">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h4 class="text-white mb-0">Registro Manutenzioni</h4>
+                    <button class="btn btn-primary-custom" data-bs-toggle="modal" data-bs-target="#addMaintenanceModal"><i class="bi bi-plus-circle me-1"></i> Aggiungi Log</button>
+                </div>
+                <div class="accordion accordion-flush" id="maintenanceAccordion">
+                    {% for printer in printers %}
+                    <div class="accordion-item bg-dark-card text-white">
+                        <h2 class="accordion-header"><button class="accordion-button bg-transparent text-white collapsed shadow-none py-3" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-maintenance-{{ printer.id }}">
+                            <i class="bi bi-printer me-3 fs-5"></i>
+                            <span class="fw-bold me-auto">{{ printer.name }}</span>
+                            <span class="badge rounded-pill bg-secondary">{{ printer.maintenance_count }} Interventi</span>
+                        </button></h2>
+                        <div id="collapse-maintenance-{{ printer.id }}" class="accordion-collapse collapse" data-bs-parent="#maintenanceAccordion">
+                            <div class="accordion-body border-top border-secondary">
+                                <ul class="list-group list-group-flush">
+                                    {% for log in printer.maintenance_logs.all %}
+                                        <li class="list-group-item bg-transparent ps-0">
+                                            <p class="mb-1"><strong>{{ log.log_date|date:"d/m/Y" }}:</strong> {{ log.description }}</p>
+                                            {% if log.notes %}<p class="mb-1 small ps-2">- {{ log.notes }}</p>{% endif %}
+                                            {% if log.cost > 0 %}<p class="mb-0 small text-danger ps-2">Costo: {{ log.cost }}€</p>{% endif %}
+                                        </li>
+                                    {% empty %}
+                                        <li class="list-group-item bg-transparent ps-0">Nessun log di manutenzione per questa stampante.</li>
+                                    {% endfor %}
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Scheda Categorie Progetti -->
+            <div class="tab-pane fade p-4 bg-dark-card rounded-3" id="v-pills-categories" role="tabpanel">
+                <div class="d-flex justify-content-between align-items-center mb-3"><h4 class="text-white mb-0">Gestione Categorie Progetti</h4><button class="btn btn-primary-custom" data-bs-toggle="modal" data-bs-target="#addCategoryModal"><i class="bi bi-plus-circle me-1"></i> Aggiungi</button></div>
+                <ul class="list-group list-group-flush settings-list-group">
+                    {% for category in categories %}<li class="list-group-item bg-transparent text-white d-flex justify-content-between align-items-center"><span><i class="bi bi-tag-fill me-2 text-primary-custom"></i>{{ category.name }}</span><div class="item-actions"><span class="badge bg-secondary rounded-pill me-2">{{ category.project_count }}</span><button class="btn btn-sm btn-outline-light edit-btn" data-type="category" data-id="{{ category.id }}" data-bs-toggle="modal" data-bs-target="#editModal"><i class="bi bi-pencil-fill"></i></button><button class="btn btn-sm btn-outline-danger delete-btn" data-type="category" data-id="{{ category.id }}"><i class="bi bi-trash-fill"></i></button></div></li>{% empty %}<li class="list-group-item bg-transparent text-center text-muted p-4">Nessuna categoria.</li>{% endfor %}
+                </ul>
+            </div>
+
+            <!-- Scheda Metodi di Pagamento -->
+            <div class="tab-pane fade p-4 bg-dark-card rounded-3" id="v-pills-payment-methods" role="tabpanel">
+                <div class="d-flex justify-content-between align-items-center mb-3"><h4 class="text-white mb-0">Gestione Metodi di Pagamento</h4><button class="btn btn-primary-custom" data-bs-toggle="modal" data-bs-target="#addPaymentMethodModal"><i class="bi bi-plus-circle me-1"></i> Aggiungi</button></div>
+                <ul class="list-group list-group-flush settings-list-group">
+                    {% for method in payment_methods %}<li class="list-group-item bg-transparent text-white d-flex justify-content-between align-items-center"><span><i class="bi bi-wallet2 me-2 text-primary-custom"></i>{{ method.name }}</span><div class="item-actions"><span class="badge bg-secondary rounded-pill me-2">{{ method.expense_count|add:method.sale_count }}</span><button class="btn btn-sm btn-outline-light edit-btn" data-type="payment_method" data-id="{{ method.id }}" data-bs-toggle="modal" data-bs-target="#editModal"><i class="bi bi-pencil-fill"></i></button><button class="btn btn-sm btn-outline-danger delete-btn" data-type="payment_method" data-id="{{ method.id }}"><i class="bi bi-trash-fill"></i></button></div></li>{% endfor %}
+                </ul>
+            </div>
+
+            <!-- Scheda Categorie Spesa -->
+            <div class="tab-pane fade p-4 bg-dark-card rounded-3" id="v-pills-expense-categories" role="tabpanel">
+                <div class="d-flex justify-content-between align-items-center mb-3"><h4 class="text-white mb-0">Gestione Categorie Spesa</h4><button class="btn btn-primary-custom" data-bs-toggle="modal" data-bs-target="#addExpenseCategoryModal"><i class="bi bi-plus-circle me-1"></i> Aggiungi</button></div>
+                <ul class="list-group list-group-flush settings-list-group">
+                    {% for category in expense_categories %}<li class="list-group-item bg-transparent text-white d-flex justify-content-between align-items-center"><span><i class="bi bi-folder2-open me-2 text-primary-custom"></i>{{ category.name }}</span><div class="item-actions"><span class="badge bg-secondary rounded-pill me-2">{{ category.expense_count }}</span><button class="btn btn-sm btn-outline-light edit-btn" data-type="expense_category" data-id="{{ category.id }}" data-bs-toggle="modal" data-bs-target="#editModal"><i class="bi bi-pencil-fill"></i></button><button class="btn btn-sm btn-outline-danger delete-btn" data-type="expense_category" data-id="{{ category.id }}"><i class="bi bi-trash-fill"></i></button></div></li>{% endfor %}
+                </ul>
+            </div>
+            <!-- Impostazioni generali -->
+            <div class="tab-pane fade p-4 bg-dark-card rounded-3" id="v-pills-general" role="tabpanel">
+              <h4 class="text-white mb-3">Impostazioni Generali</h4>
+
+              <form action="{% url 'update_electricity_cost' %}" method="post">
+                  {% csrf_token %}
+                  <div class="row align-items-end">
+                      <div class="col-md-6">
+                          {{ electricity_form.cost.label_tag }}
+                          {{ electricity_form.cost }}
+                      </div>
+                      <div class="col-md-6">
+                          <button type="submit" class="btn btn-primary-custom">Salva Impostazioni</button>
+                      </div>
+                  </div>
+              </form>
+
+              <hr class="my-4 border-secondary">
+
+              <div>
+                  <h6 class="text-white mb-3">Tema Applicazione</h6>
+                  <div class="btn-group" role="group" id="theme-switcher">
+                      <input type="radio" class="btn-check" name="theme" id="theme-dark" value="dark" autocomplete="off">
+                      <label class="btn btn-outline-secondary" for="theme-dark"><i class="bi bi-moon-stars-fill me-2"></i>Scuro</label>
+
+                      <input type="radio" class="btn-check" name="theme" id="theme-light" value="light" autocomplete="off">
+                      <label class="btn btn-outline-secondary" for="theme-light"><i class="bi bi-sun-fill me-2"></i>Chiaro</label>
+                  </div>
+              </div>
+            </div>
+        </div>
+    </div>
+
+<!-- Modal Aggiungi Stampante -->
+<div class="modal fade" id="addPrinterModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content bg-dark-card text-white"><div class="modal-header border-secondary"><h5 class="modal-title">Aggiungi Stampante</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><form action="{% url 'add_printer' %}" method="post"><div class="modal-body">{% csrf_token %}{{ printer_form.as_p }}</div><div class="modal-footer border-secondary"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button><button type="submit" class="btn btn-primary-custom">Salva</button></div></form></div></div></div>
+
+<!-- Modal Aggiungi Piatto -->
+<div class="modal fade" id="addPlateModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content bg-dark-card text-white"><div class="modal-header border-secondary"><h5 class="modal-title">Aggiungi Piatto</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><form action="{% url 'add_plate' %}" method="post"><div class="modal-body">{% csrf_token %}{{ plate_form.as_p }}</div><div class="modal-footer border-secondary"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button><button type="submit" class="btn btn-primary-custom">Salva</button></div></form></div></div></div>
+
+<!-- Modal Aggiungi Categoria Progetto -->
+<div class="modal fade" id="addCategoryModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content bg-dark-card text-white"><div class="modal-header border-secondary"><h5 class="modal-title">Aggiungi Categoria Progetto</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><form action="{% url 'add_category' %}" method="post"><div class="modal-body">{% csrf_token %}{{ category_form.as_p }}</div><div class="modal-footer border-secondary"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button><button type="submit" class="btn btn-primary-custom">Salva</button></div></form></div></div></div>
+
+<!-- Modal Aggiungi Metodo Pagamento -->
+<div class="modal fade" id="addPaymentMethodModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content bg-dark-card text-white"><div class="modal-header border-secondary"><h5 class="modal-title">Aggiungi Metodo Pagamento</h5></div><form action="{% url 'add_payment_method' %}" method="post"><div class="modal-body">{% csrf_token %}{{ payment_method_form.as_p }}</div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button><button type="submit" class="btn btn-primary-custom">Salva</button></div></form></div></div></div>
+
+<!-- Modal Aggiungi Categoria Spesa -->
+<div class="modal fade" id="addExpenseCategoryModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content bg-dark-card text-white"><div class="modal-header border-secondary"><h5 class="modal-title">Aggiungi Categoria Spesa</h5></div><form action="{% url 'add_expense_category' %}" method="post"><div class="modal-body">{% csrf_token %}{{ expense_category_form.as_p }}</div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button><button type="submit" class="btn btn-primary-custom">Salva</button></div></form></div></div></div>
+
+<!-- Modal Modifica (Riutilizzabile) -->
+<div class="modal fade" id="editModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content bg-dark-card text-white">
+    <div class="modal-header border-secondary"><h5 class="modal-title" id="editModalLabel">Modifica</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+    <form id="editForm" method="post"><div class="modal-body" id="editModalBody"></div>
+    <div class="modal-footer border-secondary"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button><button type="submit" class="btn btn-primary-custom">Salva</button></div></form>
+</div></div></div>
+
+<!-- Modal Aggiungi Log Manutenzione -->
+<div class="modal fade" id="addMaintenanceModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content bg-dark-card text-white"><div class="modal-header border-secondary"><h5 class="modal-title">Aggiungi Log Manutenzione</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><form action="{% url 'add_maintenance_log' %}" method="post"><div class="modal-body">{% csrf_token %}{{ maintenance_form.as_p }}</div><div class="modal-footer border-secondary"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button><button type="submit" class="btn btn-primary-custom">Salva Log</button></div></form></div></div></div>
+
+{% endblock %}
+
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+    const csrftoken = getCookie('csrftoken');
+
+    // --- Logica per ricordare l'accordion aperto ---
+    const accordionTriggers = document.querySelectorAll('.add-plate-btn, .add-maintenance-log-btn, .edit-btn, .delete-btn');
+    accordionTriggers.forEach(btn => {
+        btn.addEventListener('click', function() {
+            const collapseTarget = this.closest('.accordion-item')?.querySelector('.accordion-collapse');
+            if (collapseTarget) {
+                sessionStorage.setItem('openAccordionId', collapseTarget.id);
+            }
+        });
+    });
+
+    const openAccordionId = sessionStorage.getItem('openAccordionId');
+    if (openAccordionId) {
+        const collapseElement = document.getElementById(openAccordionId);
+        if (collapseElement) {
+            new bootstrap.Collapse(collapseElement, { toggle: true });
+        }
+        sessionStorage.removeItem('openAccordionId');
+    }
+
+    // --- Logica per i modal di modifica/aggiunta ---
+    document.getElementById('addPlateModal')?.addEventListener('show.bs.modal', function(e) {
+        const button = e.relatedTarget;
+        if (button && button.dataset.printerId) {
+            this.querySelector('select[name="printer"]').value = button.dataset.printerId;
+        }
+    });
+
+    const editModal = document.getElementById('editModal');
+    if(editModal) {
+        const form = editModal.querySelector('form');
+        const title = editModal.querySelector('.modal-title');
+        const body = editModal.querySelector('.modal-body');
+
+        editModal.addEventListener('show.bs.modal', function (event) {
+            const button = event.relatedTarget;
+            const type = button.dataset.type;
+            const id = button.dataset.id;
+            form.action = `/settings/${type}/${id}/edit/`;
+            title.textContent = `Modifica ${type.replace(/_/g, ' ')}`;
+            body.innerHTML = '<p class="text-center text-muted">Caricamento...</p>';
+            fetch(`/settings/${type}/${id}/details/`)
+            .then(res => res.json())
+            .then(data => {
+                let formHtml = '';
+                if (type === 'printer') formHtml = `{{ printer_form.as_p }}`;
+                else if (type === 'plate') formHtml = `{{ plate_form.as_p }}`;
+                else if (type === 'category') formHtml = `{{ category_form.as_p }}`;
+                else if (type === 'payment_method') formHtml = `{{ payment_method_form.as_p }}`;
+                else if (type === 'expense_category') formHtml = `{{ expense_category_form.as_p }}`;
+                body.innerHTML = `{% csrf_token %}${formHtml}`;
+                for (const key in data) {
+                    const field = form.querySelector(`[name="${key}"]`);
+                    if (field) field.value = data[key];
+                }
+            });
+        });
+
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            fetch(this.action, { method: 'POST', body: new FormData(this), headers: {'X-CSRFToken': csrftoken} })
+            .then(res => res.json()).then(data => {
+                if(data.status === 'ok') { window.location.reload(); }
+                else { showToast(data.message || 'Errore durante la modifica.', 'error'); }
+            });
+        });
+    }
+
+    document.querySelectorAll('.delete-btn').forEach(button => {
+        button.addEventListener('click', function(e) {
+            e.stopPropagation();
+            if (confirm('Sei sicuro di voler eliminare questo elemento?')) {
+                const type = this.dataset.type;
+                const id = this.dataset.id;
+                fetch(`/settings/${type}/${id}/delete/`, { method: 'POST', headers: {'X-CSRFToken': csrftoken} })
+                .then(res => res.json()).then(data => {
+                    if(data.status === 'ok') { window.location.reload(); }
+                    else { showToast(data.message || 'Errore.', 'error'); }
+                });
+            }
+        });
+    });
+
+    // --- Logica per lo switcher del tema ---
+    const themeSwitcher = document.getElementById('theme-switcher');
+    if (themeSwitcher) {
+        const currentTheme = localStorage.getItem('theme') || 'dark';
+        const currentThemeRadio = document.getElementById(`theme-${currentTheme}`);
+        if (currentThemeRadio) {
+            currentThemeRadio.checked = true;
+        }
+
+        themeSwitcher.addEventListener('change', function(e) {
+            if (e.target.name === 'theme') {
+                const newTheme = e.target.value;
+                localStorage.setItem('theme', newTheme);
+                if (newTheme === 'light') {
+                    document.body.classList.add('light-theme');
+                } else {
+                    document.body.classList.remove('light-theme');
+                }
+            }
+        });
+    }
+});
+</script>
+{% endblock %}
