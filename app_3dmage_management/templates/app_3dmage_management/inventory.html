@@ -7,41 +7,36 @@
     <h2 class="text-white">Magazzino Oggetti Prodotti</h2>
     <div>
         <button class="btn btn-sm btn-primary-custom" data-bs-toggle="modal" data-bs-target="#addStockItemModal"><i class="bi bi-plus-circle me-1"></i>Aggiungi Oggetto</button>
-        <!--<a class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse" href="#inventoryFiltersCollapse" role="button" aria-expanded="false" aria-controls="inventoryFiltersCollapse">
-            <i class="bi bi-funnel-fill me-1"></i> Filtra
-        </a>-->
     </div>
 </div>
 
-<!--<div class="collapse {% if filters_applied %}show{% endif %}" id="inventoryFiltersCollapse">-->
-    <div class="card bg-dark-card mb-4">
-        <div class="card-body">
-            <form method="get" action="{% url 'inventory_dashboard' %}" class="row g-3 align-items-end">
-                <div class="col-md-6">
-                    <label for="q" class="form-label">Cerca per Nome o ID</label>
-                    <input type="text" class="form-control form-control-sm" name="q" id="q" value="{{ search_query }}">
-                </div>
-                <div class="col-md-4">
-                    <label for="status" class="form-label">Filtra per Stato</label>
-                    <select name="status" id="status" class="form-select form-select-sm">
-                        <option value="">Tutti gli Stati</option>
-                        {% for value, display in all_statuses %}
-                        {% if value != 'SOLD' %}
-                        <option value="{{ value }}" {% if value == status_filter %}selected{% endif %}>{{ display }}</option>
-                        {% endif %}
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="col-md-1 d-grid">
-                    <button type="submit" class="btn btn-sm btn-primary-custom">Filtra</button>
-                </div>
-                <div class="col-md-1 d-grid">
-                    <a href="{% url 'inventory_dashboard' %}" class="btn btn-sm btn-outline-secondary">Azzera</a>
-                </div>
-            </form>
-        </div>
+<div class="card bg-dark-card mb-4">
+    <div class="card-body">
+        <form method="get" action="{% url 'inventory_dashboard' %}" class="row g-3 align-items-end">
+            <div class="col-md-6">
+                <label for="q" class="form-label">Cerca per Nome o ID</label>
+                <input type="text" class="form-control form-control-sm" name="q" id="q" value="{{ search_query }}">
+            </div>
+            <div class="col-md-4">
+                <label for="status" class="form-label">Filtra per Stato</label>
+                <select name="status" id="status" class="form-select form-select-sm">
+                    <option value="">Tutti gli Stati</option>
+                    {% for value, display in all_statuses %}
+                    {% if value != 'SOLD' %}
+                    <option value="{{ value }}" {% if value == status_filter %}selected{% endif %}>{{ display }}</option>
+                    {% endif %}
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-1 d-grid">
+                <button type="submit" class="btn btn-sm btn-primary-custom">Filtra</button>
+            </div>
+            <div class="col-md-1 d-grid">
+                <a href="{% url 'inventory_dashboard' %}" class="btn btn-sm btn-outline-secondary">Azzera</a>
+            </div>
+        </form>
     </div>
-<!--</div>-->
+</div>
 
 <div class="card bg-dark-card">
     <div class="card-body">
@@ -53,6 +48,9 @@
                         <th class="text-center"><a href="?sort=quantity&order={% if sort_by == 'quantity' and order == 'asc' %}desc{% else %}asc{% endif %}&{{ request.GET.urlencode|cut:'sort'|cut:'order' }}">Quantità</a></th>
                         <th><a href="?sort=name&order={% if sort_by == 'name' and order == 'asc' %}desc{% else %}asc{% endif %}&{{ request.GET.urlencode|cut:'sort'|cut:'order' }}">Oggetto</a></th>
                         <th><a href="?sort=status&order={% if sort_by == 'status' and order == 'asc' %}desc{% else %}asc{% endif %}&{{ request.GET.urlencode|cut:'sort'|cut:'order' }}">Stato</a></th>
+                        <th>Annotazioni</th>
+                        <!-- NEW: Header for material cost -->
+                        <th class="text-end"><a href="?sort=material_cost&order={% if sort_by == 'material_cost' and order == 'asc' %}desc{% else %}asc{% endif %}&{{ request.GET.urlencode|cut:'sort'|cut:'order' }}">Costo Materiali</a></th>
                         <th class="text-end"><a href="?sort=suggested_price&order={% if sort_by == 'suggested_price' and order == 'asc' %}desc{% else %}asc{% endif %}&{{ request.GET.urlencode|cut:'sort'|cut:'order' }}">Prezzo Previsto</a></th>
                     </tr>
                 </thead>
@@ -63,10 +61,13 @@
                         <td class="text-center">{{ item.quantity }}</td>
                         <td><div class="fw-bold">{{ item.name }}</div><small class="text-muted">Da progetto: {{ item.project.name|default:"N/A" }}</small></td>
                         <td><span class="badge rounded-pill bg-stock-status-{{ item.status|lower }}">{{ item.get_status_display }}</span></td>
+                        <td>{{ item.project.notes|truncatechars:50|default:"-" }}</td>
+                        <!-- NEW: Cell for material cost per unit -->
+                        <td class="text-end text-warning">{{ item.material_cost_per_unit|floatformat:2 }}€</td>
                         <td class="text-end text-info">{{ item.suggested_price|floatformat:2 }}€</td>
                     </tr>
                     {% empty %}
-                    <tr><td colspan="5" class="text-center py-5"><p class="lead">Nessun oggetto trovato per i filtri selezionati.</p></td></tr>
+                    <tr><td colspan="7" class="text-center py-5"><p class="lead">Nessun oggetto trovato per i filtri selezionati.</p></td></tr>
                     {% endfor %}
                 </tbody>
             </table>
@@ -102,13 +103,25 @@
             <form id="editStockItemForm" method="post" novalidate>
                 <div class="modal-body">
                     {% csrf_token %}
-                    <p class="item-project-subtitle mb-2">Da progetto: <strong id="itemProjectName"></strong> <span id="itemProjectID" class="text-muted"></span></p>
+                    <p class="item-project-subtitle mb-2">Da progetto: <strong id="itemProjectName"></strong> <span id="itemProjectID"></span></p>
                     <hr class="border-secondary">
 
                     <div class="mb-3">{{ form.name.label_tag }}{{ form.name }}</div>
-                    <div class="mb-3">{{ form.quantity.label_tag }}{{ form.quantity }}</div>
+                    <div class="row">
+                        <div class="col-6 mb-3">{{ form.quantity.label_tag }}{{ form.quantity }}</div>
+                        <!-- NEW: Placeholder for material cost display -->
+                        <div class="col-6 mb-3">
+                            <label class="form-label">Costo Materiali (per unità)</label>
+                            <p class="form-control-plaintext text-warning fw-bold" id="itemMaterialCost">--</p>
+                        </div>
+                    </div>
                     <div class="mb-3">{{ form.suggested_price.label_tag }}{{ form.suggested_price }}</div>
                     <div class="mb-3">{{ form.status.label_tag }}{{ form.status }}</div>
+
+                    <div class="mb-3" id="project-notes-wrapper" style="display: none;">
+                        <label for="id_project_notes" class="form-label">Annotazioni Progetto</label>
+                        <textarea name="project_notes" id="id_project_notes" class="form-control" rows="3"></textarea>
+                    </div>
 
                     <div id="sale-details-section" class="d-none">
                         <hr class="border-secondary">

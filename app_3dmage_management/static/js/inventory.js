@@ -1,4 +1,5 @@
 document.addEventListener('DOMContentLoaded', function() {
+    // Funzione per ottenere il valore di un cookie, necessario per il token CSRF
     const getCookie = (name) => {
         let cookieValue = null;
         if (document.cookie && document.cookie !== '') {
@@ -15,7 +16,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     const csrftoken = getCookie('csrftoken');
-    let currentItemId = null; // Variabile accessibile a tutto lo script
+    let currentItemId = null; // Variabile per l'ID dell'oggetto corrente, accessibile globalmente
 
     // --- Gestione Modale per MODIFICARE/VENDERE un oggetto ---
     const editModalEl = document.getElementById('editStockItemModal');
@@ -28,21 +29,31 @@ document.addEventListener('DOMContentLoaded', function() {
         const salePriceInput = form.querySelector('[name="sale_price"]');
         const suggestedPriceInput = form.querySelector('[name="suggested_price"]');
         const quantityToSellInput = form.querySelector('[name="quantity_to_sell"]');
+        const paymentMethodSelect = form.querySelector('[name="payment_method"]');
+        // MODIFIED: Reference to the sale date field
+        const soldAtInput = form.querySelector('[name="sold_at"]');
 
+        // Mostra o nasconde la sezione di vendita in base allo stato
         const toggleSaleSection = () => {
             if (statusSelect.value === 'SOLD') {
                 saleDetailsSection.classList.remove('d-none');
-                if (suggestedPriceInput.value) {
+                // Imposta il prezzo di vendita uguale a quello suggerito quando la sezione appare
+                if (!salePriceInput.value) {
                     salePriceInput.value = suggestedPriceInput.value;
+                }
+                // MODIFIED: Default sale date to today if not already set
+                if (!soldAtInput.value) {
+                    soldAtInput.valueAsDate = new Date();
                 }
             } else {
                 saleDetailsSection.classList.add('d-none');
             }
         };
 
+        // Popola la modale quando viene aperta
         editModalEl.addEventListener('show.bs.modal', function(event) {
             const triggerRow = event.relatedTarget;
-            currentItemId = triggerRow.dataset.itemId; // Imposta l'ID corrente
+            currentItemId = triggerRow.dataset.itemId;
             form.action = `/ajax/stock_item/${currentItemId}/update/`;
 
             fetch(`/ajax/stock_item/${currentItemId}/details/`)
@@ -54,8 +65,23 @@ document.addEventListener('DOMContentLoaded', function() {
                     form.querySelector('[name="suggested_price"]').value = data.suggested_price;
                     form.querySelector('[name="status"]').value = data.status;
 
+                    // NEW: Populate material cost
+                    const materialCostEl = document.getElementById('itemMaterialCost');
+                    if (materialCostEl) {
+                        materialCostEl.textContent = `${parseFloat(data.material_cost_per_unit).toFixed(2)}€`;
+                    }
+
                     document.getElementById('itemProjectName').textContent = data.project_name || 'N/A';
                     document.getElementById('itemProjectID').textContent = data.project_id ? `(#${data.project_id})` : '';
+
+                    const notesWrapper = document.getElementById('project-notes-wrapper');
+                    const notesTextarea = document.getElementById('id_project_notes');
+                    if (data.project_id) {
+                        notesTextarea.value = data.project_notes || '';
+                        notesWrapper.style.display = 'block';
+                    } else {
+                        notesWrapper.style.display = 'none';
+                    }
 
                     quantityToSellInput.max = data.quantity;
                     quantityToSellInput.value = data.quantity;
@@ -64,13 +90,28 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
         });
 
+        // Aggiunge l'event listener per il cambio di stato
         statusSelect.addEventListener('change', toggleSaleSection);
 
+        // Gestisce l'invio del form di modifica/vendita
         form.addEventListener('submit', function(e) {
             e.preventDefault();
+
+            const originalPrice = salePriceInput.value;
+            const selectedOption = paymentMethodSelect.options[paymentMethodSelect.selectedIndex];
+            const isSatispayBusiness = selectedOption && selectedOption.text.toLowerCase().includes('satispay business');
+
+            if (isSatispayBusiness) {
+                const discountedPrice = parseFloat(originalPrice) * 0.98;
+                salePriceInput.value = discountedPrice.toFixed(2);
+            }
+
+            const formData = new FormData(form);
+            salePriceInput.value = originalPrice;
+
             fetch(form.action, {
                 method: 'POST',
-                body: new FormData(form),
+                body: formData,
                 headers: { 'X-CSRFToken': csrftoken }
             })
             .then(res => {
@@ -83,13 +124,13 @@ document.addEventListener('DOMContentLoaded', function() {
                     showToast(data.message, 'success');
                     setTimeout(() => window.location.reload(), 1200);
                 } else {
-                    const errorMsg = data.message || Object.values(data.errors).join(' ');
+                    const errorMsg = data.message || Object.values(JSON.parse(data.errors)).join(' ');
                     showToast(errorMsg, 'error');
                 }
             })
             .catch(error => {
                 console.error('Fetch Error:', error);
-                const errorMsg = error.message || (error.errors ? Object.values(error.errors).join(' ') : 'Si è verificato un errore di comunicazione con il server.');
+                const errorMsg = error.message || (error.errors ? Object.values(JSON.parse(error.errors)).join(' ') : 'Si è verificato un errore di comunicazione con il server.');
                 showToast(errorMsg, 'error');
             });
         });
@@ -151,13 +192,13 @@ document.addEventListener('DOMContentLoaded', function() {
                     showToast('Oggetto aggiunto manualmente con successo!', 'success');
                     setTimeout(() => window.location.reload(), 1200);
                 } else {
-                     const errorMsg = data.message || Object.values(data.errors).join(' ');
+                     const errorMsg = data.message || Object.values(JSON.parse(data.errors)).join(' ');
                      showToast(errorMsg, 'error');
                 }
             })
             .catch(error => {
                 console.error('Fetch Error:', error);
-                const errorMsg = error.message || (error.errors ? Object.values(error.errors).join(' ') : 'Si è verificato un errore di comunicazione con il server.');
+                const errorMsg = error.message || (error.errors ? Object.values(JSON.parse(error.errors)).join(' ') : 'Si è verificato un errore di comunicazione con il server.');
                 showToast(errorMsg, 'error');
             });
         });

@@ -29,55 +29,48 @@
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h4 class="text-white">Dettaglio Oggetti Venduti</h4>
-    <!--<a class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse" href="#salesFiltersCollapse" role="button" aria-expanded="false" aria-controls="salesFiltersCollapse">
-        <i class="bi bi-funnel-fill me-1"></i> Filtra Dettaglio
-    </a>-->
 </div>
 
-<!--<div class="collapse {% if filters_applied %}show{% endif %}" id="salesFiltersCollapse">-->
-    <div class="card bg-dark-card mb-4">
-        <div class="card-body">
-            <form method="get" action="{% url 'sales_dashboard' %}" class="row g-3 align-items-end">
-                <div class="col-md-3">
-                    <label for="q" class="form-label">Cerca per Nome</label>
-                    <input type="text" class="form-control form-control-sm" name="q" value="{{ search_query }}">
-                </div>
-                <div class="col-md-2">
-                    <label for="sold_to" class="form-label">Venduto a</label>
-                    <input type="text" class="form-control form-control-sm" name="sold_to" value="{{ sold_to_filter }}">
-                </div>
-                <div class="col-md-2">
-                    <label for="payment_method" class="form-label">Metodo Pagamento</label>
-                    <select class="form-select form-select-sm" name="payment_method">
-                        <option value="">Tutti</option>
-                        {% for method in all_payment_methods %}
-                            <option value="{{ method.id }}" {% if method.id|stringformat:"s" == payment_method_filter %}selected{% endif %}>{{ method.name }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="col-md-2">
-                    <label for="notes" class="form-label">Note</label>
-                     <input type="text" class="form-control form-control-sm" name="notes" value="{{ notes_filter }}">
-                </div>
-                <div class="col-md-1">
-                    <label for="year" class="form-label">Anno</label>
-                    <select class="form-select form-select-sm" name="year">
-                        <option value="">Tutti</option>
-                        {% for year in available_years %}
-                            <option value="{{ year }}" {% if year|stringformat:"s" == year_filter %}selected{% endif %}>{{ year }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="col-md-1 d-grid">
-                    <button type="submit" class="btn btn-sm btn-primary-custom">Filtra</button>
-                </div>
-                <div class="col-md-1 d-grid">
-                    <a href="{% url 'sales_dashboard' %}" class="btn btn-sm btn-outline-secondary">Azzera</a>
-                </div>
-            </form>
-        </div>
+<!-- Filtri -->
+<div class="card bg-dark-card mb-4">
+    <div class="card-body">
+        <form method="get" action="{% url 'sales_dashboard' %}" class="row g-3 align-items-end">
+            <div class="col-md-2">
+                <label for="q" class="form-label">Cerca per Nome</label>
+                <input type="text" class="form-control form-control-sm" name="q" value="{{ search_query|default:'' }}">
+            </div>
+            <div class="col-md-2">
+                <label for="sold_to" class="form-label">Venduto a</label>
+                <input type="text" class="form-control form-control-sm" name="sold_to" value="{{ sold_to_filter|default:'' }}">
+            </div>
+            <div class="col-md-2">
+                <label for="payment_method" class="form-label">Metodo Pagamento</label>
+                <select class="form-select form-select-sm" name="payment_method">
+                    <option value="">Tutti</option>
+                    <!-- NEW: Option to filter for unpaid items -->
+                    <option value="UNPAID" {% if "UNPAID" == payment_method_filter %}selected{% endif %}>DA PAGARE</option>
+                    {% for method in all_payment_methods %}
+                        <option value="{{ method.id }}" {% if method.id|stringformat:"s" == payment_method_filter %}selected{% endif %}>{{ method.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label for="start_date" class="form-label">Da Data</label>
+                <input type="date" class="form-control form-control-sm" name="start_date" value="{{ start_date|default:'' }}">
+            </div>
+            <div class="col-md-2">
+                <label for="end_date" class="form-label">A Data</label>
+                <input type="date" class="form-control form-control-sm" name="end_date" value="{{ end_date|default:'' }}">
+            </div>
+            <div class="col-md-1 d-grid">
+                <button type="submit" class="btn btn-sm btn-primary-custom">Filtra</button>
+            </div>
+            <div class="col-md-1 d-grid">
+                <a href="{% url 'sales_dashboard' %}" class="btn btn-sm btn-outline-secondary">Azzera</a>
+            </div>
+        </form>
     </div>
-<!--</div>-->
+</div>
 
 <div class="card bg-dark-card mt-3">
     <div class="card-body">
@@ -98,12 +91,20 @@
                 </thead>
                 <tbody>
                     {% for item in sold_items %}
-                    <tr style="cursor: pointer;" data-bs-toggle="modal" data-bs-target="#editSaleModal" data-item-id="{{ item.id }}">
+                    <!-- MODIFIED: Add a class if the item is unpaid -->
+                    <tr style="cursor: pointer;" class="{% if not item.payment_method %}table-danger{% endif %}" data-bs-toggle="modal" data-bs-target="#editSaleModal" data-item-id="{{ item.id }}">
                         <td>{{ item.sold_at|date:"d/m/Y" }}</td>
                         <td class="fw-bold">{{ item.name }}</td>
                         <td class="text-center">{{ item.quantity }}</td>
                         <td>{{ item.sold_to|default:"-" }}</td>
-                        <td>{{ item.payment_method.name|default:"-" }}</td>
+                        <!-- MODIFIED: Show 'DA PAGARE' if no payment method -->
+                        <td>
+                            {% if item.payment_method %}
+                                {{ item.payment_method.name }}
+                            {% else %}
+                                <strong class="text-danger">DA PAGARE</strong>
+                            {% endif %}
+                        </td>
                         <td>{{ item.notes|truncatechars:20 }}</td>
                         <td class="text-end text-success fw-bold">{{ item.total_sale_price|floatformat:2 }}€</td>
                         <td class="text-end text-warning">{{ item.material_cost|floatformat:2 }}€</td>
@@ -131,9 +132,14 @@
             <form id="editSaleForm" method="post">
                 {% csrf_token %}
                 <div class="modal-body">
-                    <p class="mb-1"><strong>ID Progetto:</strong> <span id="saleItemId"></span></p>
-                    <p class="mb-3 text-muted"><strong>ID Oggetto:</strong> <span id="saleProjectId"></span></p>
+                    <p class="mb-1"><strong>ID Oggetto:</strong> <span id="saleItemId"></span></p>
+                    <p class="mb-3"><strong>ID Progetto:</strong> <span id="saleProjectId"></span></p>
                     <hr class="border-secondary">
+                    <!-- NEW: Placeholder for material cost display -->
+                    <div class="mb-3">
+                        <label class="form-label">Costo Materiali Totale</label>
+                        <p class="form-control-plaintext text-warning fw-bold" id="saleMaterialCost">--</p>
+                    </div>
                     {{ sale_edit_form.as_p }}
                 </div>
                 <div class="modal-footer border-secondary">
@@ -151,7 +157,7 @@
         <div class="modal-content bg-dark-card text-white">
             <div class="modal-header border-danger bg-danger"><h5 class="modal-title">Conferma Storno</h5></div>
             <div class="modal-body">
-                <p>Sei sicuro di voler stornare questa vendita? L'articolo tornerà disponibile in magazzino.</p>
+                <p>Sei sicuro di voler stornare questa vendita? L'articolo tornerà disponibile in magazzino e l'eventuale importo verrà riaccreditato.</p>
             </div>
             <div class="modal-footer border-secondary">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button>

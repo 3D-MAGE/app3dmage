@@ -9,6 +9,7 @@ from django.forms.models import model_to_dict
 from django.utils import timezone
 from django.db import transaction
 from decimal import Decimal
+from django.urls import reverse
 import datetime
 import json
 
@@ -18,10 +19,11 @@ from .models import (
     StockItem, PaymentMethod, Expense, ExpenseCategory, FilamentUsage, ExpenseCategory, MaintenanceLog, GlobalSetting, Quote, Notification
 )
 
+# MODIFICATO: Sostituito ElectricityCostForm con GeneralSettingsForm
 from .forms import (
     ProjectForm, PrintFileForm, StockItemForm, CompleteProjectForm,
     PrintFileEditForm, FilamentForm, SpoolForm, ExpenseForm, TransferForm, CorrectBalanceForm,
-    PrinterForm, PlateForm, CategoryForm, PaymentMethodForm, ExpenseCategoryForm, MaintenanceLogForm, ElectricityCostForm, SaleEditForm, ManualStockItemForm
+    PrinterForm, PlateForm, CategoryForm, PaymentMethodForm, ExpenseCategoryForm, MaintenanceLogForm, GeneralSettingsForm, SaleEditForm, ManualStockItemForm, ManualIncomeForm
 )
 
 def project_dashboard(request):
@@ -45,13 +47,10 @@ def project_dashboard(request):
 
     all_projects = Project.objects.select_related('category').all()
 
-    # MIGLIORAMENTO PERFORMANCE: Definizione dell'annotazione per il costo del materiale
-    # Questo calcolo viene fatto una sola volta a livello di DB invece che per ogni progetto
     cost_annotation = Sum(
         ExpressionWrapper(
             F('print_files__filament_usages__grams_used') *
             F('print_files__filament_usages__spool__cost') /
-            # Evita la divisione per zero se il peso iniziale di una bobina è 0
             Case(
                 When(print_files__filament_usages__spool__initial_weight_g=0, then=Value(1)),
                 default=F('print_files__filament_usages__spool__initial_weight_g'),
@@ -69,7 +68,6 @@ def project_dashboard(request):
     active_projects_query = all_projects.exclude(status='DONE').annotate(
         total_print_time_seconds=Sum('print_files__print_time_seconds', default=0),
         remaining_print_time_seconds=Sum(Case(When(print_files__status='TODO', then='print_files__print_time_seconds'), default=Value(0)), output_field=IntegerField()),
-        # MIGLIORAMENTO PERFORMANCE: Applica l'annotazione del costo
         annotated_material_cost=Coalesce(cost_annotation, Decimal('0.00'), output_field=DecimalField())
     )
 
@@ -91,7 +89,6 @@ def project_dashboard(request):
     # --- Gestione Progetti Completati ---
     completed_projects_query = all_projects.filter(status='DONE').annotate(
         total_print_time_seconds=Sum('print_files__print_time_seconds', default=0),
-        # MIGLIORAMENTO PERFORMANCE: Applica l'annotazione del costo
         annotated_material_cost=Coalesce(cost_annotation, Decimal('0.00'), output_field=DecimalField())
     )
 
@@ -114,14 +111,12 @@ def project_dashboard(request):
         'edit_print_file_form': PrintFileEditForm(),
         'page_title': 'Progetti',
         'current_view': 'table',
-        # Valori e flag per i filtri attivi
         'search_query': search_query,
         'status_filter': status_filter,
         'category_filter': category_filter,
         'active_filters_applied': active_filters_applied,
         'sort_active': sort_active,
         'order_active': order_active,
-        # Valori e flag per i filtri completati
         'completed_search_query': completed_search_query,
         'completed_year_filter': completed_year_filter,
         'completed_filters_applied': completed_filters_applied,
@@ -144,14 +139,12 @@ def filament_dashboard(request):
     order = request.GET.get('order', 'asc')
     order_prefix = '-' if order == 'desc' else ''
 
-    # Subquery to get the total initial weight of all spools for a given filament.
     total_initial_weight_subquery = Spool.objects.filter(
         filament=OuterRef('pk')
     ).values('filament').annotate(
         s=Sum('initial_weight_g')
     ).values('s')
 
-    # Subquery to get the total used weight from all usages for a given filament.
     total_used_weight_subquery = FilamentUsage.objects.filter(
         spool__filament=OuterRef('pk'),
         print_file__status__in=['DONE', 'FAILED']
@@ -159,7 +152,6 @@ def filament_dashboard(request):
         s=Sum('grams_used')
     ).values('s')
 
-    # Annotate the Filament queryset with the results of the subqueries.
     filaments_query = Filament.objects.annotate(
         annotated_total_initial_weight=Coalesce(Subquery(total_initial_weight_subquery, output_field=IntegerField()), 0),
         annotated_total_used_weight=Coalesce(Subquery(total_used_weight_subquery, output_field=DecimalField()), Decimal('0.00'))
@@ -178,7 +170,6 @@ def filament_dashboard(request):
     filaments = filaments_query.order_by(*order_fields)
 
     LOW_STOCK_THRESHOLD = 150
-    # NOTA: Per le notifiche, usiamo il valore appena annotato per coerenza e performance
     for f in filaments:
         if f.annotated_remaining_weight < LOW_STOCK_THRESHOLD:
             Notification.objects.get_or_create(
@@ -207,7 +198,13 @@ def inventory_dashboard(request):
     filters_applied = bool(search_query or status_filter)
     order_prefix = '-' if order == 'desc' else ''
 
-    stock_items_query = StockItem.objects.exclude(status='SOLD').select_related('project').all()
+    stock_items_query = StockItem.objects.exclude(status='SOLD').select_related('project').annotate(
+        material_cost_per_unit=Case(
+            When(quantity__gt=0, then=F('material_cost') / F('quantity')),
+            default=Value(0),
+            output_field=DecimalField(decimal_places=2)
+        )
+    )
 
     if search_query:
         stock_items_query = stock_items_query.filter(
@@ -217,10 +214,15 @@ def inventory_dashboard(request):
     if status_filter:
         stock_items_query = stock_items_query.filter(status=status_filter)
 
-    valid_sort_fields = ['custom_id', 'quantity', 'name', 'status', 'suggested_price']
+    valid_sort_fields = ['custom_id', 'quantity', 'name', 'status', 'suggested_price', 'material_cost']
     if sort_by not in valid_sort_fields:
         sort_by = 'created_at'
-    stock_items = stock_items_query.order_by(f'{order_prefix}{sort_by}')
+
+    if sort_by == 'material_cost':
+        stock_items = stock_items_query.order_by(f'{order_prefix}material_cost_per_unit')
+    else:
+        stock_items = stock_items_query.order_by(f'{order_prefix}{sort_by}')
+
 
     context = {
         'stock_items': stock_items,
@@ -267,6 +269,8 @@ def get_stock_item_details(request, item_id):
     data = model_to_dict(item)
     data['project_name'] = item.project.name if item.project else None
     data['project_id'] = item.project.custom_id if item.project else None
+    data['project_notes'] = item.project.notes if item.project else ''
+    data['material_cost_per_unit'] = (item.material_cost / item.quantity) if item.quantity > 0 else 0
     return JsonResponse(data)
 
 
@@ -280,6 +284,12 @@ def update_stock_item(request, item_id):
 
     if not form.is_valid():
         return JsonResponse({'status': 'error', 'message': 'Dati non validi.', 'errors': form.errors.as_json()}, status=400)
+
+    if item_to_process.project:
+        project_notes = form.cleaned_data.get('project_notes')
+        if project_notes is not None:
+            item_to_process.project.notes = project_notes
+            item_to_process.project.save()
 
     new_status = form.cleaned_data.get('status')
 
@@ -334,6 +344,7 @@ def update_stock_item(request, item_id):
 
     return JsonResponse({'status': 'ok', 'message': 'Oggetto venduto con successo!'})
 
+
 @require_POST
 def delete_stock_item(request, item_id):
     item = get_object_or_404(StockItem, id=item_id)
@@ -344,15 +355,14 @@ def delete_stock_item(request, item_id):
 
 def sales_dashboard(request):
     search_query = request.GET.get('q', '')
-    year_filter = request.GET.get('year', '')
     sold_to_filter = request.GET.get('sold_to', '')
     payment_method_filter = request.GET.get('payment_method', '')
     notes_filter = request.GET.get('notes', '')
+    start_date = request.GET.get('start_date', '')
+    end_date = request.GET.get('end_date', '')
 
     sort_by = request.GET.get('sort', 'sold_at')
     order = request.GET.get('order', 'desc')
-
-    filters_applied = bool(search_query or year_filter or sold_to_filter or payment_method_filter or notes_filter)
     order_prefix = '-' if order == 'desc' else ''
 
     sold_items_query = StockItem.objects.filter(status='SOLD').annotate(
@@ -364,54 +374,58 @@ def sales_dashboard(request):
     if search_query:
         sold_items_query = sold_items_query.filter(name__icontains=search_query)
         filter_summary_parts.append(f'Nome: "{search_query}"')
-    if year_filter:
-        sold_items_query = sold_items_query.filter(sold_at__year=year_filter)
-        filter_summary_parts.append(f'Anno: {year_filter}')
     if sold_to_filter:
         sold_items_query = sold_items_query.filter(sold_to__icontains=sold_to_filter)
         filter_summary_parts.append(f'Venduto a: "{sold_to_filter}"')
     if payment_method_filter:
-        sold_items_query = sold_items_query.filter(payment_method_id=payment_method_filter)
-        try:
-            method_name = PaymentMethod.objects.get(id=payment_method_filter).name
-            filter_summary_parts.append(f'Metodo: {method_name}')
-        except PaymentMethod.DoesNotExist:
-            pass
+        if payment_method_filter == 'UNPAID':
+            sold_items_query = sold_items_query.filter(payment_method__isnull=True)
+            filter_summary_parts.append('Stato: DA PAGARE')
+        else:
+            sold_items_query = sold_items_query.filter(payment_method_id=payment_method_filter)
+            try:
+                method_name = PaymentMethod.objects.get(id=payment_method_filter).name
+                filter_summary_parts.append(f'Metodo: {method_name}')
+            except PaymentMethod.DoesNotExist:
+                pass
     if notes_filter:
         sold_items_query = sold_items_query.filter(notes__icontains=notes_filter)
         filter_summary_parts.append(f'Note: "{notes_filter}"')
+    if start_date:
+        sold_items_query = sold_items_query.filter(sold_at__gte=start_date)
+        filter_summary_parts.append(f'Da: {start_date}')
+    if end_date:
+        sold_items_query = sold_items_query.filter(sold_at__lte=end_date)
+        filter_summary_parts.append(f'A: {end_date}')
 
     filter_summary = ", ".join(filter_summary_parts)
+    filters_applied = bool(filter_summary_parts)
 
     valid_sort_fields = ['sold_at', 'name', 'total_sale_price', 'material_cost', 'profit', 'sold_to']
     if sort_by not in valid_sort_fields:
         sort_by = 'sold_at'
-
     sold_items = sold_items_query.order_by(f'{order_prefix}{sort_by}')
 
     total_sales = sold_items_query.aggregate(total=Coalesce(Sum('total_sale_price'), Decimal('0.00')))['total']
     total_profit = sold_items_query.aggregate(total=Coalesce(Sum('profit'), Decimal('0.00')))['total']
 
-    available_years = StockItem.objects.filter(sold_at__isnull=False).dates('sold_at', 'year', order='DESC')
-    all_payment_methods = PaymentMethod.objects.all()
-
     context = {
         'sold_items': sold_items,
         'page_title': 'Vendite',
-        'available_years': [d.year for d in available_years],
-        'all_payment_methods': all_payment_methods,
+        'all_payment_methods': PaymentMethod.objects.all(),
+        'sale_edit_form': SaleEditForm(),
         'search_query': search_query,
-        'year_filter': year_filter,
+        'start_date': start_date,
+        'end_date': end_date,
         'sold_to_filter': sold_to_filter,
         'payment_method_filter': payment_method_filter,
         'notes_filter': notes_filter,
-        'filters_applied': filters_applied,
-        'filter_summary': filter_summary,
-        'sale_edit_form': SaleEditForm(),
         'sort_by': sort_by,
         'order': order,
         'total_sales': total_sales,
         'total_profit': total_profit,
+        'filters_applied': filters_applied,
+        'filter_summary': filter_summary,
     }
     return render(request, 'app_3dmage_management/sales.html', context)
 
@@ -426,6 +440,7 @@ def get_sale_details(request, item_id):
         'payment_method': sale.payment_method.id if sale.payment_method else None,
         'sold_to': sale.sold_to,
         'notes': sale.notes,
+        'material_cost': sale.material_cost,
     }
     return JsonResponse(data)
 
@@ -433,21 +448,22 @@ def get_sale_details(request, item_id):
 @transaction.atomic
 def edit_sale(request, item_id):
     sale = get_object_or_404(StockItem, id=item_id, status='SOLD')
-    old_price = sale.sale_price or Decimal('0.00')
+    old_total_price = (sale.sale_price or Decimal('0.00')) * sale.quantity
     old_payment_method = sale.payment_method
 
     form = SaleEditForm(request.POST, instance=sale)
     if form.is_valid():
         if old_payment_method:
-            old_payment_method.balance -= old_price
+            old_payment_method.balance -= old_total_price
             old_payment_method.save()
 
         updated_sale = form.save()
 
         new_payment_method = updated_sale.payment_method
-        new_price = updated_sale.sale_price or Decimal('0.00')
+        new_total_price = (updated_sale.sale_price or Decimal('0.00')) * updated_sale.quantity
+
         if new_payment_method:
-            new_payment_method.balance += new_price
+            new_payment_method.balance += new_total_price
             new_payment_method.save()
 
         return JsonResponse({'status': 'ok'})
@@ -459,12 +475,14 @@ def edit_sale(request, item_id):
 def reverse_sale(request, stock_item_id):
     sale_to_reverse = get_object_or_404(StockItem, id=stock_item_id, status='SOLD')
 
-    if sale_to_reverse.payment_method and sale_to_reverse.sale_price:
-        sale_to_reverse.payment_method.balance -= sale_to_reverse.sale_price
+    total_sale_price = (sale_to_reverse.sale_price or Decimal('0.00')) * sale_to_reverse.quantity
+    if sale_to_reverse.payment_method:
+        sale_to_reverse.payment_method.balance -= total_sale_price
         sale_to_reverse.payment_method.save()
 
     existing_stock = StockItem.objects.filter(
         project=sale_to_reverse.project,
+        custom_id=sale_to_reverse.custom_id,
         status='IN_STOCK'
     ).first()
 
@@ -479,12 +497,13 @@ def reverse_sale(request, stock_item_id):
         sale_to_reverse.sold_at = None
         sale_to_reverse.payment_method = None
         sale_to_reverse.sold_to = ''
+        sale_to_reverse.notes = ''
         sale_to_reverse.save()
 
-    return JsonResponse({'status': 'ok'})
+    return redirect('inventory_dashboard')
+
 
 def print_queue_board(request):
-    # Query di base per ottenere i file attivi, pre-caricando i dati necessari in modo efficiente
     active_print_files_qs = PrintFile.objects.filter(
         status__in=['TODO', 'PRINTING']
     ).select_related(
@@ -493,7 +512,6 @@ def print_queue_board(request):
         'filament_usages__spool__filament'
     ).order_by('queue_position')
 
-    # Annotiamo il tempo totale direttamente sulla query delle stampanti
     printers_qs = Printer.objects.prefetch_related(
         Prefetch('print_files', queryset=active_print_files_qs, to_attr='queued_files')
     ).annotate(
@@ -505,15 +523,10 @@ def print_queue_board(request):
 
     printers_list = []
     for printer in printers_qs:
-        # Separiamo il file in stampa da quelli in coda
         printing_file = next((f for f in printer.queued_files if f.status == 'PRINTING'), None)
         todo_files = [f for f in printer.queued_files if f.status == 'TODO']
-
-        # Formattiamo il tempo totale
         total_seconds = printer.total_queued_seconds or 0
         printer.total_queued_time_formatted = str(datetime.timedelta(seconds=total_seconds))
-
-        # Aggiungiamo attributi personalizzati all'oggetto printer prima di passarlo al template
         printer.printing_file = printing_file
         printer.todo_files = todo_files
         printers_list.append(printer)
@@ -524,9 +537,7 @@ def print_queue_board(request):
     }
     return render(request, 'app_3dmage_management/print_queue.html', context)
 
-# --- Vista Dettaglio Progetto ---
 def project_detail(request, project_id):
-    # Query ottimizzata per pre-caricare tutto il necessario
     queryset = Project.objects.prefetch_related(
         Prefetch('print_files', queryset=PrintFile.objects.select_related('printer', 'plate')
                  .prefetch_related('filament_usages__spool__filament').order_by('created_at'))
@@ -535,7 +546,6 @@ def project_detail(request, project_id):
 
     referer = request.GET.get('from', 'kanban')
 
-    # Gestione del form per aggiungere un nuovo file di stampa
     if request.method == 'POST' and 'add_print_file_form' in request.POST:
         print_file_form = PrintFileForm(request.POST)
         if print_file_form.is_valid():
@@ -548,7 +558,6 @@ def project_detail(request, project_id):
     else:
         print_file_form = PrintFileForm(initial={'project': project})
 
-    # Prepara tutti gli altri form necessari per il contesto
     context = {
         'project': project,
         'completion_form': CompleteProjectForm(initial={'stock_item_name': project.name, 'stock_item_quantity': project.quantity}),
@@ -561,7 +570,6 @@ def project_detail(request, project_id):
     }
     return render(request, 'app_3dmage_management/project_detail.html', context)
 
-# --- Viste di Azione e AJAX ---
 @require_POST
 def add_project(request):
     form = ProjectForm(request.POST)
@@ -585,7 +593,6 @@ def complete_project(request, project_id):
     form = CompleteProjectForm(request.POST)
 
     if form.is_valid():
-        # --- LOGICA DI GENERAZIONE ID ---
         current_year = timezone.now().year
         last_item_id = Project.objects.filter(
             completed_at__year=current_year,
@@ -599,14 +606,12 @@ def complete_project(request, project_id):
             new_sequential = 1
 
         new_custom_id = f"{current_year % 100:02d}{new_sequential:03d}"
-        # --------------------------------
 
         project.status = Project.Status.DONE
         project.completed_at = timezone.now()
         project.custom_id = new_custom_id
         project.save()
 
-        # Cerca se esiste già uno StockItem per questo progetto (caso raro, ma sicuro)
         stock_item, created = StockItem.objects.get_or_create(
             project=project,
             defaults={
@@ -616,7 +621,6 @@ def complete_project(request, project_id):
                 'material_cost': project.total_material_cost
             }
         )
-        # Se non è stato creato, significa che esisteva già, quindi lo aggiorniamo
         if not created:
             stock_item.custom_id = new_custom_id
             stock_item.name = form.cleaned_data['stock_item_name']
@@ -667,11 +671,9 @@ def add_print_file(request):
                 print_file=print_file
             )
 
-            # Logica per l'automatismo
             project = print_file.project
             produced_per_print = print_file.produced_quantity
 
-            # Calcola gli oggetti totali già prodotti *prima* di questo file
             objects_already_produced = project.print_files.exclude(id=print_file.id).aggregate(total=Sum('produced_quantity'))['total'] or 0
 
             if produced_per_print > 0:
@@ -726,7 +728,6 @@ def clone_print_file(request):
                 actual_quantity=0,
                 queue_position=0
             )
-            # Copia anche gli utilizzi di filamento
             for usage in original_file.filament_usages.all():
                 FilamentUsage.objects.create(
                     print_file=new_file,
@@ -801,11 +802,9 @@ def requeue_print_file(request, file_id):
     try:
         original_file = get_object_or_404(PrintFile, id=file_id)
 
-        # NUOVA FUNZIONALITA: Leggi i dati dal corpo della richiesta JSON
         data = json.loads(request.body)
         planned_filaments = data.get('filaments', [])
 
-        # Crea una copia del file con stato 'Da Stampare'
         new_file = PrintFile.objects.create(
             project=original_file.project,
             name=f"{original_file.name.replace(' (Da ristampare)', '')} (Da ristampare)",
@@ -816,7 +815,6 @@ def requeue_print_file(request, file_id):
             queue_position=0
         )
 
-        # Se il frontend ha inviato i dati del filamento, usali.
         if planned_filaments:
             for usage_data in planned_filaments:
                 spool_id = usage_data.get('spool_id')
@@ -826,9 +824,8 @@ def requeue_print_file(request, file_id):
                     FilamentUsage.objects.create(
                         print_file=new_file,
                         spool=spool,
-                        grams_used=grams # Usa il valore originale completo
+                        grams_used=grams
                     )
-        # Altrimenti, come fallback, usa la vecchia logica (meno precisa)
         else:
             for usage in original_file.filament_usages.all():
                 FilamentUsage.objects.create(
@@ -843,9 +840,7 @@ def requeue_print_file(request, file_id):
 
 def get_print_file_details(request, file_id):
     print_file = get_object_or_404(PrintFile, id=file_id)
-    # MODIFICA: Aggiunti i campi per la quantità per popolare correttamente il modale di modifica
     data = model_to_dict(print_file, fields=['name', 'printer', 'plate', 'status', 'produced_quantity', 'actual_quantity'])
-    # Restituisci direttamente i secondi totali
     data['print_time_seconds'] = print_file.print_time_seconds
     data['filaments_used'] = list(print_file.filament_usages.select_related('spool__filament').values('spool__filament_id', 'spool_id', 'grams_used'))
     return JsonResponse(data)
@@ -903,17 +898,15 @@ def load_plates(request):
 def reprint_project(request, project_id):
     original_project = get_object_or_404(Project.objects.prefetch_related('print_files__filament_usages__spool'), id=project_id)
 
-    # Crea il nuovo progetto
     new_project = Project.objects.create(
         name=f"{original_project.name} (Ristampa)",
         category=original_project.category,
         priority=original_project.priority,
         quantity=original_project.quantity,
         notes=original_project.notes,
-        status=Project.Status.TODO # Imposta lo stato a "Da Stampare"
+        status=Project.Status.TODO
     )
 
-    # Copia tutti i file di stampa e i loro usi di filamento
     for old_file in original_project.print_files.exclude(status='FAILED'):
         new_file = PrintFile.objects.create(
             project=new_project,
@@ -923,7 +916,6 @@ def reprint_project(request, project_id):
             print_time_seconds=old_file.print_time_seconds,
             status=PrintFile.Status.TODO
         )
-        # Copia ogni record di utilizzo del filamento
         for usage in old_file.filament_usages.all():
             FilamentUsage.objects.create(
                 print_file=new_file,
@@ -942,14 +934,12 @@ def update_project_inline(request, project_id):
 
         project = get_object_or_404(Project, id=project_id)
 
-        # Convalida il campo per sicurezza (rimosso 'notes')
         if field not in ['status', 'priority']:
             return JsonResponse({'status': 'error', 'message': 'Campo non valido.'}, status=400)
 
         setattr(project, field, value)
         project.save()
 
-        # Risposta di successo generica
         return JsonResponse({'status': 'ok', 'message': f'Campo {field} aggiornato.'})
     except Exception as e:
         return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
@@ -993,8 +983,6 @@ def delete_spool(request, spool_id):
             'message': 'Impossibile eliminare: questa bobina è stata usata in una o più stampe.'
         }, status=400)
 
-    # Storna il costo della bobina dal metodo di pagamento prima di eliminarla
-    # Cerca la spesa associata all'acquisto di questa bobina
     related_expense = Expense.objects.filter(
         description=f"Acquisto bobina: {spool.filament}",
         amount=spool.cost,
@@ -1032,25 +1020,20 @@ def edit_filament(request, filament_id):
 @require_POST
 def delete_filament(request, filament_id):
     filament = get_object_or_404(Filament, id=filament_id)
-    # Controlla se ci sono bobine associate
     if filament.spools.exists():
         return JsonResponse({'status': 'error', 'message': 'Non puoi eliminare un filamento con bobine associate.'}, status=400)
     filament.delete()
     return JsonResponse({'status': 'ok'})
 
-# Nuova vista AJAX per recuperare le bobine di un filamento
 def get_spools_for_filament(request):
     filament_id = request.GET.get('filament_id')
     spools = Spool.objects.filter(filament_id=filament_id)
 
-    # Calcoliamo il peso rimanente per ogni bobina
     spools_data = []
     for spool in spools:
-        # Questa è una logica semplificata. Per performance ottimali
-        # su grandi dataset, questo calcolo andrebbe ottimizzato.
         used_on_spool = spool.usages.filter(print_file__status__in=['DONE', 'FAILED']).aggregate(total=Sum('grams_used'))['total'] or 0
         remaining = spool.initial_weight_g - used_on_spool
-        if remaining > 0: # Mostra solo le bobine con filamento rimanente
+        if remaining > 0:
             spools_data.append({
                 'id': spool.id,
                 'purchase_date': spool.purchase_date.strftime('%d/%m/%Y'),
@@ -1066,7 +1049,6 @@ def _handle_filament_data(print_file, filament_data_json, wasted_grams_str=None)
     wasted_grams = None
     if wasted_grams_str:
         try:
-            # Assicura che il valore sia un numero valido e non negativo
             val = Decimal(wasted_grams_str)
             wasted_grams = val if val >= 0 else None
         except:
@@ -1076,7 +1058,6 @@ def _handle_filament_data(print_file, filament_data_json, wasted_grams_str=None)
         total_planned_grams = sum(Decimal(usage.get('grams', 0)) for usage in filament_data if usage.get('grams'))
 
         if total_planned_grams > 0:
-            # Limita i grammi sprecati a non superare quelli pianificati
             actual_wasted_grams = min(wasted_grams, total_planned_grams)
             ratio = actual_wasted_grams / total_planned_grams
             for usage in filament_data:
@@ -1096,7 +1077,6 @@ def _handle_filament_data(print_file, filament_data_json, wasted_grams_str=None)
 
 def api_get_all_filaments(request):
     filaments = Filament.objects.all().order_by('material', 'brand', 'color_name')
-    # MODIFICA: Aggiungiamo 'color_hex' ai dati restituiti dalla API
     data = [{'id': f.id, 'name': str(f), 'color_hex': f.color_hex} for f in filaments]
     return JsonResponse(data, safe=False)
 
@@ -1105,17 +1085,12 @@ def api_get_filament_spools(request, filament_id):
     spools_data = []
 
     for spool in spools:
-        # Assicura che il valore di fallback sia un Decimale
         used_on_spool = spool.usages.filter(
             print_file__status__in=['DONE', 'FAILED']
         ).aggregate(total=Sum('grams_used'))['total'] or Decimal('0')
 
-        # --- MODIFICA CRUCIALE ---
-        # Convertiamo il peso iniziale (intero) in Decimale prima della sottrazione
-        # per evitare un TypeError che blocca l'intera richiesta.
         remaining = Decimal(spool.initial_weight_g) - used_on_spool
 
-        # Mostra solo bobine con ancora filamento
         if remaining > Decimal('0.01'):
             spools_data.append({
                 'id': spool.id,
@@ -1127,50 +1102,63 @@ def api_get_filament_spools(request, filament_id):
 
     return JsonResponse(spools_data, safe=False)
 
-@login_required
-@permission_required('app_3dmage_management.view_expense', raise_exception=True)
 def accounting_dashboard(request):
-    selected_year = request.GET.get('year', 'all')
+    search_query = request.GET.get('q', '')
+    year_filter = request.GET.get('year', '')
+    payment_method_filter = request.GET.get('payment_method', '')
 
-    income_years = StockItem.objects.filter(sold_at__isnull=False).dates('sold_at', 'year', order='DESC')
+    # MODIFIED: Correct sorting order (newest first)
+    income_items = StockItem.objects.filter(status='SOLD', payment_method__isnull=False).select_related('payment_method').order_by('-sold_at', '-id')
+    expenses = Expense.objects.select_related('category', 'payment_method').order_by('-expense_date', '-id')
+
+    if search_query:
+        income_items = income_items.filter(name__icontains=search_query)
+        expenses = expenses.filter(description__icontains=search_query)
+    if year_filter:
+        income_items = income_items.filter(sold_at__year=year_filter)
+        expenses = expenses.filter(expense_date__year=year_filter)
+    if payment_method_filter:
+        income_items = income_items.filter(payment_method_id=payment_method_filter)
+        expenses = expenses.filter(payment_method_id=payment_method_filter)
+
+    total_income = income_items.annotate(total_price=F('quantity') * F('sale_price')).aggregate(total=Sum('total_price'))['total'] or Decimal('0.00')
+    total_expenses = expenses.aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+
+    profit = total_income - total_expenses
+    total_cash = PaymentMethod.objects.aggregate(total=Sum('balance'))['total'] or Decimal('0.00')
+
+    income_years = StockItem.objects.filter(sold_at__isnull=False, payment_method__isnull=False).dates('sold_at', 'year', order='DESC')
     expense_years = Expense.objects.dates('expense_date', 'year', order='DESC')
     available_years = sorted(list(set([d.year for d in income_years] + [d.year for d in expense_years])), reverse=True)
 
-    income_items = StockItem.objects.filter(status='SOLD').order_by('-sold_at')
-    expenses = Expense.objects.all().order_by('-expense_date')
-
-    if selected_year and selected_year != 'all':
-        selected_year_int = int(selected_year)
-        income_items = income_items.filter(sold_at__year=selected_year_int)
-        expenses = expenses.filter(expense_date__year=selected_year_int)
-
-    # Conversione sicura a Decimal
-    def safe_decimal(value):
-        return value if isinstance(value, Decimal) else Decimal(value or 0)
-
-    total_income = safe_decimal(income_items.aggregate(total=Sum('sale_price'))['total'])
-    total_expenses = safe_decimal(expenses.aggregate(total=Sum('amount'))['total'])
-    total_cash = safe_decimal(PaymentMethod.objects.aggregate(total=Sum('balance'))['total'])
-
-    profit = total_income - total_expenses
-
     context = {
-        'income_items': income_items,
-        'total_income': total_income,
-        'expenses': expenses,
-        'total_expenses': total_expenses,
-        'payment_methods': PaymentMethod.objects.all(),
-        'profit': profit,
-        'total_cash': total_cash,
-        'expense_form': ExpenseForm(),
-        'transfer_form': TransferForm(),
-        'correct_balance_form': CorrectBalanceForm(),
-        'available_years': available_years,
-        'selected_year': selected_year,
+        'income_items': income_items, 'total_income': total_income, 'expenses': expenses,
+        'total_expenses': total_expenses, 'payment_methods': PaymentMethod.objects.all(),
+        'all_payment_methods': PaymentMethod.objects.all(), 'profit': profit,
+        'total_cash': total_cash, 'expense_form': ExpenseForm(),
+        'manual_income_form': ManualIncomeForm(),
+        'transfer_form': TransferForm(), 'correct_balance_form': CorrectBalanceForm(),
+        'available_years': available_years, 'search_query': search_query,
+        'year_filter': year_filter, 'payment_method_filter': payment_method_filter,
         'page_title': 'Contabilità'
     }
-
     return render(request, 'app_3dmage_management/accounting.html', context)
+
+
+@require_POST
+@transaction.atomic
+def add_manual_income(request):
+    form = ManualIncomeForm(request.POST)
+    if form.is_valid():
+        income = form.save(commit=False)
+        income.status = 'SOLD'
+        income.quantity = 1
+        income.material_cost = 0
+        if income.payment_method and income.sale_price:
+            income.payment_method.balance += income.sale_price
+            income.payment_method.save()
+        income.save()
+    return redirect('accounting_dashboard')
 
 @require_POST
 def add_expense(request):
@@ -1209,7 +1197,6 @@ def correct_balance(request, method_id):
 def get_expense_details(request, expense_id):
     expense = get_object_or_404(Expense, id=expense_id)
     data = model_to_dict(expense)
-    # Formatta la data per il campo input[type=date]
     if data.get('expense_date'):
         data['expense_date'] = data['expense_date'].strftime('%Y-%m-%d')
     return JsonResponse(data)
@@ -1222,14 +1209,12 @@ def edit_expense(request, expense_id):
 
     form = ExpenseForm(request.POST, instance=expense)
     if form.is_valid():
-        # Storna la vecchia transazione se il metodo di pagamento esisteva
         if old_payment_method and old_amount:
             old_payment_method.balance += old_amount
             old_payment_method.save()
 
         updated_expense = form.save()
 
-        # Applica la nuova transazione
         if updated_expense.payment_method and updated_expense.amount:
             updated_expense.payment_method.balance -= updated_expense.amount
             updated_expense.payment_method.save()
@@ -1240,46 +1225,13 @@ def edit_expense(request, expense_id):
 @require_POST
 def delete_expense(request, expense_id):
     expense = get_object_or_404(Expense, id=expense_id)
-    # Rimborsa il metodo di pagamento prima di eliminare
     if expense.payment_method and expense.amount:
         expense.payment_method.balance += expense.amount
         expense.payment_method.save()
     expense.delete()
     return JsonResponse({'status': 'ok'})
 
-@require_POST
-def reverse_sale(request, stock_item_id):
-    sale_to_reverse = get_object_or_404(StockItem, id=stock_item_id, status='SOLD')
-
-    # Rimborsa il metodo di pagamento
-    if sale_to_reverse.payment_method and sale_to_reverse.sale_price:
-        sale_to_reverse.payment_method.balance -= sale_to_reverse.sale_price
-        sale_to_reverse.payment_method.save()
-
-    # Cerca un oggetto identico già in magazzino per accorparlo
-    existing_stock = StockItem.objects.filter(
-        project=sale_to_reverse.project,
-        status='IN_STOCK'
-    ).first()
-
-    if existing_stock:
-        existing_stock.quantity += sale_to_reverse.quantity
-        existing_stock.material_cost += sale_to_reverse.material_cost
-        existing_stock.save()
-        sale_to_reverse.delete()
-    else:
-        # Altrimenti, trasforma l'oggetto venduto in un oggetto in magazzino
-        sale_to_reverse.status = 'IN_STOCK'
-        sale_to_reverse.sale_price = None
-        sale_to_reverse.sold_at = None
-        sale_to_reverse.payment_method = None
-        sale_to_reverse.sold_to = ''
-        sale_to_reverse.save()
-
-    return JsonResponse({'status': 'ok'})
-
 def settings_dashboard(request):
-    # Carica i dati delle stampanti con i relativi log
     printers = Printer.objects.prefetch_related('plates', 'maintenance_logs').annotate(
         plate_count=Count('plates'),
         maintenance_count=Count('maintenance_logs')
@@ -1288,11 +1240,19 @@ def settings_dashboard(request):
     payment_methods = PaymentMethod.objects.annotate(expense_count=Count('expense'), sale_count=Count('stockitem')).order_by('name')
     expense_categories = ExpenseCategory.objects.annotate(expense_count=Count('expense')).order_by('name')
 
-    try:
-        electricity_cost_obj = GlobalSetting.objects.get(key='electricity_cost_kwh')
-        initial_cost = electricity_cost_obj.value
-    except GlobalSetting.DoesNotExist:
-        initial_cost = 0.25 # Valore di fallback
+    electricity_cost_obj, _ = GlobalSetting.objects.get_or_create(
+        key='electricity_cost_kwh',
+        defaults={'value': Decimal('0.25')}
+    )
+    wear_tear_obj, _ = GlobalSetting.objects.get_or_create(
+        key='wear_tear_coefficient',
+        defaults={'value': Decimal('0.10')}
+    )
+
+    initial_data = {
+        'electricity_cost': electricity_cost_obj.value,
+        'wear_tear_coefficient': wear_tear_obj.value
+    }
 
     context = {
         'printers': printers,
@@ -1305,19 +1265,22 @@ def settings_dashboard(request):
         'payment_method_form': PaymentMethodForm(),
         'expense_category_form': ExpenseCategoryForm(),
         'maintenance_form': MaintenanceLogForm(),
-        'electricity_form': ElectricityCostForm(initial={'cost': initial_cost}),
+        'general_settings_form': GeneralSettingsForm(initial=initial_data),
         'page_title': 'Impostazioni'
     }
     return render(request, 'app_3dmage_management/settings.html', context)
 
 @require_POST
-def update_electricity_cost(request):
-    form = ElectricityCostForm(request.POST)
+def update_general_settings(request):
+    form = GeneralSettingsForm(request.POST)
     if form.is_valid():
-        cost = form.cleaned_data['cost']
-        setting, created = GlobalSetting.objects.update_or_create(
+        GlobalSetting.objects.update_or_create(
             key='electricity_cost_kwh',
-            defaults={'value': cost}
+            defaults={'value': form.cleaned_data['electricity_cost']}
+        )
+        GlobalSetting.objects.update_or_create(
+            key='wear_tear_coefficient',
+            defaults={'value': form.cleaned_data['wear_tear_coefficient']}
         )
     return redirect('settings_dashboard')
 
@@ -1465,7 +1428,6 @@ def add_maintenance_log(request):
         form.save()
 
 def api_get_costs(request):
-    """Fornisce i costi base per il calcolatore."""
     try:
         cost_obj = GlobalSetting.objects.get(key='electricity_cost_kwh')
         cost_kwh = cost_obj.value
@@ -1474,7 +1436,6 @@ def api_get_costs(request):
 
     filaments_data = []
     for f in Filament.objects.all():
-        # Calcolo del costo medio per grammo
         total_weight = f.spools.aggregate(total=Sum('initial_weight_g'))['total'] or 0
         total_cost = f.spools.aggregate(total=Sum('cost'))['total'] or 0
         cost_per_gram = (total_cost / total_weight) if total_weight > 0 else 0
@@ -1491,7 +1452,6 @@ def api_get_costs(request):
 
 def quote_calculator(request):
     saved_quotes = Quote.objects.all()
-    # Aggiungiamo una versione JSON-string dei dettagli per ogni preventivo
     for quote in saved_quotes:
         quote.details_json = json.dumps(quote.details)
 
@@ -1525,7 +1485,7 @@ def api_get_notifications(request):
     notifications = Notification.objects.filter(is_read=False)
     data = {
         'count': notifications.count(),
-        'notifications': list(notifications.values('id', 'message', 'level', 'related_url'))[:5] # Mostra solo le 5 più recenti
+        'notifications': list(notifications.values('id', 'message', 'level', 'related_url'))[:5]
     }
     return JsonResponse(data)
 
@@ -1537,7 +1497,6 @@ def api_mark_notifications_as_read(request):
 @require_POST
 def api_delete_notification(request, notification_id):
     notification = get_object_or_404(Notification, id=notification_id)
-    # Per ora, contrassegniamo come letta invece di eliminarla, per mantenere lo storico
     notification.is_read = True
     notification.save()
     return JsonResponse({'status': 'ok'})
@@ -1545,10 +1504,6 @@ def api_delete_notification(request, notification_id):
 @require_POST
 @transaction.atomic
 def set_print_file_status(request, file_id):
-    """
-    Imposta lo stato di un file di stampa. Usato per il drag-and-drop
-    nella Coda di Stampa per avviare o fermare una stampa.
-    """
     try:
         data = json.loads(request.body)
         new_status = data.get('new_status')
@@ -1558,17 +1513,13 @@ def set_print_file_status(request, file_id):
 
         file_to_update = get_object_or_404(PrintFile, id=file_id)
 
-        # Se si sta impostando un file come 'IN STAMPA'
         if new_status == 'PRINTING':
-            # Trova qualsiasi altro file che è già in stampa sulla stessa stampante
-            # e rimettilo in coda.
             if file_to_update.printer:
                 PrintFile.objects.filter(
                     printer=file_to_update.printer,
                     status='PRINTING'
                 ).exclude(id=file_id).update(status='TODO')
 
-        # Aggiorna lo stato del file spostato
         file_to_update.status = new_status
         file_to_update.save()
 
@@ -1576,3 +1527,62 @@ def set_print_file_status(request, file_id):
 
     except Exception as e:
         return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+@require_POST
+@transaction.atomic
+def create_project_from_quote(request):
+    """
+    Crea un nuovo progetto e un file di stampa associato
+    partendo dai dati di un preventivo.
+    """
+    try:
+        data = json.loads(request.body)
+
+        if not data.get('name') or not data.get('materials'):
+            return JsonResponse({'status': 'error', 'message': 'Nome del progetto e materiali sono obbligatori.'}, status=400)
+
+        total_seconds = (int(data.get('hours', 0)) * 3600) + (int(data.get('minutes', 0)) * 60)
+        if total_seconds <= 0:
+            return JsonResponse({'status': 'error', 'message': 'Il tempo di stampa deve essere maggiore di zero.'}, status=400)
+
+        new_project = Project.objects.create(
+            name=data['name'],
+            notes=f"Creato da preventivo in data {timezone.now().strftime('%d/%m/%Y')}",
+            status=Project.Status.QUOTE
+        )
+
+        print_file = PrintFile.objects.create(
+            project=new_project,
+            name=f"{data['name']} (file unico)",
+            print_time_seconds=total_seconds,
+            status=PrintFile.Status.TODO
+        )
+
+        for material in data['materials']:
+            filament_id = material.get('filament_id')
+            grams = material.get('grams')
+            if filament_id and grams:
+                first_available_spool = Spool.objects.filter(filament_id=filament_id).first()
+
+                if first_available_spool:
+                    FilamentUsage.objects.create(
+                        print_file=print_file,
+                        spool=first_available_spool,
+                        grams_used=Decimal(grams)
+                    )
+                else:
+                    filament = get_object_or_404(Filament, id=filament_id)
+                    return JsonResponse({
+                        'status': 'error',
+                        'message': f"Nessuna bobina disponibile per il filamento '{filament}'. Aggiungine una prima di creare il progetto."
+                    }, status=400)
+
+        return JsonResponse({
+            'status': 'ok',
+            'message': 'Progetto creato con successo!',
+            'project_url': reverse('project_detail', args=[new_project.id])
+        })
+
+    except (json.JSONDecodeError, KeyError, TypeError) as e:
+        return JsonResponse({'status': 'error', 'message': f'Dati non validi: {str(e)}'}, status=400)
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': f'Errore del server: {str(e)}'}, status=500)

@@ -1,5 +1,6 @@
 from django import forms
 from .models import Project, PrintFile, Category, Printer, Plate, Filament, Spool, StockItem, Expense, PaymentMethod, ExpenseCategory, MaintenanceLog, GlobalSetting
+import datetime
 
 class ProjectForm(forms.ModelForm):
     class Meta:
@@ -22,17 +23,14 @@ class ProjectForm(forms.ModelForm):
         }
 
 class PrintFileForm(forms.ModelForm):
-    """Form per AGGIUNGERE un nuovo file di stampa."""
     print_time_hours = forms.IntegerField(label="Ore", min_value=0, required=False, widget=forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'Ore', 'value': 0}))
     print_time_minutes = forms.IntegerField(label="Minuti", min_value=0, max_value=59, required=False, widget=forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'Min', 'value': 0}))
-
     printer = forms.ModelChoiceField(
         queryset=Printer.objects.all(),
         widget=forms.Select(attrs={'class': 'form-select'}),
         empty_label="Seleziona stampante",
         label="Stampante Usata"
     )
-
     produced_quantity = forms.IntegerField(
         label="Oggetti per Stampa",
         min_value=1,
@@ -42,11 +40,9 @@ class PrintFileForm(forms.ModelForm):
     actual_quantity = forms.IntegerField(
         label="Oggetti Stampati Effettivi",
         min_value=0,
-        required=True,
+        required=False,
         widget=forms.NumberInput(attrs={'class': 'form-control'})
     )
-
-
     class Meta:
         model = PrintFile
         fields = ['name', 'project', 'plate', 'printer', 'produced_quantity', 'actual_quantity']
@@ -63,23 +59,33 @@ class StockItemForm(forms.ModelForm):
         widget=forms.NumberInput(attrs={'class': 'form-control'}),
         required=False
     )
-
     sold_at = forms.DateField(
         widget=forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
         required=False,
         label="Data Vendita"
     )
+    project_notes = forms.CharField(
+        label="Annotazioni Progetto",
+        widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
+        required=False
+    )
+    payment_method = forms.ModelChoiceField(
+        queryset=PaymentMethod.objects.all(),
+        widget=forms.Select(attrs={'class': 'form-select'}),
+        required=False,
+        label="Metodo Pagamento",
+        empty_label="--- DA PAGARE ---"
+    )
 
     class Meta:
         model = StockItem
-        fields = ['name', 'quantity', 'suggested_price', 'status', 'sold_at', 'sale_price', 'payment_method', 'sold_to', 'notes']
+        fields = ['name', 'quantity', 'suggested_price', 'status', 'project_notes', 'sold_at', 'sale_price', 'payment_method', 'sold_to', 'notes']
         widgets = {
             'name': forms.TextInput(attrs={'class': 'form-control'}),
             'quantity': forms.NumberInput(attrs={'class': 'form-control', 'min': 1}),
             'suggested_price': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
             'status': forms.Select(attrs={'class': 'form-select'}),
             'sale_price': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
-            'payment_method': forms.Select(attrs={'class': 'form-select'}),
             'sold_to': forms.TextInput(attrs={'class': 'form-control'}),
             'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
         }
@@ -97,38 +103,31 @@ class ManualStockItemForm(forms.ModelForm):
             'suggested_price': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
             'material_cost': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
         }
-        labels = {
-            'name': "Nome Oggetto",
-            'quantity': "Quantità",
-            'suggested_price': 'Prezzo Vendita Previsto',
-            'material_cost': 'Costo Materiali Totale'
-        }
+        labels = { 'name': "Nome Oggetto", 'quantity': "Quantità", 'suggested_price': 'Prezzo Vendita Previsto', 'material_cost': 'Costo Materiali Totale' }
 
 class SaleEditForm(forms.ModelForm):
+    payment_method = forms.ModelChoiceField(
+        queryset=PaymentMethod.objects.all(),
+        widget=forms.Select(attrs={'class': 'form-select'}),
+        required=False,
+        label="Metodo Pagamento",
+        empty_label="--- DA PAGARE ---"
+    )
+
     class Meta:
         model = StockItem
         fields = ['sold_at', 'sale_price', 'payment_method', 'sold_to', 'notes']
         widgets = {
             'sold_at': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
             'sale_price': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
-            'payment_method': forms.Select(attrs={'class': 'form-select'}),
             'sold_to': forms.TextInput(attrs={'class': 'form-control'}),
             'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
         }
-        labels = {
-            'sold_at': 'Data Vendita',
-            'sale_price': 'Prezzo di Vendita',
-            'payment_method': 'Metodo Pagamento',
-            'sold_to': 'Venduto a',
-            'notes': 'Note'
-        }
+        labels = { 'sold_at': 'Data Vendita', 'sale_price': 'Prezzo di Vendita (per unità)', 'payment_method': 'Metodo Pagamento', 'sold_to': 'Venduto a', 'notes': 'Note' }
 
-# Form specifico per la modifica di un PrintFile
 class PrintFileEditForm(forms.ModelForm):
-    """Form per MODIFICARE un file di stampa esistente."""
     print_time_hours = forms.IntegerField(label="Ore", min_value=0, required=False, widget=forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'Ore'}))
     print_time_minutes = forms.IntegerField(label="Minuti", min_value=0, max_value=59, required=False, widget=forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'Min'}))
-
     class Meta:
         model = PrintFile
         fields = ['name', 'printer', 'plate', 'status', 'produced_quantity', 'actual_quantity']
@@ -140,22 +139,15 @@ class PrintFileEditForm(forms.ModelForm):
             'produced_quantity': forms.NumberInput(attrs={'class': 'form-control'}),
             'actual_quantity': forms.NumberInput(attrs={'class': 'form-control'}),
         }
-        labels = {
-            'produced_quantity': 'Oggetti per Stampa',
-            'actual_quantity': 'Oggetti Stampati Effettivi',
-        }
-
+        labels = { 'produced_quantity': 'Oggetti per Stampa', 'actual_quantity': 'Oggetti Stampati Effettivi' }
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['actual_quantity'].required = False
 
-
-# Classe per popup conferma Completamento
 class CompleteProjectForm(forms.Form):
     stock_item_name = forms.CharField(label="Nome Oggetto per Magazzino", widget=forms.TextInput(attrs={'class': 'form-control'}))
     stock_item_quantity = forms.IntegerField(label="Quantità da Mettere a Magazzino", min_value=1, widget=forms.NumberInput(attrs={'class': 'form-control'}))
 
-# Classe per Filamenti
 class FilamentForm(forms.ModelForm):
     class Meta:
         model = Filament
@@ -172,7 +164,6 @@ class FilamentForm(forms.ModelForm):
             'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
         }
 
-# Classe per Spool
 class SpoolForm(forms.ModelForm):
     payment_method = forms.ModelChoiceField(
         queryset=PaymentMethod.objects.all(),
@@ -181,7 +172,6 @@ class SpoolForm(forms.ModelForm):
         widget=forms.Select(attrs={'class': 'form-select'})
     )
     purchase_date = forms.DateField(widget=forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}), label="Data Acquisto")
-
     class Meta:
         model = Spool
         fields = ['filament', 'initial_weight_g', 'cost', 'purchase_date', 'purchase_link', 'payment_method']
@@ -192,9 +182,13 @@ class SpoolForm(forms.ModelForm):
             'purchase_link': forms.URLInput(attrs={'class': 'form-control', 'placeholder': 'https://...'}),
         }
 
-
 class ExpenseForm(forms.ModelForm):
-    expense_date = forms.DateField(widget=forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}), label="Data Spesa")
+    # MODIFIED: Set the default date to today
+    expense_date = forms.DateField(
+        widget=forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
+        label="Data Spesa",
+        initial=datetime.date.today
+    )
     class Meta:
         model = Expense
         fields = ['description', 'amount', 'category', 'expense_date', 'payment_method', 'notes']
@@ -206,11 +200,32 @@ class ExpenseForm(forms.ModelForm):
             'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
         }
 
+class ManualIncomeForm(forms.ModelForm):
+    sold_at = forms.DateField(
+        widget=forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
+        label="Data Entrata",
+        initial=datetime.date.today
+    )
+    class Meta:
+        model = StockItem
+        fields = ['name', 'sale_price', 'payment_method', 'sold_at', 'notes']
+        widgets = {
+            'name': forms.TextInput(attrs={'class': 'form-control'}),
+            'sale_price': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
+            'payment_method': forms.Select(attrs={'class': 'form-select'}),
+            'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
+        }
+        labels = {
+            'name': 'Descrizione Entrata',
+            'sale_price': 'Importo (€)',
+            'payment_method': 'Accreditato su',
+            'notes': 'Note'
+        }
+
 class TransferForm(forms.Form):
     amount = forms.DecimalField(label="Importo", widget=forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}))
     source = forms.ModelChoiceField(queryset=PaymentMethod.objects.all(), label="Da Conto", widget=forms.Select(attrs={'class': 'form-select'}))
     destination = forms.ModelChoiceField(queryset=PaymentMethod.objects.all(), label="A Conto", widget=forms.Select(attrs={'class': 'form-select'}))
-
     def clean(self):
         cleaned_data = super().clean()
         if cleaned_data.get("source") == cleaned_data.get("destination"):
@@ -223,12 +238,13 @@ class CorrectBalanceForm(forms.Form):
 class PrinterForm(forms.ModelForm):
     class Meta:
         model = Printer
-        fields = ['name', 'model']
+        fields = ['name', 'model', 'power_consumption']
         widgets = {
             'name': forms.TextInput(attrs={'class': 'form-control'}),
             'model': forms.TextInput(attrs={'class': 'form-control'}),
+            'power_consumption': forms.NumberInput(attrs={'class': 'form-control'}),
         }
-        labels = { 'name': 'Nome Stampante', 'model': 'Modello' }
+        labels = { 'name': 'Nome Stampante', 'model': 'Modello', 'power_consumption': 'Consumo (Watt)' }
 
 class PlateForm(forms.ModelForm):
     class Meta:
@@ -266,7 +282,6 @@ class ExpenseCategoryForm(forms.ModelForm):
 
 class MaintenanceLogForm(forms.ModelForm):
     log_date = forms.DateField(widget=forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}), label="Data Intervento")
-
     class Meta:
         model = MaintenanceLog
         fields = ['printer', 'log_date', 'description', 'notes', 'cost']
@@ -277,8 +292,14 @@ class MaintenanceLogForm(forms.ModelForm):
             'cost': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
         }
 
-class ElectricityCostForm(forms.Form):
-    cost = forms.DecimalField(
+class GeneralSettingsForm(forms.Form):
+    electricity_cost = forms.DecimalField(
         label="Costo Elettricità (€/kWh)",
-        widget=forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'})
+        decimal_places=4,
+        widget=forms.NumberInput(attrs={'class': 'form-control', 'step': '0.0001'})
+    )
+    wear_tear_coefficient = forms.DecimalField(
+        label="Coefficiente Usura Orario (€/ora)",
+        decimal_places=4,
+        widget=forms.NumberInput(attrs={'class': 'form-control', 'step': '0.0001'})
     )

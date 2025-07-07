@@ -62,6 +62,7 @@ urlpatterns = [
     # Contabilità
     path('accounting/', views.accounting_dashboard, name='accounting_dashboard'),
     path('expense/add/', views.add_expense, name='add_expense'),
+    path('income/add/', views.add_manual_income, name='add_manual_income'), # NUOVO URL
     path('funds/transfer/', views.transfer_funds, name='transfer_funds'),
     path('payment_method/<int:method_id>/correct/', views.correct_balance, name='correct_balance'),
     path('expense/<int:expense_id>/details/', views.get_expense_details, name='get_expense_details'),
@@ -74,6 +75,7 @@ urlpatterns = [
     path('quotes/save/', views.save_quote, name='save_quote'),
     path('quotes/<int:quote_id>/delete/', views.delete_quote, name='delete_quote'),
     path('quotes/<int:quote_id>/details/', views.get_quote_details, name='get_quote_details'),
+    path('quotes/create_project/', views.create_project_from_quote, name='create_project_from_quote'),
 
 
     # Impostazioni
@@ -99,7 +101,7 @@ urlpatterns = [
     path('settings/expense_category/<int:pk>/edit/', views.edit_expense_category, name='edit_expense_category'),
     path('settings/expense_category/<int:pk>/delete/', views.delete_expense_category, name='delete_expense_category'),
     path('settings/maintenance/add/', views.add_maintenance_log, name='add_maintenance_log'),
-    path('settings/electricity_cost/update/', views.update_electricity_cost, name='update_electricity_cost'),
+    path('settings/general/update/', views.update_general_settings, name='update_general_settings'),
     path('quotes/', views.quote_calculator, name='quote_calculator'),
 
 

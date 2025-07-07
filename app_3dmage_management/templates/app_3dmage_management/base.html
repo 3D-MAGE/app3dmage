@@ -34,7 +34,6 @@
 </head>
 <body class="d-flex flex-column min-vh-100">
 
-    <!-- NUOVO: Overlay di Caricamento -->
     <div id="loading-overlay" class="loading-overlay d-none">
         <div class="spinner-border text-primary-custom" role="status">
             <span class="visually-hidden">Loading...</span>
@@ -102,6 +101,18 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
     <script src="{% static 'js/base.js' %}"></script>
+
+    <!-- MODIFIED: Add script to render messages from Django backend -->
+    {% if messages %}
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            {% for message in messages %}
+                // Use the existing showToast function from base.js
+                showToast("{{ message }}", "{{ message.tags }}");
+            {% endfor %}
+        });
+    </script>
+    {% endif %}
 
     {% block scripts %}{% endblock scripts %}
 

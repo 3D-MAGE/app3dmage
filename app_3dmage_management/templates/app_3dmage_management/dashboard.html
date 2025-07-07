@@ -58,29 +58,27 @@
                 <thead>
                     <tr>
                         <th><a href="?sort_active=name&order_active={% if sort_active == 'name' and order_active == 'asc' %}desc{% else %}asc{% endif %}&q={{ search_query }}&status={{ status_filter }}&category={{ category_filter }}">Nome Progetto {% if sort_active == 'name' %}<i class="bi bi-caret-{% if order_active == 'asc' %}up{% else %}down{% endif %}-fill"></i>{% endif %}</a></th>
-                        <th><a href="?sort_active=priority&order_active={% if sort_active == 'priority' and order_active == 'asc' %}desc{% else %}asc{% endif %}&q={{ search_query }}&status={{ status_filter }}&category={{ category_filter }}">Priorità {% if sort_active == 'priority' %}<i class="bi bi-caret-{% if order_active == 'asc' %}up{% else %}down{% endif %}-fill"></i>{% endif %}</a></th>
-                        <th><a href="?sort_active=status&order_active={% if sort_active == 'status' and order_active == 'asc' %}desc{% else %}asc{% endif %}&q={{ search_query }}&status={{ status_filter }}&category={{ category_filter }}">Status {% if sort_active == 'status' %}<i class="bi bi-caret-{% if order_active == 'asc' %}up{% else %}down{% endif %}-fill"></i>{% endif %}</a></th>
-                        <th><a href="?sort_active=remaining_print_time_seconds&order_active={% if sort_active == 'remaining_print_time_seconds' and order_active == 'asc' %}desc{% else %}asc{% endif %}&q={{ search_query }}&status={{ status_filter }}&category={{ category_filter }}">Tempo Rimanente</a></th>
-                        <th style="color: var(--primary-color);">Progresso</th>
-                        <th><a href="?sort_active=total_print_time_seconds&order_active={% if sort_active == 'total_print_time_seconds' and order_active == 'asc' %}desc{% else %}asc{% endif %}&q={{ search_query }}&status={{ status_filter }}&category={{ category_filter }}">Tempo Totale</a></th>
-                        <th><a href="?sort_active=category__name&order_active={% if sort_active == 'category__name' and order_active == 'asc' %}desc{% else %}asc{% endif %}&q={{ search_query }}&status={{ status_filter }}&category={{ category_filter }}">Categoria</a></th>
-                        <th>Costo Materiali</th>
+                        <th class="text-center"><a href="?sort_active=priority&order_active={% if sort_active == 'priority' and order_active == 'asc' %}desc{% else %}asc{% endif %}&q={{ search_query }}&status={{ status_filter }}&category={{ category_filter }}">Priorità {% if sort_active == 'priority' %}<i class="bi bi-caret-{% if order_active == 'asc' %}up{% else %}down{% endif %}-fill"></i>{% endif %}</a></th>
+                        <th class="text-center"><a href="?sort_active=status&order_active={% if sort_active == 'status' and order_active == 'asc' %}desc{% else %}asc{% endif %}&q={{ search_query }}&status={{ status_filter }}&category={{ category_filter }}">Status {% if sort_active == 'status' %}<i class="bi bi-caret-{% if order_active == 'asc' %}up{% else %}down{% endif %}-fill"></i>{% endif %}</a></th>
+                        <th class="text-center"><a href="?sort_active=remaining_print_time_seconds&order_active={% if sort_active == 'remaining_print_time_seconds' and order_active == 'asc' %}desc{% else %}asc{% endif %}&q={{ search_query }}&status={{ status_filter }}&category={{ category_filter }}">Tempo Rimanente</a></th>
+                        <th class="text-center" style="color: var(--primary-color);">Progresso</th>
+                        <th class="text-center"><a href="?sort_active=total_print_time_seconds&order_active={% if sort_active == 'total_print_time_seconds' and order_active == 'asc' %}desc{% else %}asc{% endif %}&q={{ search_query }}&status={{ status_filter }}&category={{ category_filter }}">Tempo Totale</a></th>
+                        <th class="text-center"><a href="?sort_active=category__name&order_active={% if sort_active == 'category__name' and order_active == 'asc' %}desc{% else %}asc{% endif %}&q={{ search_query }}&status={{ status_filter }}&category={{ category_filter }}">Categoria</a></th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for project in active_projects %}
                     <tr class="clickable-row" data-url="{% url 'project_detail' project.id %}?from=table" style="cursor: pointer;">
                         <td class="fw-bold">{{ project.name }}</td>
-                        <td><span class="badge bg-priority-{{ project.priority|lower }}">{{ project.get_priority_display }}</span></td>
-                        <td><span class="badge bg-status-{{ project.status|lower }}">{{ project.get_status_display }}</span></td>
-                        <td>{{ project.remaining_print_time }}</td>
+                        <td class="text-center"><span class="badge bg-priority-{{ project.priority|lower }}">{{ project.get_priority_display }}</span></td>
+                        <td class="text-center"><span class="badge bg-status-{{ project.status|lower }}">{{ project.get_status_display }}</span></td>
+                        <td class="text-center">{{ project.remaining_print_time }}</td>
                         <td style="position: relative; min-width: 120px;"><div class="progress" style="height: 22px; background-color: #444;"><div class="progress-bar" role="progressbar" style="width: {{ project.progress_percentage }}%; background-color: #ffa500;"></div></div><strong class="justify-content-center align-items-center d-flex position-absolute w-100 h-100 top-0 start-0 text-dark" style="font-size: 0.8em;">{{ project.progress }}</strong></td>
-                        <td>{{ project.total_print_time }}</td>
-                        <td>{{ project.category.name|default:"N/A" }}</td>
-                        <td class="text-warning fw-bold">{{ project.annotated_material_cost|floatformat:2 }}€</td>
+                        <td class="text-center">{{ project.total_print_time }}</td>
+                        <td class="text-center">{{ project.category.name|default:"N/A" }}</td>
                     </tr>
                     {% empty %}
-                    <tr><td colspan="8" class="text-center py-5"><p class="lead">Nessun progetto attivo trovato per i filtri selezionati.</p></td></tr>
+                    <tr><td colspan="7" class="text-center py-5"><p class="lead">Nessun progetto attivo trovato per i filtri selezionati.</p></td></tr>
                     {% endfor %}
                 </tbody>
             </table>
@@ -127,17 +125,27 @@
     <div class="card-body">
         <div class="table-responsive">
             <table class="table table-dark table-hover align-middle">
-                <thead><tr><th>Nome</th><th>Data Completamento</th><th>Tempo Totale</th><th>Costo Materiali</th><th>Categoria</th><th>Filamenti Usati</th><th>Grammi Totali</th></tr></thead>
+                <thead>
+                    <tr>
+                        <th>Nome</th>
+                        <th class="text-center">Data Completamento</th>
+                        <th class="text-center">Tempo Totale</th>
+                        <th class="text-center">Costo Materiali</th>
+                        <th class="text-center">Categoria</th>
+                        <th class="text-center">Filamenti Usati</th>
+                        <th class="text-center">Peso totale</th>
+                    </tr>
+                </thead>
                 <tbody>
                     {% for project in completed_projects %}
                     <tr class="clickable-row" data-url="{% url 'project_detail' project.id %}?from=table" style="cursor: pointer;">
                         <td class="fw-bold">{{ project.name }}</td>
-                        <td>{{ project.completed_at|date:"d/m/y" }}</td>
-                        <td>{{ project.total_print_time }}</td>
-                        <td class="text-warning fw-bold">{{ project.annotated_material_cost|floatformat:2 }}€</td>
-                        <td>{{ project.category.name|default:"N/A" }}</td>
-                        <td>{{ project.filament_summary }}</td>
-                        <td>{{ project.total_filament_grams|floatformat:2 }}g</td>
+                        <td class="text-center">{{ project.completed_at|date:"d/m/y" }}</td>
+                        <td class="text-center">{{ project.total_print_time }}</td>
+                        <td class="text-center text-warning fw-bold">{{ project.annotated_material_cost|floatformat:2 }}€</td>
+                        <td class="text-center">{{ project.category.name|default:"N/A" }}</td>
+                        <td class="text-center">{{ project.filament_summary }}</td>
+                        <td class="text-center">{{ project.total_filament_grams|floatformat:2 }}g</td>
                     </tr>
                     {% empty %}
                     <tr><td colspan="7" class="text-center py-4"><p class="text-muted">Nessun progetto completato trovato per i filtri selezionati.</p></td></tr>

@@ -6,6 +6,7 @@
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2 class="text-white">Riepilogo Contabilità</h2>
     <div>
+        <button class="btn btn-sm btn-outline-success" data-bs-toggle="modal" data-bs-target="#addIncomeModal"><i class="bi bi-plus-circle-fill me-1"></i>Aggiungi Entrata</button>
         <button class="btn btn-sm btn-outline-warning" data-bs-toggle="modal" data-bs-target="#transferModal"><i class="bi bi-arrow-left-right me-1"></i>Trasferimento</button>
         <button class="btn btn-sm btn-primary-custom" data-bs-toggle="modal" data-bs-target="#addExpenseModal"><i class="bi bi-plus-circle-fill me-1"></i>Aggiungi Spesa</button>
     </div>
@@ -37,29 +38,47 @@
 
 <!-- Riepilogo Finanziario -->
 <div class="row g-4 mb-4">
-    <div class="col-md-4"><div class="card bg-dark-card p-3"><h6 class="text-muted">ENTRATE TOTALI</h6><h3 class="text-success fw-bold">{{ total_income|floatformat:2 }}€</h3></div></div>
-    <div class="col-md-4"><div class="card bg-dark-card p-3"><h6 class="text-muted">USCITE TOTALI</h6><h3 class="text-danger fw-bold">{{ total_expenses|floatformat:2 }}€</h3></div></div>
-    <div class="col-md-4"><div class="card bg-dark-card p-3"><h6 class="text-muted">PROFITTO NETTO</h6><h3 class="{% if profit >= 0 %}text-success{% else %}text-danger{% endif %} fw-bold">{{ profit|floatformat:2 }}€</h3></div></div>
+    <div class="col-md-4"><div class="card bg-dark-card p-3 text-center"><h6 class="text-muted">ENTRATE TOTALI</h6><h3 class="text-success fw-bold">{{ total_income|floatformat:2 }}€</h3></div></div>
+    <div class="col-md-4"><div class="card bg-dark-card p-3 text-center"><h6 class="text-muted">USCITE TOTALI</h6><h3 class="text-danger fw-bold">{{ total_expenses|floatformat:2 }}€</h3></div></div>
+    <div class="col-md-4"><div class="card bg-dark-card p-3 text-center"><h6 class="text-muted">PROFITTO NETTO</h6><h3 class="{% if profit >= 0 %}text-success{% else %}text-danger{% endif %} fw-bold">{{ profit|floatformat:2 }}€</h3></div></div>
 </div>
 
-<!-- Filtro Anno -->
-<div class="card bg-dark-card mb-3">
+<!-- Filtri -->
+<div class="card bg-dark-card mb-4">
     <div class="card-body">
-        <form method="get" action="{% url 'accounting_dashboard' %}" class="row g-2 align-items-end">
+        <form method="get" action="{% url 'accounting_dashboard' %}" class="row g-3 align-items-end">
+            <div class="col-md-5">
+                <label for="q" class="form-label">Cerca per Descrizione</label>
+                <input type="text" class="form-control form-control-sm" name="q" id="q" value="{{ search_query|default:'' }}">
+            </div>
             <div class="col-md-3">
-                <label for="year" class="form-label">Filtra per Anno</label>
-                <select name="year" id="year" class="form-select">
-                    <option value="all">Mostra Tutto</option>
-                    {% for year in available_years %}
-                    <option value="{{ year }}" {% if year|stringformat:"s" == selected_year %}selected{% endif %}>{{ year }}</option>
+                <label for="payment_method" class="form-label">Metodo Pagamento</label>
+                <select class="form-select form-select-sm" name="payment_method" id="payment_method">
+                    <option value="">Tutti</option>
+                    {% for method in all_payment_methods %}
+                        <option value="{{ method.id }}" {% if method.id|stringformat:"s" == payment_method_filter %}selected{% endif %}>{{ method.name }}</option>
                     {% endfor %}
                 </select>
             </div>
-            <div class="col-md-1 d-grid"><button type="submit" class="btn btn-primary-custom">Filtra</button></div>
-            <div class="col-md-1 d-grid"><a href="{% url 'accounting_dashboard' %}" class="btn btn-outline-secondary">Azzera</a></div>
+            <div class="col-md-2">
+                <label for="year" class="form-label">Anno</label>
+                <select class="form-select form-select-sm" name="year" id="year">
+                    <option value="">Tutti</option>
+                    {% for y in available_years %}
+                        <option value="{{ y }}" {% if y|stringformat:"s" == year_filter %}selected{% endif %}>{{ y }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-1 d-grid">
+                <button type="submit" class="btn btn-sm btn-primary-custom">Filtra</button>
+            </div>
+            <div class="col-md-1 d-grid">
+                <a href="{% url 'accounting_dashboard' %}" class="btn btn-sm btn-outline-secondary">Azzera</a>
+            </div>
         </form>
     </div>
 </div>
+
 <div class="row g-4">
     <!-- Tabella Entrate -->
     <div class="col-lg-6">
@@ -67,13 +86,25 @@
         <div class="card bg-dark-card rounded-3 overflow-hidden">
             <div class="table-responsive">
                 <table class="table table-dark table-sm table-hover mb-0">
-                    <thead><tr><th class="px-3">Data</th><th class="px-3">Oggetto</th><th class="text-end px-3">Importo</th></tr></thead>
+                    <thead>
+                        <tr>
+                            <th class="px-3">Data</th>
+                            <th class="px-3">Oggetto</th>
+                            <th class="px-3">Note</th>
+                            <th class="text-end px-3">Importo</th>
+                        </tr>
+                    </thead>
                     <tbody id="income-table">
                         {% for item in income_items %}
                         <tr class="clickable-row" data-action="reverse" data-id="{{ item.id }}" data-name="{{ item.name }}" title="Clicca per annullare la vendita">
-                            <td class="px-3">{{ item.sold_at|date:"d/m/y" }}</td><td class="px-3">{{ item.name }}</td><td class="text-end text-success px-3">{{ item.sale_price|floatformat:2 }}€</td>
+                            <td class="px-3">{{ item.sold_at|date:"d/m/y" }}</td>
+                            <td class="px-3">{{ item.name }}</td>
+                            <td class="px-3"><small>{{ item.notes|truncatechars:30|default:"-" }}</small></td>
+                            <td class="text-end text-success px-3">{{ item.sale_price|floatformat:2 }}€</td>
                         </tr>
-                        {% empty %}<tr><td colspan="3" class="text-center text-muted py-4">Nessuna entrata registrata.</td></tr>{% endfor %}
+                        {% empty %}
+                        <tr><td colspan="4" class="text-center text-muted py-4">Nessuna entrata registrata per i filtri selezionati.</td></tr>
+                        {% endfor %}
                     </tbody>
                 </table>
             </div>
@@ -91,10 +122,31 @@
                         <tr class="clickable-row" data-action="edit-expense" data-id="{{ expense.id }}" title="Clicca per modificare/eliminare la spesa">
                             <td class="px-3">{{ expense.expense_date|date:"d/m/y" }}</td><td class="px-3">{{ expense.description }}</td><td class="text-end text-danger px-3">{{ expense.amount|floatformat:2 }}€</td>
                         </tr>
-                        {% empty %}<tr><td colspan="3" class="text-center text-muted py-4">Nessuna uscita registrata.</td></tr>{% endfor %}
+                        {% empty %}<tr><td colspan="3" class="text-center text-muted py-4">Nessuna uscita registrata per i filtri selezionati.</td></tr>{% endfor %}
                     </tbody>
                 </table>
             </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Aggiungi Entrata (NUOVO) -->
+<div class="modal fade" id="addIncomeModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-dark-card text-white">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title">Aggiungi Nuova Entrata</h5>
+            </div>
+            <form action="{% url 'add_manual_income' %}" method="post">
+                <div class="modal-body">
+                    {% csrf_token %}
+                    {{ manual_income_form.as_p }}
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button>
+                    <button type="submit" class="btn btn-primary-custom">Salva Entrata</button>
+                </div>
+            </form>
         </div>
     </div>
 </div>

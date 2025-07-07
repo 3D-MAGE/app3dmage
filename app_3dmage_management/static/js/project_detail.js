@@ -44,12 +44,25 @@ document.addEventListener('DOMContentLoaded', async function() {
     const allFilaments = await filamentsResponse.json();
 
     const toggleActualQuantity = (status) => {
-      const actualWrapper = printFileModalEl.querySelector('#actual-quantity-wrapper');
-      if (actualWrapper) {
-        // MODIFICA: Mostra il campo anche se la stampa è 'FAILED'
-        actualWrapper.style.display = (status === 'DONE' || status === 'FAILED') ? 'block' : 'none';
-      }
+        const actualWrapper = printFileModalEl.querySelector('#actual-quantity-wrapper');
+        const producedInput = printFileModalEl.querySelector('[name="produced_quantity"]');
+        const actualInput = printFileModalEl.querySelector('[name="actual_quantity"]');
+
+        if (actualWrapper && actualInput) {
+            const isVisible = (status === 'DONE' || status === 'FAILED');
+            actualWrapper.style.display = isVisible ? 'block' : 'none';
+            actualInput.required = isVisible; // Imposta 'required' solo se visibile
+
+            if (isVisible) {
+                if (status === 'DONE' && producedInput) {
+                    actualInput.value = producedInput.value;
+                } else if (status === 'FAILED') {
+                    actualInput.value = 0;
+                }
+            }
+        }
     };
+
 
     const statusContainer = printFileModalEl.querySelector('#status-btn-container');
     if (statusContainer) {
@@ -67,6 +80,10 @@ document.addEventListener('DOMContentLoaded', async function() {
     // -----------------------------------------------------------------
     // FUNZIONI HELPER
     // -----------------------------------------------------------------
+    function getCookie(name) { let cookieValue = null; if (document.cookie && document.cookie !== '') { const cookies = document.cookie.split(';'); for (let i = 0; i < cookies.length; i++) { const cookie = cookies[i].trim(); if (cookie.substring(0, name.length + 1) === (name + '=')) { cookieValue = decodeURIComponent(cookie.substring(name.length + 1)); break; } } } return cookieValue; }
+    function showToast(message, type = 'success') { const toastEl = document.getElementById('appToast'); if (!toastEl) return; const toastBody = toastEl.querySelector('.toast-body'); toastEl.classList.remove('bg-success', 'bg-danger', 'bg-warning', 'bg-info'); const bgColor = type === 'error' ? 'danger' : type; toastEl.classList.add(`bg-${bgColor}`); toastBody.textContent = message; new bootstrap.Toast(toastEl).show(); }
+    function showLoader() { document.getElementById('loading-overlay')?.classList.remove('d-none'); }
+    function hideLoader() { document.getElementById('loading-overlay')?.classList.add('d-none'); }
     const getContrastYIQ = (hex) => { if (!hex) return 'white'; const c = hex.substring(1); const rgb = parseInt(c, 16); const r = (rgb >> 16) & 0xff; const g = (rgb >> 8) & 0xff; const b = (rgb >> 0) & 0xff; const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000; return (yiq >= 128) ? 'black' : 'white'; };
     const createFilamentRow = () => { const row = document.createElement('div'); row.className = 'row align-items-center filament-row mb-2'; const opts = allFilaments.map(f => `<option value="${f.id}" style="background-color:${f.color_hex};color:${getContrastYIQ(f.color_hex)};">${f.name}</option>`).join(''); row.innerHTML = `<div class="col-md-5"><select class="form-select filament-select"><option value="">Seleziona Filamento...</option>${opts}</select></div><div class="col-md-4"><select class="form-select spool-select" disabled><option value="">Scegli un filamento</option></select></div><div class="col-md-3"><input type="number" class="form-control grams-input" placeholder="grammi" min="0.01" step="0.01"><div class="form-text text-warning warning-message small" style="display: none;">Scorta insufficiente!</div></div>`; return row; };
     const updateFilamentRows = (desiredCount) => { const container = printFileModalEl.querySelector('#filament-inputs-container'); const currentRows = container.querySelectorAll('.filament-row'); const currentCount = currentRows.length; if (desiredCount > currentCount) { for (let i = currentCount; i < desiredCount; i++) { container.appendChild(createFilamentRow()); } } else if (desiredCount < currentCount) { for (let i = currentCount; i > desiredCount; i--) { container.removeChild(container.lastChild); } } };
@@ -102,8 +119,15 @@ document.addEventListener('DOMContentLoaded', async function() {
         printFileModalEl.querySelector('#status-field-wrapper').style.display = 'none';
         printFileModalEl.querySelector('#delete-print-file-btn').style.display = 'none';
         printFileModalEl.querySelector('#clone-print-file-btn').style.display = 'none';
-        printFileModalEl.querySelector('#wasted-grams-wrapper').style.display = 'none';
-        printFileModalEl.querySelector('#actual-quantity-wrapper').style.display = 'none';
+
+        // CORREZIONE: Assicura che i campi condizionali siano nascosti e non obbligatori
+        const wastedWrapper = printFileModalEl.querySelector('#wasted-grams-wrapper');
+        if(wastedWrapper) wastedWrapper.style.display = 'none';
+
+        const actualWrapper = printFileModalEl.querySelector('#actual-quantity-wrapper');
+        const actualInput = printFileModalEl.querySelector('[name="actual_quantity"]');
+        if(actualWrapper) actualWrapper.style.display = 'none';
+        if(actualInput) actualInput.required = false;
 
         const countSelector = printFileModalEl.querySelector('#filament-count-selector');
         countSelector.querySelector('.active')?.classList.remove('active');
@@ -244,8 +268,10 @@ document.addEventListener('DOMContentLoaded', async function() {
     if (mainForm) {
         mainForm.addEventListener('submit', function(e) {
             e.preventDefault();
+
+            const formData = new FormData(this);
+
             const fCont = printFileModalEl.querySelector('#filament-inputs-container');
-            const fInput = printFileModalEl.querySelector('#filament_data_input');
             const fUsages = [];
             fCont.querySelectorAll('.filament-row').forEach(r => {
                 const s_id = r.querySelector('.spool-select')?.value;
@@ -269,9 +295,13 @@ document.addEventListener('DOMContentLoaded', async function() {
             }
 
             lastPlannedFilamentUsage = fUsages;
-            fInput.value = JSON.stringify(fUsages);
+            formData.append('filament_data', JSON.stringify(fUsages));
 
-            fetch(this.action, { method: 'POST', body: new FormData(this), headers: { 'X-CSRFToken': csrftoken }})
+            fetch(this.action, {
+                method: 'POST',
+                body: formData,
+                headers: { 'X-CSRFToken': csrftoken }
+            })
             .then(res => { if (!res.ok) return res.json().then(err => Promise.reject(err)); return res.json(); })
             .then(data => {
                 printFileModal.hide();
@@ -321,7 +351,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         const fileId = this.dataset.fileId;
         const count = this.dataset.count;
 
-        showLoader(); // Mostra l'icona di caricamento
+        showLoader();
 
         fetch(URLS.cloneFile, {
             method: 'POST',
@@ -342,7 +372,7 @@ document.addEventListener('DOMContentLoaded', async function() {
             showToast('Errore durante la clonazione dei file.', 'error');
         })
         .finally(() => {
-            hideLoader(); // Nasconde l'icona di caricamento in ogni caso
+            hideLoader();
         });
     });
 
@@ -385,7 +415,6 @@ document.addEventListener('DOMContentLoaded', async function() {
 
         printFileModal.hide();
 
-        // Usa un piccolo timeout per permettere al primo modale di chiudersi
         setTimeout(async () => {
             resetPrintFileForm();
             const form = document.getElementById('printFileForm');
@@ -417,10 +446,8 @@ document.addEventListener('DOMContentLoaded', async function() {
                 const gramsInput = row.querySelector('.grams-input');
 
                 filamentSelect.value = usage.spool__filament_id;
-                // Simula un evento change per caricare le bobine
                 filamentSelect.dispatchEvent(new Event('change', { bubbles: true }));
 
-                // Aspetta che le bobine siano caricate prima di selezionare
                 await new Promise(resolve => setTimeout(resolve, 300));
 
                 spoolSelect.value = usage.spool_id;

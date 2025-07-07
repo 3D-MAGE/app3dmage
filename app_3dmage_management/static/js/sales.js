@@ -12,6 +12,10 @@ document.addEventListener('DOMContentLoaded', function () {
         const modalTitle = editSaleModalEl.querySelector('#editSaleModalLabel');
         let currentItemId = null;
 
+        // Get references to the input fields
+        const salePriceInput = form.querySelector('[name="sale_price"]');
+        const paymentMethodSelect = form.querySelector('[name="payment_method"]');
+
         editSaleModalEl.addEventListener('show.bs.modal', function (event) {
             const triggerRow = event.relatedTarget;
             currentItemId = triggerRow.dataset.itemId;
@@ -21,12 +25,18 @@ document.addEventListener('DOMContentLoaded', function () {
                 .then(res => res.json())
                 .then(data => {
                     modalTitle.textContent = `Modifica Vendita: ${data.name}`;
-                    document.getElementById('saleProjectId').textContent = `#${data.project_custom_id}` || 'N/D';
                     document.getElementById('saleItemId').textContent = `#${data.id}`;
+                    document.getElementById('saleProjectId').textContent = data.project_custom_id ? `#${data.project_custom_id}` : 'N/D';
+
+                    const materialCostEl = document.getElementById('saleMaterialCost');
+                    if (materialCostEl) {
+                        const cost = parseFloat(data.material_cost);
+                        materialCostEl.textContent = !isNaN(cost) ? `${cost.toFixed(2)}€` : '0.00€';
+                    }
 
                     form.querySelector('[name="sold_at"]').value = data.sold_at;
-                    form.querySelector('[name="sale_price"]').value = data.sale_price;
-                    form.querySelector('[name="payment_method"]').value = data.payment_method;
+                    salePriceInput.value = data.sale_price;
+                    paymentMethodSelect.value = data.payment_method || '';
                     form.querySelector('[name="sold_to"]').value = data.sold_to;
                     form.querySelector('[name="notes"]').value = data.notes;
                 });
@@ -34,9 +44,26 @@ document.addEventListener('DOMContentLoaded', function () {
 
         form.addEventListener('submit', function (e) {
             e.preventDefault();
+
+            // MODIFIED: Added Satispay discount logic
+            const originalPrice = salePriceInput.value;
+            const selectedOption = paymentMethodSelect.options[paymentMethodSelect.selectedIndex];
+            const isSatispayBusiness = selectedOption && selectedOption.text.toLowerCase().includes('satispay business');
+
+            // If Satispay Business is selected, temporarily change the input value before creating FormData
+            if (isSatispayBusiness) {
+                const discountedPrice = parseFloat(originalPrice) * 0.98;
+                salePriceInput.value = discountedPrice.toFixed(2);
+            }
+
+            const formData = new FormData(form);
+
+            // Restore the original value in the input field after creating FormData
+            salePriceInput.value = originalPrice;
+
             fetch(form.action, {
                 method: 'POST',
-                body: new FormData(form),
+                body: formData, // Use FormData with the potentially discounted price
                 headers: { 'X-CSRFToken': form.querySelector('[name=csrfmiddlewaretoken]').value }
             })
             .then(res => res.json())
@@ -54,13 +81,20 @@ document.addEventListener('DOMContentLoaded', function () {
         });
 
         document.getElementById('confirmReverseSaleBtn')?.addEventListener('click', function() {
+            const csrfToken = form.querySelector('[name=csrfmiddlewaretoken]').value;
             fetch(`/sale/${currentItemId}/reverse/`, {
                 method: 'POST',
-                headers: { 'X-CSRFToken': form.querySelector('[name=csrfmiddlewaretoken]').value }
+                headers: {
+                    'X-CSRFToken': csrfToken,
+                    'Content-Type': 'application/json'
+                 }
             })
             .then(res => {
                 if (res.ok) {
-                    window.location.reload();
+                    // Redirect to the appropriate page on successful reversal
+                    res.json().then(data => {
+                        window.location.href = data.redirect_url || '/sales/';
+                    });
                 } else {
                     alert('Errore durante lo storno della vendita.');
                 }

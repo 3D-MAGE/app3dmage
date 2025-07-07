@@ -79,7 +79,7 @@
     <div class="card-body">
         <div class="table-responsive">
             <table class="table table-dark {% if project.status != 'DONE' %}table-hover{% endif %}">
-                <thead><tr><th>Nome</th><th>Stampante</th><th>Piatto</th><th>Filamenti Usati</th><th>Grammi Totali</th><th>Costo Filamenti</th><th>Tempo</th><th>Stato</th></tr></thead>
+                <thead><tr><th>Nome</th><th>Stampante</th><th>Piatto</th><th>Filamenti Usati</th><th>Grammi Totali</th><th>Costo</th><th>Tempo</th><th>Stato</th></tr></thead>
                 <tbody>
                 {% for file in project.print_files.all %}
                     {% if project.status == 'DONE' %}
@@ -90,7 +90,7 @@
                         <td>{{ file.name }}</td><td>{{ file.printer.name|default:"-" }}</td><td>{{ file.plate.name|default:"-" }}</td>
                         <td>{% for usage in file.filament_usages.all %}<span class="filament-pill" style="background-color: {{ usage.spool.filament.color_hex }};">{{ usage.spool.filament }}</span>&nbsp;{% endfor %}</td>
                         <td>{{ file.total_grams_used|floatformat:2 }}g</td>
-                        <td class="text-warning fw-bold">{{ file.material_cost|floatformat:2 }}€</td>
+                        <td class="text-warning fw-bold">{{ file.total_cost|floatformat:2 }}€</td>
                         <td>{{ file.print_time_formatted }}</td><td><span class="badge bg-print-status-{{ file.status|lower }}">{{ file.get_status_display }}</span></td>
                     </tr>
                 {% empty %}

@@ -20,6 +20,11 @@ class Category(models.Model):
 class Printer(models.Model):
     name = models.CharField(max_length=100, verbose_name="Nome Stampante")
     model = models.CharField(max_length=100, blank=True, verbose_name="Modello")
+    # NUOVO CAMPO: Consumo in Watt
+    power_consumption = models.PositiveIntegerField(
+        default=150,
+        help_text="Consumo medio in Watt della stampante durante la stampa."
+    )
 
     def __str__(self):
         return self.name
@@ -46,7 +51,6 @@ class FilamentUsage(models.Model):
     print_file = models.ForeignKey('PrintFile', on_delete=models.CASCADE, related_name='filament_usages')
     spool = models.ForeignKey('Spool', on_delete=models.CASCADE, related_name='usages')
 
-    # MODIFICA: Cambiato da PositiveIntegerField a DecimalField
     grams_used = models.DecimalField(
         max_digits=7,
         decimal_places=2,
@@ -73,10 +77,8 @@ class Filament(models.Model):
     volumetric_speed = models.PositiveIntegerField(default=15, verbose_name="Velocità Volumetrica (mm³/s)")
     notes = models.TextField(blank=True, verbose_name="Note")
 
-    # Proprietà calcolate dinamicamente
     @property
     def total_initial_weight(self):
-        """Calcola il peso totale iniziale sommando tutte le bobine di questo tipo."""
         return self.spools.aggregate(total=models.Sum('initial_weight_g'))['total'] or 0
 
     @property
@@ -88,12 +90,10 @@ class Filament(models.Model):
 
     @property
     def remaining_weight(self):
-        """Calcola il peso rimanente."""
         return self.total_initial_weight - self.total_used_weight
 
     @property
     def remaining_percentage(self):
-        """Calcola la percentuale di filamento rimanente."""
         total = self.total_initial_weight
         if total == 0:
             return 0
@@ -111,7 +111,6 @@ class Filament(models.Model):
 # Modello per le singole Bobine di filamento
 class Spool(models.Model):
     filament = models.ForeignKey(Filament, on_delete=models.CASCADE, related_name="spools", verbose_name="Filamento")
-    # NUOVO CAMPO per l'identificatore A, B, C...
     identifier = models.CharField(max_length=2, blank=True, verbose_name="Identificatore")
     initial_weight_g = models.PositiveIntegerField(default=1000, verbose_name="Peso Iniziale (g)")
     cost = models.DecimalField(max_digits=8, decimal_places=2, verbose_name="Costo (€)")
@@ -121,14 +120,11 @@ class Spool(models.Model):
     def __str__(self):
         weight_kg = self.initial_weight_g / 1000
         weight_str = f"{int(weight_kg) if weight_kg.is_integer() else weight_kg}Kg"
-
-        # MODIFICA: Includi l'identificatore nel nome
         return f"Bobina {self.identifier} - {weight_str} - {self.purchase_date.strftime('%m/%y')}"
 
     class Meta:
         verbose_name = "Bobina"
         verbose_name_plural = "Bobine"
-        # Ordina per data e poi per identificatore
         ordering = ['purchase_date', 'identifier']
 
 # Modello per i Progetti
@@ -154,45 +150,33 @@ class Project(models.Model):
     category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Categoria")
     quantity = models.PositiveIntegerField(default=1, verbose_name="Quantità oggetti ordine")
     notes = models.TextField(blank=True, verbose_name="Annotazioni")
-
-    # BUGFIX: Aggiunto il campo mancante per allinearsi allo schema del DB
     actual_quantity = models.PositiveIntegerField(default=0)
     produced_quantity = models.PositiveIntegerField(default=0)
 
-
     @property
     def total_print_time(self):
-        # Somma i tempi di tutti i file di stampa associati a questo progetto
         total_seconds = self.print_files.aggregate(total=Sum('print_time_seconds'))['total'] or 0
         return str(datetime.timedelta(seconds=total_seconds))
 
     @property
     def remaining_print_time(self):
-        """Somma i tempi dei file con stato 'Da Stampare'."""
         total_seconds = self.print_files.filter(status='TODO').aggregate(total=Sum('print_time_seconds'))['total'] or 0
         return str(datetime.timedelta(seconds=total_seconds))
 
     @property
     def progress(self):
-        """Calcola il progresso basandosi sui file non falliti."""
-        # MODIFICA: Escludi i file falliti dal conteggio totale.
         total_valid_files = self.print_files.exclude(status='FAILED').count()
         if total_valid_files == 0:
             return "0/0"
-
         done_files = self.print_files.filter(status='DONE').count()
         return f"{done_files}/{total_valid_files}"
 
     @property
     def progress_percentage(self):
-        """Calcola la percentuale di progresso basandosi sui file non falliti."""
-        # MODIFICA: Escludi i file falliti dal conteggio totale.
         total_valid_files = self.print_files.exclude(status='FAILED').count()
         if total_valid_files == 0:
             return 0
-
         done_files = self.print_files.filter(status='DONE').count()
-        # Evita divisione per zero se non ci sono file validi
         return (done_files * 100) / total_valid_files
 
     @property
@@ -201,18 +185,14 @@ class Project(models.Model):
 
     @property
     def filament_summary(self):
-        # Usiamo values_list per una query più efficiente e mirata
         filament_names = Filament.objects.filter(
             spools__usages__print_file__project=self
         ).distinct().values_list('material', 'color_code', 'brand')
-
         return ", ".join([f"{mat}-{col}-{brand}" for mat, col, brand in filament_names])
 
     @property
     def total_material_cost(self):
-        """Calcola il costo totale dei materiali usati nel progetto."""
         total_cost = Decimal('0.00')
-        # Usiamo prefetch_related nella vista per ottimizzare questa parte
         for print_file in self.print_files.all():
             for usage in print_file.filament_usages.all():
                 if usage.spool and usage.spool.initial_weight_g > 0:
@@ -222,14 +202,11 @@ class Project(models.Model):
 
     @property
     def total_objects_printed(self):
-        """Calcola il numero totale di oggetti effettivamente prodotti per questo progetto."""
         return self.print_files.aggregate(total=Sum('actual_quantity'))['total'] or 0
 
     @property
     def remaining_objects(self):
-        """Calcola quanti oggetti mancano per completare la quantità richiesta dall'ordine."""
         return self.quantity - self.total_objects_printed
-
 
     def __str__(self):
         return self.name
@@ -259,29 +236,58 @@ class PrintFile(models.Model):
     produced_quantity = models.PositiveIntegerField(default=1, verbose_name="Oggetti per Stampa")
     actual_quantity = models.PositiveIntegerField(default=0, verbose_name="Oggetti Stampati Effettivi")
 
-
     @property
     def print_time_formatted(self):
         return str(datetime.timedelta(seconds=self.print_time_seconds))
 
     @property
     def material_cost(self):
-        """Calcola il costo totale dei materiali usati per questo file di stampa."""
         total_cost = Decimal('0.00')
         for usage in self.filament_usages.all():
             if usage.spool and usage.spool.initial_weight_g > 0:
                 cost_per_gram = usage.spool.cost / Decimal(usage.spool.initial_weight_g)
                 total_cost += Decimal(usage.grams_used) * cost_per_gram
-        return total_cost.quantize(Decimal('0.01'))
+        return total_cost
+
+    @property
+    def electricity_cost(self):
+        if not self.print_time_seconds or not self.printer or self.printer.power_consumption <= 0:
+            return Decimal('0.00')
+
+        cost_setting, _ = GlobalSetting.objects.get_or_create(
+            key='electricity_cost_kwh',
+            defaults={'value': Decimal('0.25')}
+        )
+        cost_kwh = cost_setting.value
+
+        hours = Decimal(self.print_time_seconds) / Decimal(3600)
+        kwh_used = (Decimal(self.printer.power_consumption) * hours) / Decimal(1000)
+        return (kwh_used * cost_kwh)
+
+    @property
+    def wear_tear_cost(self):
+        if not self.print_time_seconds:
+            return Decimal('0.00')
+
+        wear_setting, _ = GlobalSetting.objects.get_or_create(
+            key='wear_tear_coefficient',
+            defaults={'value': Decimal('0.10')}
+        )
+        wear_cost_per_hour = wear_setting.value
+
+        hours = Decimal(self.print_time_seconds) / Decimal(3600)
+        return (hours * wear_cost_per_hour)
+
+    @property
+    def total_cost(self):
+        return self.material_cost + self.electricity_cost + self.wear_tear_cost
 
     @property
     def total_grams_used(self):
-        """Calcola la somma dei grammi usati da tutte le bobine per questa stampa."""
         return self.filament_usages.aggregate(total=Sum('grams_used'))['total'] or 0
 
     @property
     def filament_types_summary(self):
-        """Restituisce una stringa che riassume i tipi di filamento usati."""
         filaments = Filament.objects.filter(spools__usages__print_file=self).distinct()
         if not filaments:
             return "N/D"
@@ -326,11 +332,7 @@ class StockItem(models.Model):
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.POST_PROD, verbose_name="Stato")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Aggiunto il")
     material_cost = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, verbose_name="Costo Materiali")
-
-    # NUOVO CAMPO
     suggested_price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, verbose_name="Prezzo di Vendita Previsto")
-
-    # Dettagli della vendita
     sold_at = models.DateField(null=True, blank=True, verbose_name="Data Vendita")
     sale_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, verbose_name="Prezzo di Vendita")
     payment_method = models.ForeignKey(PaymentMethod, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Metodo di Pagamento")
@@ -403,7 +405,6 @@ class GlobalSetting(models.Model):
 class Quote(models.Model):
     name = models.CharField(max_length=255, verbose_name="Nome Preventivo")
     total_cost = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Costo Totale")
-    # Usiamo JSONField per salvare tutti i dettagli del calcolo
     details = models.JSONField(verbose_name="Dettagli Preventivo")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Creato il")
 
@@ -424,7 +425,6 @@ class Notification(models.Model):
     level = models.CharField(max_length=10, choices=NotificationLevel.choices, default=NotificationLevel.INFO)
     is_read = models.BooleanField(default=False, verbose_name="Letta")
     created_at = models.DateTimeField(auto_now_add=True)
-    # Un campo opzionale per creare un link alla pagina rilevante
     related_url = models.CharField(max_length=255, blank=True, null=True)
 
     def __str__(self):
