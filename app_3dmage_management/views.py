@@ -3,7 +3,7 @@ from django.http import JsonResponse, HttpResponseBadRequest
 from django.views.decorators.http import require_POST
 import math
 from django.db.models import Prefetch, Sum, Case, When, Value, IntegerField, F, Q, Count, Max, ExpressionWrapper, DecimalField, OuterRef, Subquery
-from django.db.models.functions import Coalesce
+from django.db.models.functions import Coalesce, TruncMonth
 from django.contrib.auth.decorators import login_required, permission_required
 from django.forms.models import model_to_dict
 from django.utils import timezone
@@ -946,9 +946,14 @@ def add_spool(request):
         filament = form.cleaned_data['filament']
         purchase_date = form.cleaned_data['purchase_date']
 
-        existing_spools = Spool.objects.filter(filament=filament, purchase_date=purchase_date).count()
-        new_identifier = chr(ord('A') + existing_spools)
+        # Conta le bobine dello stesso filamento nello stesso mese
+        existing_spools = Spool.objects.filter(
+            filament=filament,
+            purchase_date__year=purchase_date.year,
+            purchase_date__month=purchase_date.month
+        ).count()
 
+        new_identifier = chr(ord('A') + existing_spools) if existing_spools > 0 else ''
         spool = form.save(commit=False)
         spool.identifier = new_identifier
         spool.save()
@@ -959,14 +964,17 @@ def add_spool(request):
 
         Expense.objects.create(
             description=f"Acquisto bobina: {spool.filament} ({spool})",
-            amount=cost, category=material_category,
-            expense_date=spool.purchase_date, payment_method=payment_method
+            amount=cost,
+            category=material_category,
+            expense_date=spool.purchase_date,
+            payment_method=payment_method
         )
 
         payment_method.balance -= cost
         payment_method.save()
 
-    return redirect('filament_dashboard')
+        return redirect('filament_dashboard')
+
 
 @require_POST
 def delete_spool(request, spool_id):
@@ -1078,36 +1086,30 @@ def api_get_all_filaments(request):
 
 # MODIFICATO: Ora restituisce due liste di bobine (attive e non)
 def api_get_filament_spools(request, filament_id):
-    spools = Spool.objects.filter(filament_id=filament_id).order_by('identifier')
+    all_spools = Spool.objects.filter(filament_id=filament_id).order_by('identifier')
+
     active_spools_data = []
     inactive_spools_data = []
 
-    for spool in spools:
-        used_on_spool = spool.usages.filter(
-            print_file__status__in=['DONE', 'FAILED']
-        ).aggregate(total=Sum('grams_used'))['total'] or Decimal('0')
-
-        remaining = Decimal(spool.initial_weight_g) - used_on_spool
-
+    for spool in all_spools:
         spool_data = {
             'id': spool.id,
             'text': str(spool),
-            'remaining': remaining,
+            'remaining': spool.initial_weight_g,
             'cost': f"{spool.cost}€",
             'purchase_link': spool.purchase_link,
             'is_active': spool.is_active
         }
-
         if spool.is_active:
-             active_spools_data.append(spool_data)
+            active_spools_data.append(spool_data)
         else:
-             inactive_spools_data.append(spool_data)
-
+            inactive_spools_data.append(spool_data)
 
     return JsonResponse({
         'active_spools': active_spools_data,
         'inactive_spools': inactive_spools_data
     })
+
 
 # NUOVA VISTA: per cambiare lo stato della bobina
 @require_POST

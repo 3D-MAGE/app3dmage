@@ -121,9 +121,15 @@ class Spool(models.Model):
 
 
     def __str__(self):
-        weight_kg = self.initial_weight_g / 1000
-        weight_str = f"{int(weight_kg) if weight_kg.is_integer() else weight_kg}Kg"
-        return f"Bobina {self.identifier} - {weight_str} - {self.purchase_date.strftime('%m/%y')}"
+        base_name = self.filament.color_name or "Senza Nome"
+        suffix = f" {self.identifier}" if self.identifier and self.identifier != 'A' else ""
+        try:
+            date_str = self.purchase_date.strftime('%m/%y')
+        except Exception:
+            date_str = "??/??"
+        return f"{base_name}{suffix} - {date_str}"
+
+
 
     class Meta:
         verbose_name = "Bobina"

@@ -102,13 +102,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (data.active_spools.length > 0) {
                     activeSpoolListContainer.innerHTML = `<ul class="list-group list-group-flush spool-list-group">${data.active_spools.map(renderSpool).join('')}</ul>`;
                 } else {
-                    activeSpoolListContainer.innerHTML = '<p class="text-muted small p-3">Nessuna bobina attiva per questo filamento.</p>';
+                    activeSpoolListContainer.innerHTML = '<p class="text-white-50 small">Nessuna bobina attiva per questo filamento.</p>';
                 }
                 // Render inactive spools
                 if (data.inactive_spools.length > 0) {
                     inactiveSpoolListContainer.innerHTML = `<ul class="list-group list-group-flush spool-list-group">${data.inactive_spools.map(renderSpool).join('')}</ul>`;
                 } else {
-                    inactiveSpoolListContainer.innerHTML = '<p class="text-muted small p-3">Nessuna bobina finita.</p>';
+                    inactiveSpoolListContainer.innerHTML = '<p class="text-white-50 small">Nessuna bobina finita.</p>';
                 }
             });
     };
@@ -189,6 +189,23 @@ document.addEventListener('DOMContentLoaded', function() {
         // Fetch and display spools
         fetchAndRenderSpools(filamentId);
     });
+
+
+    detailModalEl.addEventListener('hidden.bs.modal', function () {
+        window.location.reload();
+    });
+
+    document.querySelectorAll('.filament-row').forEach(row => {
+      row.addEventListener('click', function () {
+        const filamentId = this.dataset.filamentId;
+        const modalTrigger = document.querySelector(`.filament-pill[data-filament-id="${filamentId}"]`);
+        if (modalTrigger) {
+          modalTrigger.click();
+        }
+      });
+    });
+
+
 
     // Switch to edit mode
     switchToEditBtn.addEventListener('click', function() {
@@ -295,10 +312,25 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (data.status === 'ok') {
                     const spoolItem = document.getElementById(`spool-item-${spoolId}`);
                     if (data.is_active) {
-                        activeSpoolListContainer.querySelector('.spool-list-group').appendChild(spoolItem);
+                        let list = activeSpoolListContainer.querySelector('.spool-list-group');
+                        if (!list) {
+                            list = document.createElement('ul');
+                            list.className = 'list-group list-group-flush spool-list-group';
+                            activeSpoolListContainer.innerHTML = '';
+                            activeSpoolListContainer.appendChild(list);
+                        }
+                        list.appendChild(spoolItem);
                     } else {
-                        inactiveSpoolListContainer.querySelector('.spool-list-group').appendChild(spoolItem);
+                        let list = inactiveSpoolListContainer.querySelector('.spool-list-group');
+                        if (!list) {
+                            list = document.createElement('ul');
+                            list.className = 'list-group list-group-flush spool-list-group';
+                            inactiveSpoolListContainer.innerHTML = '';
+                            inactiveSpoolListContainer.appendChild(list);
+                        }
+                        list.appendChild(spoolItem);
                     }
+
                     showToast(`Bobina ${data.is_active ? 'riattivata' : 'disattivata'}.`, 'info');
                 } else {
                     showToast('Errore durante l\'aggiornamento dello stato.', 'error');

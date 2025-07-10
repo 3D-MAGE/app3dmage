@@ -50,6 +50,41 @@
                 </tbody>
             </table>
         </div>
+        <div class="accordion mt-5" id="accordionFilamentiEsauriti">
+  <div class="accordion-item">
+    <h2 class="accordion-header" id="headingEsauriti">
+      <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseEsauriti" aria-expanded="false" aria-controls="collapseEsauriti">
+        Filamenti Esauriti
+      </button>
+    </h2>
+    <div id="collapseEsauriti" class="accordion-collapse collapse" aria-labelledby="headingEsauriti" data-bs-parent="#accordionFilamentiEsauriti">
+      <div class="accordion-body">
+        <div class="row g-3">
+          {% for filament in filaments %}
+            {% if filament.spools.count == 0 %}
+              <div class="col-md-6 col-lg-4">
+                <div class="border rounded p-3 d-flex align-items-center justify-content-between" style="background-color: {{ filament.color_hex }};">
+                  <div>
+                    <span class="badge bg-dark me-2">{{ filament.material }}</span>
+                    <strong>{{ filament.color_name }}</strong>
+                    <div class="small text-white-50">Usato: {{ filament.total_used_weight|floatformat:0 }}g</div>
+                  </div>
+                </div>
+              </div>
+            {% endif %}
+          {% empty %}
+            <p class="text-muted">Nessun filamento esaurito.</p>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+
+
+
     </div>
 </div>
 

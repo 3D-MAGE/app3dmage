@@ -216,12 +216,18 @@ document.addEventListener('DOMContentLoaded', async function() {
             const spoolUrl = URLS.apiSpoolsUrlBase.replace('0', usage.spool__filament_id);
             const spoolsResponse = await fetch(spoolUrl);
             const spoolsData = await spoolsResponse.json();
+            const spools = spoolsData.active_spools || [];
             spoolSelect.innerHTML = '<option value="">Seleziona Bobina...</option>';
-            if (spoolsData.length > 0) {
-                spoolsData.forEach(spool => { spoolSelect.innerHTML += `<option value="${spool.id}" data-remaining="${spool.remaining}">${spool.text}</option>`; });
-                spoolSelect.disabled = false;
-                spoolSelect.value = usage.spool_id;
-            } else { spoolSelect.innerHTML = '<option value="">Nessuna bobina</option>'; }
+            if (spools.length > 0) {
+              spools.forEach(spool => {
+                  spoolSelect.innerHTML += `<option value="${spool.id}" data-remaining="${spool.remaining}">${spool.text}</option>`;
+              });
+              spoolSelect.disabled = false;
+              spoolSelect.value = usage.spool_id;
+            } else {
+              spoolSelect.innerHTML = '<option value="">Nessuna bobina</option>';
+            }
+
             row.querySelector('.grams-input').value = usage.grams_used;
             checkWeightAndWarn(row.querySelector('.grams-input'));
         }
@@ -485,17 +491,18 @@ document.addEventListener('DOMContentLoaded', async function() {
                     const spoolUrl = URLS.apiSpoolsUrlBase.replace('0', fId);
                     fetch(spoolUrl).then(res => res.json()).then(data => {
                         spoolSelect.innerHTML = '<option value="">Seleziona Bobina...</option>';
-                        spoolSelect.classList.remove('is-empty');
-                        if (data.length > 0) {
-                            data.forEach(spool => { spoolSelect.innerHTML += `<option value="${spool.id}" data-remaining="${spool.remaining}">${spool.text}</option>`; });
-                            spoolSelect.value = data[0].id;
+                        const spools = data.active_spools || [];
+                        if (spools.length > 0) {
+                            spools.forEach(spool => {
+                                spoolSelect.innerHTML += `<option value="${spool.id}" data-remaining="${spool.remaining}">${spool.text}</option>`;
+                            });
                             spoolSelect.disabled = false;
+                            spoolSelect.value = spools[0].id;
                         } else {
                             spoolSelect.innerHTML = '<option value="">Nessuna bobina</option>';
-                            spoolSelect.classList.add('is-empty');
                         }
-                        spoolSelect.dispatchEvent(new Event('change', {'bubbles': true}));
                     });
+
                 } else { spoolSelect.innerHTML = '<option value="">Scegli un filamento</option>'; spoolSelect.classList.remove('is-empty'); }
             }
             if (target.classList.contains('spool-select')) { checkWeightAndWarn(target.closest('.filament-row').querySelector('.grams-input')); }
