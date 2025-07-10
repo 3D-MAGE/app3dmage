@@ -116,6 +116,9 @@ class Spool(models.Model):
     cost = models.DecimalField(max_digits=8, decimal_places=2, verbose_name="Costo (€)")
     purchase_date = models.DateField(default=timezone.now, verbose_name="Data Acquisto")
     purchase_link = models.URLField(max_length=512, blank=True, null=True, verbose_name="Link Acquisto")
+    # NUOVO CAMPO per stato bobina
+    is_active = models.BooleanField(default=True, verbose_name="Attiva")
+
 
     def __str__(self):
         weight_kg = self.initial_weight_g / 1000

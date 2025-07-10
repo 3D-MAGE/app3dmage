@@ -45,6 +45,8 @@ urlpatterns = [
     path('filament/<int:filament_id>/edit/', views.edit_filament, name='edit_filament'),
     path('filament/<int:filament_id>/delete/', views.delete_filament, name='delete_filament'),
     path('spool/<int:spool_id>/delete/', views.delete_spool, name='delete_spool'),
+    # NUOVO URL per attivare/disattivare bobina
+    path('spool/<int:spool_id>/toggle_status/', views.toggle_spool_status, name='toggle_spool_status'),
 
     # Magazzino
     path('inventory/', views.inventory_dashboard, name='inventory_dashboard'),

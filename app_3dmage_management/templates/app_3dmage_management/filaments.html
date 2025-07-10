@@ -6,7 +6,7 @@
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2 class="text-white">Gestione Filamenti</h2>
     <div>
-        <button class="btn btn-sm btn-primary-custom" data-bs-toggle="modal" data-bs-target="#addSpoolModal"><i class="bi bi-plus-circle me-1"></i>Aggiungi Bobina</button>
+        <button class="btn btn-sm btn-outline-warning" data-bs-toggle="modal" data-bs-target="#addSpoolModal"><i class="bi bi-plus-circle me-1"></i>Aggiungi Bobina</button>
         <button class="btn btn-sm btn-primary-custom" data-bs-toggle="modal" data-bs-target="#addFilamentModal"><i class="bi bi-plus-circle me-1"></i>Aggiungi Tipo Filamento</button>
     </div>
 </div>
@@ -19,8 +19,9 @@
                     <tr>
                         <th><a href="?sort=material&order={% if sort_by == 'material' and order == 'asc' %}desc{% else %}asc{% endif %}">Filamento</a></th>
                         <th><a href="?sort=color_name&order={% if sort_by == 'color_name' and order == 'asc' %}desc{% else %}asc{% endif %}">Nome Colore</a></th>
-                        <th style="width: 40%;">Grammi Rimanenti</th>
-                        <th class="text-end">Usato</th>
+                        <th style="width: 40%;"><a href="?sort=annotated_remaining_weight&order={% if sort_by == 'annotated_remaining_weight' and order == 'asc' %}desc{% else %}asc{% endif %}">Grammi Rimanenti</a></th>
+                        <th class="text-end"><a href="?sort=annotated_total_used_weight&order={% if sort_by == 'annotated_total_used_weight' and order == 'asc' %}desc{% else %}asc{% endif %}">Usato</a></th>
+
                     </tr>
                 </thead>
                 <tbody>
@@ -31,7 +32,7 @@
                             {% widthratio filament.annotated_remaining_weight total_weight 100 as remaining_percentage %}
                         {% endif %}
 
-                        <tr style="cursor:pointer;" data-bs-toggle="modal" data-bs-target="#editFilamentModal" data-filament-id="{{ filament.id }}">
+                        <tr style="cursor:pointer;" data-bs-toggle="modal" data-bs-target="#filamentDetailModal" data-filament-id="{{ filament.id }}">
                             <td class="fw-bold"><span class="filament-pill" style="background-color: {{ filament.color_hex }};">{{ filament }}</span></td>
                             <td>{{ filament.color_name }}</td>
                             <td style="position: relative; min-width: 200px;">
@@ -52,21 +53,76 @@
     </div>
 </div>
 
+{# Template per il form di modifica, rimane invariato #}
 <template id="filament-form-template">{{ filament_form.as_p }}</template>
+
+{# Modals per Aggiungere Filamento e Bobina, rimangono invariati #}
 <div class="modal fade" id="addFilamentModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content bg-dark-card text-white"><div class="modal-header border-secondary"><h5 class="modal-title">Aggiungi Nuovo Tipo Filamento</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><form action="{% url 'add_filament' %}" method="post"><div class="modal-body">{% csrf_token %}{{ filament_form.as_p }}</div><div class="modal-footer border-secondary"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button><button type="submit" class="btn btn-primary-custom">Salva</button></div></form></div></div></div>
 <div class="modal fade" id="addSpoolModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content bg-dark-card text-white"><div class="modal-header border-secondary"><h5 class="modal-title">Aggiungi Nuova Bobina</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><form action="{% url 'add_spool' %}" method="post"><div class="modal-body">{% csrf_token %}{{ spool_form.as_p }}</div><div class="modal-footer border-secondary"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button><button type="submit" class="btn btn-primary-custom">Salva</button></div></form></div></div></div>
-<div class="modal fade" id="editFilamentModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered modal-lg"><div class="modal-content bg-dark-card text-white">
-    <div class="modal-header border-secondary"><h5 class="modal-title" id="editFilamentModalTitle">Modifica Filamento</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
-    <form id="editFilamentForm" method="post"><div class="modal-body">{% csrf_token %}<div id="editFilamentFormContainer"></div>
-        <hr class="border-secondary my-4">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-             <h6 class="mb-0">Bobine Associate</h6>
-             <button type="button" class="btn btn-sm btn-outline-success add-spool-from-modal-btn"><i class="bi bi-plus-circle"></i> Aggiungi Bobina</button>
+
+{# MODAL PRINCIPALE RISTRUTTURATO #}
+<div class="modal fade" id="filamentDetailModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content bg-dark-card text-white">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title" id="filamentDetailModalTitle">Dettaglio Filamento</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                {# --- VISTA DETTAGLIO (READ-ONLY) --- #}
+                <div id="filament-view-container">
+                    <div class="row g-3 mb-4" id="filament-details-readonly">
+                        {# I dettagli verranno inseriti qui dal JS #}
+                    </div>
+                    <hr class="border-secondary my-3">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                         <h6 class="mb-0">Bobine Attive</h6>
+                         <button type="button" class="btn btn-sm btn-outline-success add-spool-from-modal-btn"><i class="bi bi-plus-circle"></i> Aggiungi Bobina</button>
+                    </div>
+                    <div id="active-spool-list-container" class="mb-3"></div>
+
+                    <div class="accordion accordion-flush" id="finishedSpoolsAccordion">
+                        <div class="accordion-item bg-transparent">
+                            <h2 class="accordion-header" id="flush-headingOne">
+                                <button class="accordion-button collapsed bg-dark-subtle text-white-50 rounded" type="button" data-bs-toggle="collapse" data-bs-target="#flush-collapseOne" aria-expanded="false" aria-controls="flush-collapseOne">
+                                    Bobine Finite
+                                </button>
+                            </h2>
+                            <div id="flush-collapseOne" class="accordion-collapse collapse" aria-labelledby="flush-headingOne" data-bs-parent="#finishedSpoolsAccordion">
+                                <div class="accordion-body p-0 pt-2">
+                                    <div id="inactive-spool-list-container"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {# --- VISTA MODIFICA (FORM) --- #}
+                <div id="filament-edit-container" style="display: none;">
+                    <form id="editFilamentForm" method="post">
+                        {% csrf_token %}
+                        <div id="editFilamentFormContainer">
+                            {# Il form di modifica verrà caricato qui dal template #}
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            {# --- FOOTER DINAMICO --- #}
+            <div class="modal-footer border-secondary" id="footer-view-mode">
+                <button type="button" class="btn btn-danger me-auto" id="deleteFilamentBtnTrigger">Elimina</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Chiudi</button>
+                <button type="button" class="btn btn-outline-primary" id="switchToEditModeBtn">Modifica</button>
+            </div>
+            <div class="modal-footer border-secondary" id="footer-edit-mode" style="display: none;">
+                <button type="button" class="btn btn-secondary" id="switchToViewModeBtn">Annulla</button>
+                <button type="button" class="btn btn-primary-custom" id="saveFilamentChangesBtn">Salva Modifiche</button>
+            </div>
         </div>
-        <div id="spool-list-container" style="max-height: 200px; overflow-y: auto;"></div>
     </div>
-    <div class="modal-footer border-secondary"><button type="button" class="btn btn-danger me-auto" id="deleteFilamentBtnTrigger">Elimina</button><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button><button type="submit" class="btn btn-primary-custom">Salva Modifiche</button></div></form>
-</div></div></div>
+</div>
+
+{# Modal di conferma eliminazione, rimane invariato #}
 <div class="modal fade" id="deleteFilamentConfirmModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content bg-dark-card text-white"><div class="modal-header border-danger bg-danger"><h5 class="modal-title">Conferma Eliminazione</h5></div><div class="modal-body" id="deleteFilamentConfirmBody"></div><div class="modal-footer border-secondary"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button><button type="button" class="btn btn-danger" id="confirmDeleteFilamentBtn">Sì, Elimina</button></div></div></div></div>
 {% endblock %}
 
@@ -78,6 +134,7 @@
     data-base-filament-url="/filament/"
     data-base-spool-url="/spool/"
     data-api-base-spool-url="/api/filament/"
+    data-toggle-spool-status-url="/spool/"
 ></script>
 
 <script src="{% static 'js/filaments.js' %}"></script>

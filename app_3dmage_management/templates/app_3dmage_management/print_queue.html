@@ -3,48 +3,6 @@
 {% block title %}Coda di Stampa - 3DMAGE MANAGEMENT{% endblock %}
 
 {% block content %}
-<style>
-    /* Stile per la dropzone "In Stampa" */
-    .dropzone-printing {
-        border: 2px dashed #4a4e53; /* Bordo tratteggiato per indicare un'area di drop */
-        border-radius: 8px;
-        padding: 10px;
-        background-color: rgba(0, 0, 0, 0.15);
-        min-height: 180px; /* Altezza minima per mantenere l'allineamento delle colonne */
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        transition: background-color 0.2s ease-in-out, border-color 0.2s ease-in-out;
-    }
-
-    /* MODIFICA: Nuova regola per far espandere la card "In Stampa" */
-    .dropzone-printing > .kanban-card {
-        width: 100%;
-    }
-
-    /* Migliora la visibilità del testo quando lo slot è vuoto */
-    .dropzone-printing .empty-slot {
-        color: #6c757d; /* Grigio più leggibile */
-        font-style: italic;
-    }
-
-    /* Stile aggiuntivo quando si sta trascinando un elemento sopra la dropzone */
-    .dropzone-printing.sortable-drag-over {
-        background-color: rgba(0, 123, 255, 0.1);
-        border-color: #0d6efd;
-    }
-
-    /* Separatore visivo tra la zona "In Stampa" e la coda */
-    .queue-separator {
-        text-align: center;
-        color: #6c757d;
-        font-size: 0.8rem;
-        text-transform: uppercase;
-        letter-spacing: 1px;
-        margin: 15px 0 10px 0;
-    }
-</style>
-
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2 class="text-white">Coda di Stampa</h2>
 </div>

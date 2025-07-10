@@ -139,14 +139,18 @@ def filament_dashboard(request):
     order = request.GET.get('order', 'asc')
     order_prefix = '-' if order == 'desc' else ''
 
+    # MODIFICATO: Calcola il peso solo delle bobine ATTIVE
     total_initial_weight_subquery = Spool.objects.filter(
-        filament=OuterRef('pk')
+        filament=OuterRef('pk'),
+        is_active=True  # Considera solo le bobine attive
     ).values('filament').annotate(
         s=Sum('initial_weight_g')
     ).values('s')
 
+    # MODIFICATO: Calcola i grammi usati solo dalle bobine ATTIVE
     total_used_weight_subquery = FilamentUsage.objects.filter(
         spool__filament=OuterRef('pk'),
+        spool__is_active=True,  # Considera solo le bobine attive
         print_file__status__in=['DONE', 'FAILED']
     ).values('spool__filament').annotate(
         s=Sum('grams_used')
@@ -162,22 +166,12 @@ def filament_dashboard(request):
         )
     )
 
-    valid_sort_fields = ['material', 'brand', 'color_name']
+    valid_sort_fields = ['material', 'brand', 'color_name', 'annotated_remaining_weight', 'annotated_total_used_weight']
     if sort_by not in valid_sort_fields:
         sort_by = 'material'
 
     order_fields = (f'{order_prefix}{sort_by}',)
     filaments = filaments_query.order_by(*order_fields)
-
-    LOW_STOCK_THRESHOLD = 150
-    for f in filaments:
-        if f.annotated_remaining_weight < LOW_STOCK_THRESHOLD:
-            Notification.objects.get_or_create(
-                message=f"Scorta quasi esaurita per {f}!",
-                level=Notification.NotificationLevel.WARNING,
-                is_read=False,
-                defaults={'related_url': "/filaments/"}
-            )
 
     context = {
         'filaments': filaments,
@@ -1025,9 +1019,11 @@ def delete_filament(request, filament_id):
     filament.delete()
     return JsonResponse({'status': 'ok'})
 
+# MODIFICATO: Ora restituisce solo le bobine attive
 def get_spools_for_filament(request):
     filament_id = request.GET.get('filament_id')
-    spools = Spool.objects.filter(filament_id=filament_id)
+    # Filtra solo per bobine attive!
+    spools = Spool.objects.filter(filament_id=filament_id, is_active=True)
 
     spools_data = []
     for spool in spools:
@@ -1080,9 +1076,11 @@ def api_get_all_filaments(request):
     data = [{'id': f.id, 'name': str(f), 'color_hex': f.color_hex} for f in filaments]
     return JsonResponse(data, safe=False)
 
+# MODIFICATO: Ora restituisce due liste di bobine (attive e non)
 def api_get_filament_spools(request, filament_id):
     spools = Spool.objects.filter(filament_id=filament_id).order_by('identifier')
-    spools_data = []
+    active_spools_data = []
+    inactive_spools_data = []
 
     for spool in spools:
         used_on_spool = spool.usages.filter(
@@ -1091,16 +1089,34 @@ def api_get_filament_spools(request, filament_id):
 
         remaining = Decimal(spool.initial_weight_g) - used_on_spool
 
-        if remaining > Decimal('0.01'):
-            spools_data.append({
-                'id': spool.id,
-                'text': str(spool),
-                'remaining': remaining,
-                'cost': f"{spool.cost}€",
-                'purchase_link': spool.purchase_link
-            })
+        spool_data = {
+            'id': spool.id,
+            'text': str(spool),
+            'remaining': remaining,
+            'cost': f"{spool.cost}€",
+            'purchase_link': spool.purchase_link,
+            'is_active': spool.is_active
+        }
 
-    return JsonResponse(spools_data, safe=False)
+        if spool.is_active:
+             active_spools_data.append(spool_data)
+        else:
+             inactive_spools_data.append(spool_data)
+
+
+    return JsonResponse({
+        'active_spools': active_spools_data,
+        'inactive_spools': inactive_spools_data
+    })
+
+# NUOVA VISTA: per cambiare lo stato della bobina
+@require_POST
+def toggle_spool_status(request, spool_id):
+    spool = get_object_or_404(Spool, id=spool_id)
+    spool.is_active = not spool.is_active
+    spool.save()
+    return JsonResponse({'status': 'ok', 'is_active': spool.is_active})
+
 
 def accounting_dashboard(request):
     search_query = request.GET.get('q', '')

@@ -171,7 +171,12 @@ class SpoolForm(forms.ModelForm):
         required=True,
         widget=forms.Select(attrs={'class': 'form-select'})
     )
-    purchase_date = forms.DateField(widget=forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}), label="Data Acquisto")
+    purchase_date = forms.DateField(
+        widget=forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
+        label="Data Acquisto",
+        initial=datetime.date.today
+        )
+
     class Meta:
         model = Spool
         fields = ['filament', 'initial_weight_g', 'cost', 'purchase_date', 'purchase_link', 'payment_method']

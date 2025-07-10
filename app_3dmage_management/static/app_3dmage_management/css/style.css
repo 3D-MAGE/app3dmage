@@ -8,74 +8,12 @@
     --text-muted: #6c757d;
 }
 
-/* Regole specifiche per applicare i colori del tema chiaro */
-html.light-theme body {
-    /* Colori di base per il tema chiaro */
-    /*--primary-color: #f57c00;*/
-    --dark-bg: #f4f6f8;
-    --dark-card: #ffffff;
-    --dark-nav: #e9ecef;
-    --text-light: #212529;
-    --text-muted: #6c757d;
-}
-
-/* Regole specifiche per applicare i colori del tema chiaro */
-html.light-theme body {
-    background-color: var(--dark-bg) !important;
-    color: var(--text-light) !important;
-}
-
-html.light-theme .text-white,
-html.light-theme .accordion-button,
-html.light-theme .accordion-header .accordion-button .fw-bold,
-html.light-theme .settings-list-group .list-group-item,
-html.light-theme .modal-body .item-project-subtitle {
-    color: var(--text-light) !important;
-}
-
-html.light-theme .bg-dark-custom {
-    background-color: var(--dark-nav) !important;
-    border-bottom: 1px solid #dee2e6;
-}
-
-html.light-theme .nav-link {
-    color: #343a40 !important;
-}
-html.light-theme .nav-link.active {
-    color: var(--primary-color) !important;
-}
-
-html.light-theme .btn-primary-custom {
-    color: white;
-}
-html.light-theme .btn-primary-custom:hover {
-    color: white;
-}
-
-html.light-theme .table {
-    --bs-table-hover-bg: #f1f3f5;
-    border-color: #dee2e6;
-}
-
-html.light-theme .accordion-button::after {
-    filter: none;
-}
-
-html.light-theme .modal-content.bg-dark-card .form-control,
-html.light-theme .modal-content.bg-dark-card .form-select {
-    background-color: #f1f3f5;
-    color: var(--text-light);
-    border-color: #ced4da;
-}
-
+/* --- Layout di Base --- */
 body {
-    padding-top: 70px;
-    background-color: var(--dark-bg);
-    color: var(--text-light);
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    overflow-x: hidden; /* Previene lo scroll orizzontale */
+  padding-top: 70px; /* Mantiene lo spazio per la navbar fissa */
+  background-color: var(--dark-bg);
+  color: var(--text-light);
+  overflow-x: hidden;
 }
 
 header {
@@ -85,26 +23,36 @@ header {
     z-index: 1030;
 }
 
-/* Navbar */
+/* Sticky per il blocco 'In stampa' */
+.printing-now-container {
+  position: sticky;
+  top: 70px; /* Adattato per considerare il padding-top del body */
+  z-index: 10;
+  background-color: var(--dark-bg);
+}
+
+
+/* --- Navbar --- */
 .bg-dark-custom { background-color: var(--dark-nav) !important; border-bottom: 1px solid var(--dark-card); }
 .navbar-brand .fw-bold { margin-left:20px; font-weight: 600 !important; font-size: 1.5rem; vertical-align: middle; letter-spacing: 1px; }
 .navbar-brand-divider { border-left: 2px solid var(--primary-color); height: 25px; }
 .nav-link { color: var(--text-light) !important; font-weight: 400; margin: 0 0.5rem; transition: color 0.3s ease; }
 .nav-link.active { color: var(--primary-color) !important; font-weight: 700; }
+.nav-link:not(.active):hover { color: var(--primary-color) !important; }
 
-/* Elementi Comuni */
+/* --- Elementi Comuni --- */
 .btn-primary-custom { background-color: var(--primary-color); border-color: var(--primary-color); color: var(--dark-bg); font-weight: bold; }
 .btn-primary-custom:hover { background-color: #e69500; border-color: #e69500; color: #000; }
 .card.bg-dark-card { background-color: var(--dark-card) !important; border: none; border-radius: 0.5rem; }
 .card.bg-dark-card .text-muted { color: #a0a0a0 !important; }
 
-/* Tabelle */
+/* --- Tabelle --- */
 .table { --bs-table-bg: var(--dark-card); --bs-table-hover-bg: #3a3a3a; border-color: #444; }
 .table thead th a { color: var(--primary-color); text-decoration: none; font-weight: 600; }
 .table thead th a:hover { color: #e69500; }
 .card .table thead th { color: var(--primary-color); font-weight: 600; }
 
-/* Badge, Pillole e Form In-linea */
+/* --- Badge, Pillole e Form In-linea --- */
 .bg-priority-low { background-color: #0d6efd !important; }
 .bg-priority-medium { background-color: #198754 !important; }
 .bg-priority-high { background-color: #ffc107 !important; color: #000 !important; }
@@ -113,90 +61,67 @@ header {
 .bg-status-todo { background-color: var(--primary-color) !important; color: #000 !important; }
 .bg-status-post { background-color: #10d50a !important; color: #000 !important;}
 .bg-status-done { background-color: #198754 !important; }
-.bg-print-status-todo { background-color: #6c757d !important; }
+.bg-print-status-todo { background-color: #ffa500 !important; }
 .bg-print-status-printing { background-color: #0dcaf0 !important; color: #000 !important; }
 .bg-print-status-done { background-color: #198754 !important; }
 .bg-print-status-failed { background-color: #dc3545 !important; }
 .filament-pill { padding: 0.25rem 0.6rem; border-radius: 1rem; color: white; font-weight: 500; font-size: 0.8em; text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.7); border: 1px solid rgba(255, 255, 255, 0.1); }
-.spool-list-group .list-group-item {
-    background-color: transparent !important;
-    color: var(--text-light) !important;
-    border-color: #444 !important;
+.spool-list-group .list-group-item { background-color: transparent !important; color: var(--text-light) !important; border-color: #444 !important; }
+.spool-list-group .badge { vertical-align: middle; }
+.spool-list-group .btn { vertical-align: middle; }
+
+.form-select {
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23ffffff' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 0.5rem center;
+  background-size: 16px 12px;
 }
 
-.spool-list-group .badge {
-    vertical-align: middle;
+.form-select-inline {
+  display: inline-block; width: auto; border: 1px solid #555; border-radius: 0.375rem; padding: 0.2rem 1.75rem 0.2rem 0.75rem;
+  -webkit-appearance: none; -moz-appearance: none; appearance: none;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='currentColor' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
+  background-repeat: no-repeat; background-position: right 0.5rem center; background-size: 16px 12px;
+  font-size: 0.9em; font-weight: bold; cursor: pointer; transition: background-color 0.2s ease-in-out;
 }
-
-.spool-list-group .btn {
-    vertical-align: middle;
-}
-.form-select-inline { display: inline-block; width: auto; border: 1px solid #555; border-radius: 0.375rem; padding: 0.2rem 1.75rem 0.2rem 0.75rem; -webkit-appearance: none; -moz-appearance: none; appearance: none; background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23ffa500' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e"); background-repeat: no-repeat; background-position: right 0.5rem center; background-size: 16px 12px; font-size: 0.9em; font-weight: bold; cursor: pointer; transition: background-color 0.2s ease-in-out; }
 .form-select-inline:focus { outline: none; border-color: var(--primary-color); box-shadow: 0 0 0 0.2rem rgba(255, 165, 0, 0.25); }
 select.select-priority-low { background-color: #0d6efd !important; }
 select.select-priority-medium { background-color: #198754 !important; }
-select.select-priority-high { background-color: #ffc107 !important; }
+select.select-priority-high { background-color: #ffc107 !important; color: #1a1a1a !important;}
 select.select-priority-urgent { background-color: #dc3545 !important; }
 select.select-status-quote { background-color: #6c757d !important; }
-select.select-status-todo { background-color: var(--primary-color) !important; }
-select.select-status-post { background-color: #10d50a !important; }
+select.select-status-todo { background-color: var(--primary-color) !important; color: #1a1a1a !important;}
+select.select-status-post { background-color: #10d50a !important; color: #1a1a1a !important;}
 select.select-status-done { background-color: #198754 !important; }
-select.select-priority-high, select.select-status-prep, select.select-status-ready { color: #1a1a1a !important; text-shadow: none; background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23343a40' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e"); }
 .notes-text-display { background-color: var(--dark-bg); color: #ccc; border: 1px solid #444; border-radius: 0.375rem; padding: 0.5rem 0.75rem; min-height: 80px; white-space: pre-wrap; font-size: 0.9em; }
 
-/* Kanban */
-/* =================================================================== */
-/* Modifiche per la Pagina Coda di Stampa (16 Giugno 2025)             */
-/* =================================================================== */
+input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); }
 
-/* 1. Rende il contenitore flessibile e pronto a occupare tutta la larghezza */
-.kanban-board-container {
-    display: flex;
-    flex-wrap: wrap;
-    /* justify-content: center; Rimosso per permettere alle colonne di riempire lo spazio */
-    gap: 1rem;
-    padding-bottom: 1rem;
-    width: 100%;
-}
-
-/* 2. Imposta le colonne per avere larghezza uguale e flessibile */
-.kanban-column {
-    flex: 1 1 0; /* Proprietà chiave: le colonne crescono e si restringono equamente */
-    min-width: 280px; /* Larghezza minima per evitare che diventino illeggibili su schermi piccoli */
-    background-color: var(--dark-bg);
-    border-radius: 0.5rem;
-    padding: 0.75rem;
-    max-height: 80vh;
-    display: flex;
-    flex-direction: column;
-}
-
-/* 3. Corregge il colore del titolo (nome progetto) sulla card */
-.kanban-card-header em.text-muted {
-    color: #adb5bd !important; /* Forza un colore grigio chiaro, ben visibile */
-}
-
-/* 4. Assicura che il nome del file vada a capo correttamente */
-.kanban-card-body strong {
-    overflow-wrap: break-word; /* Standard attuale per andare a capo */
-    word-wrap: break-word;     /* Fallback per vecchi browser */
-    word-break: break-word;    /* Previene la rottura a metà delle parole */
-}
+/* --- Kanban / Coda di Stampa --- */
+.dropzone-printing { border: 2px dashed #4a4e53; border-radius: 8px; padding: 10px; background-color: rgba(0, 0, 0, 0.15); display: flex; align-items: center; justify-content: center; transition: background-color 0.2s ease-in-out, border-color 0.2s ease-in-out; }
+.dropzone-printing > .kanban-card { width: 100%; }
+.dropzone-printing .empty-slot { color: #6c757d; font-style: italic; min-height: 200px; display: flex; align-items: center; justify-content: center; }
+.dropzone-printing.sortable-drag-over { background-color: rgba(0, 123, 255, 0.1); border-color: #0d6efd; }
+.queue-separator { text-align: center; color: #6c757d; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; margin: 15px 0 10px 0; border-top: 1px solid #6c757d; padding-top: 10px; margin-top: 20px; }
+.kanban-board-container { display: flex; flex-wrap: wrap; gap: 1rem; padding-bottom: 1rem; width: 100%; }
+.kanban-column { flex: 1 1 0; min-width: 280px; background-color: var(--dark-bg); border-radius: 0.5rem; padding: 0.75rem; max-height: 80vh; display: flex; flex-direction: column; overflow: visible; }
+.kanban-card-header em.text-muted { color: #adb5bd !important; }
+.kanban-card-body strong { overflow-wrap: break-word; word-wrap: break-word; word-break: break-word; }
 .kanban-column-title { padding-bottom: 0.5rem; margin-bottom: 0.75rem; border-bottom: 2px solid var(--dark-card); }
 .kanban-column-title .text-muted.small { color: #adb5bd !important; font-weight: 600; }
 .kanban-cards-container { flex-grow: 1; overflow-y: auto; min-height: 150px; }
-.kanban-card { background-color: var(--dark-card); border-radius: 0.375rem; padding: 0.75rem; margin-bottom: 0.75rem; cursor: pointer; border-left: 4px solid var(--primary-color); box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+.kanban-card { background-color: var(--dark-card); border-radius: 0.375rem; padding: 0.75rem; margin-bottom: 0.75rem; cursor: grab; border-left: 4px solid var(--primary-color); box-shadow: 0 2px 4px rgba(0,0,0,0.2); word-wrap: break-word; }
 .kanban-card:active { cursor: grabbing; }
 .kanban-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
 .kanban-card-body { margin-bottom: 0.5rem; }
 .kanban-card-ghost { opacity: 0.4; background: #333; border: 2px dashed var(--primary-color); }
 .print-queue-container .kanban-card-body .text-muted { color: #d1d1d1 !important; font-style: italic; }
 
-/* Contabilità */
+/* --- Contabilità --- */
 .cassa-total { font-size: 1.1rem; font-weight: 500; color: var(--primary-color) !important; }
 .card.bg-dark-card .d-flex span { color: var(--text-light) !important; }
 
-/* Pagina Impostazioni */
+/* --- Pagina Impostazioni --- */
 .settings-nav .nav-link { color: var(--text-light); font-weight: 500; margin-bottom: 0.5rem; border: 1px solid transparent; transition: all 0.2s ease-in-out; }
 .settings-nav .nav-link:hover { background-color: #3a3a3a; border-color: #444; }
 .settings-nav .nav-link.active { background-color: var(--primary-color) !important; color: var(--dark-bg) !important; font-weight: 700; border-color: var(--primary-color) !important; }
@@ -206,368 +131,101 @@ select.select-priority-high, select.select-status-prep, select.select-status-rea
 .accordion-button.collapsed { border-bottom: 0; }
 .accordion-button:not(.collapsed) { border-bottom: 1px solid #3a3a3a; }
 .accordion-button::after { filter: invert(1) grayscale(1) brightness(200%); }
-.accordion-button small.text-muted {
-    color: #a0a0a0 !important; /* Forza il colore grigio chiaro corretto */
-}
+.accordion-button small.text-muted { color: #a0a0a0 !important; }
 .settings-list-group .list-group-item { transition: background-color 0.2s ease-in-out; padding: .75rem 1rem; }
 .settings-list-group .list-group-item:hover { background-color: #3a3a40 !important; }
 .item-actions { opacity: 0; transition: opacity 0.2s ease-in-out; }
 .settings-list-group .list-group-item:hover .item-actions, .accordion-header:hover .item-actions { opacity: 1; }
 .accordion-body .list-group-item { color: var(--text-light); }
 
-/* Stili per i Modal */
+/* --- Stili per i Modal --- */
 .modal-content.bg-dark-card { background-color: var(--dark-card) !important; color: var(--text-light); }
 .modal-content.bg-dark-card .form-control, .modal-content.bg-dark-card .form-select { background-color: var(--dark-bg); color: var(--text-light); border-color: #555; }
 .modal-content.bg-dark-card .form-control:focus, .modal-content.bg-dark-card .form-select:focus { background-color: var(--dark-bg); color: var(--text-light); border-color: var(--primary-color); box-shadow: 0 0 0 0.25rem rgba(255, 165, 0, 0.25); }
 .modal-content.bg-dark-card label { margin-bottom: 0.5rem; display: block; }
-.spool-select.is-empty {
-    color: var(--text-light) !important;
-    opacity: 0.7; /* Opzionale: rende il testo leggermente traslucido per indicare che è uno stato informativo */
-}
+.spool-select.is-empty { color: var(--text-light) !important; opacity: 0.7; }
 
-/* Stili per la pagina Preventivi */
-#cost-breakdown p {
-    color: var(--text-light); /* Colore bianco per il testo principale */
-}
+/* --- Stili per la pagina Preventivi --- */
+#cost-breakdown p, #cost-breakdown p span { color: var(--text-light); }
+#cost-breakdown p .text-muted { color: #a0a0a0 !important; }
+.bg-dark-card .form-control, .bg-dark-card .form-select { background-color: var(--dark-bg); color: var(--text-light); border-color: #555; }
+.bg-dark-card .form-control:focus, .bg-dark-card .form-select:focus { background-color: var(--dark-bg); color: var(--text-light); border-color: var(--primary-color); box-shadow: 0 0 0 0.25rem rgba(255, 165, 0, 0.25); }
+.bg-dark-card label, .bg-dark-card h6, .bg-dark-card h5 { color: #f8f9fa; }
+.bg-dark-card h4#total-cost { color: #f8f9fa !important; }
+.bg-dark-card .form-control::placeholder { color: #a0a0a0; opacity: 1; }
+.text-primary-custom { color: var(--primary-color) !important; }
 
-#cost-breakdown p .text-muted {
-    color: #a0a0a0 !important; /* Grigio più chiaro per i dettagli */
-}
+/* --- Stili per il dropdown delle notifiche --- */
+#notification-list .dropdown-header { color: var(--primary-color); font-weight: 600; border-bottom: 1px solid #444; margin-bottom: 0.25rem; padding-top: 0.75rem; padding-bottom: 0.75rem; }
+#notification-list .dropdown-item-text { color: #a0a0a0 !important; }
+.dropdown-item-wrapper { display: flex; align-items: center; justify-content: space-between; padding-right: 0.5rem; }
+.dropdown-item-wrapper .dropdown-item { flex-grow: 1; padding-right: 0.5rem; white-space: normal; }
+.dropdown-item-wrapper .dropdown-item small { color: #f8f9fa; }
+.dropdown-item-wrapper .delete-notification-btn { --bs-btn-padding-y: .1rem; --bs-btn-padding-x: .4rem; --bs-btn-font-size: .75rem; line-height: 1; opacity: 0.5; transition: opacity 0.2s ease-in-out; }
+.dropdown-item-wrapper:hover .delete-notification-btn { opacity: 1; }
 
-/* Stile per i form fuori dai modal (come in Preventivi) */
-.bg-dark-card .form-control,
-.bg-dark-card .form-select {
-    background-color: var(--dark-bg);
-    color: var(--text-light);
-    border-color: #555;
-}
-
-.bg-dark-card .form-control:focus,
-.bg-dark-card .form-select:focus {
-    background-color: var(--dark-bg);
-    color: var(--text-light);
-    border-color: var(--primary-color);
-    box-shadow: 0 0 0 0.25rem rgba(255, 165, 0, 0.25);
-}
-
-.bg-dark-card label {
-    margin-bottom: 0.5rem;
-    display: block;
-    color: #ccc;
-}
-
-/* Stili per la pagina Preventivi */
-#cost-breakdown p,
-#cost-breakdown p span {
-    color: var(--text-light); /* Colore bianco per il testo del dettaglio */
-}
-
-#cost-breakdown p .text-muted {
-    color: #a0a0a0 !important; /* Grigio più chiaro per i dettagli */
-}
-
-/* Stile per i form fuori dai modal (come in Preventivi) */
-.bg-dark-card .form-control,
-.bg-dark-card .form-select {
-    background-color: var(--dark-bg);
-    color: var(--text-light);
-    border-color: #555;
-}
-
-.bg-dark-card .form-control:focus,
-.bg-dark-card .form-select:focus {
-    background-color: var(--dark-bg);
-    color: var(--text-light);
-    border-color: var(--primary-color);
-    box-shadow: 0 0 0 0.25rem rgba(255, 165, 0, 0.25);
-}
-
-.bg-dark-card label,
-.bg-dark-card h6,
-.bg-dark-card h5 {
-    color: #f8f9fa; /* Bianco per tutte le etichette e intestazioni */
-}
-
-.bg-dark-card h4#total-cost {
-    color: #f8f9fa !important; /* Bianco per il numero del totale */
-}
-
-.bg-dark-card .form-control::placeholder {
-    color: #a0a0a0;
-    opacity: 1;
-}
-
-.text-primary-custom {
-    color: var(--primary-color) !important;
-}
-
-/* Stili per il dropdown delle notifiche */
-#notification-list .dropdown-header {
-    color: var(--primary-color);
-    font-weight: 600;
-    border-bottom: 1px solid #444;
-    margin-bottom: 0.25rem;
-    padding-top: 0.75rem;
-    padding-bottom: 0.75rem;
-}
-
-#notification-list .dropdown-item-text {
-    color: #a0a0a0 !important;
-}
-
-.dropdown-item-wrapper {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding-right: 0.5rem;
-}
-
-.dropdown-item-wrapper .dropdown-item {
-    flex-grow: 1;
-    padding-right: 0.5rem;
-    white-space: normal; /* Permette al testo di andare a capo */
-}
-
-.dropdown-item-wrapper .dropdown-item small {
-    color: #f8f9fa;
-}
-
-.dropdown-item-wrapper .delete-notification-btn {
-    --bs-btn-padding-y: .1rem;
-    --bs-btn-padding-x: .4rem;
-    --bs-btn-font-size: .75rem;
-    line-height: 1;
-    opacity: 0.5;
-    transition: opacity 0.2s ease-in-out;
-}
-
-.dropdown-item-wrapper:hover .delete-notification-btn {
-    opacity: 1;
-}
-
-/* Stili per i Toast senza header */
+/* --- Stili per i Toast --- */
 #appToast.bg-success { background-color: #198754 !important; }
 #appToast.bg-danger { background-color: #dc3545 !important; }
 #appToast.bg-warning { background-color: #ffc107 !important; color: #000 !important; }
 #appToast.bg-warning .btn-close { filter: invert(1) grayscale(100) brightness(0); }
 
+/* --- Stili per i bottoni --- */
+#filament-count-selector .btn.active { background-color: var(--primary-color); border-color: var(--primary-color); color: black; }
+#status-btn-container .status-btn[data-status="TODO"].active { background-color: #ffa500; border-color: #ffa500; color: #ffffff; }
+#status-btn-container .status-btn[data-status="PRINTING"].active { background-color: #0dcaf0; border-color: #0dcaf0; color: #ffffff; }
+#status-btn-container .status-btn[data-status="DONE"].active { background-color: #198754; border-color: #198754; color: #ffffff; }
+#status-btn-container .status-btn[data-status="FAILED"].active { background-color: #dc3545; border-color: #dc3545; color: #ffffff; }
 
-#filament-count-selector .btn.active {
-    background-color: var(--primary-color);  /* Colore arancione */
-    border-color: var(--primary-color);      /* Bordo dello stesso colore */
-    color: black;             /* Testo bianco per un buon contrasto */
-}
+/* --- Magazzino --- */
+.table-sticky-header .table-responsive { max-height: 70vh; }
+.table-sticky-header thead th { position: -webkit-sticky; position: sticky; top: 0; z-index: 2; background-color: var(--dark-card); box-shadow: inset 0 -2px 0 var(--dark-nav); }
+.bg-stock-status-post_prod { background-color: var(--primary-color) !important; }
+.bg-stock-status-in_stock { background-color: #0dcaf0 !important; }
+.bg-stock-status-consignment { background-color: #6c757d !important; color: #000 !important; }
+.bg-stock-status-sold { background-color: #198754 !important; }
+.modal-body .item-project-subtitle { color: var(--text-light); font-style: italic; }
 
-/*
- * Stili per i bottoni di stato del file di stampa nel modale.
- * Applica un colore specifico per ogni stato quando il bottone è attivo.
-*/
+/* --- Impostazioni (Accordion) --- */
+.accordion-header .accordion-button, .accordion-header .accordion-button .fw-bold { color: var(--text-light) !important; }
+.accordion-header .accordion-button i { color: var(--primary-color); }
+.accordion-header .badge { color: var(--text-light) !important; }
+.btn-check:checked + .btn-outline-secondary { background-color: var(--primary-color); border-color: var(--primary-color); color: #000; }
 
-/* Stato: DA STAMPARE (Arancione) */
-#status-btn-container .status-btn[data-status="TODO"].active {
-    background-color: #ffa500;
-    border-color: #ffa500;
-    color: #ffffff;
-}
-
-/* Stato: IN STAMPA (Azzurro) */
-#status-btn-container .status-btn[data-status="PRINTING"].active {
-    background-color: #0dcaf0;
-    border-color: #0dcaf0;
-    color: #ffffff;
-}
-
-/* Stato: STAMPATO (Verde) */
-#status-btn-container .status-btn[data-status="DONE"].active {
-    background-color: #198754;
-    border-color: #198754;
-    color: #ffffff;
-}
-
-/* Stato: FALLITO (Rosso) */
-#status-btn-container .status-btn[data-status="FAILED"].active {
-    background-color: #dc3545;
-    border-color: #dc3545;
-    color: #ffffff;
-}
-
-/* Stili per le etichette di stato nella coda di stampa */
-
-.bg-print-status-todo {
-    background-color: #ffa500 !important; /* Arancione */
-}
-
-.bg-print-status-printing {
-    background-color: #0dcaf0 !important; /* Azzurro */
-}
-
-.bg-print-status-done {
-    background-color: #198754 !important; /* Verde */
-}
-
-.bg-print-status-failed {
-    background-color: #dc3545 !important; /* Rosso */
-}
-
-/* =================================================================== */
-/* Modifiche per la Pagina Magazzino (16 Giugno 2025)                  */
-/* =================================================================== */
-
-/* 1. Rende l'intestazione della tabella fissa (sticky) */
-/* Versione robusta per l'intestazione fissa della tabella */
-.table-sticky-header .table-responsive {
-    max-height: 70vh; /* Puoi regolare questa altezza come preferisci */
-}
-
-.table-sticky-header thead th {
-    position: -webkit-sticky; /* Per compatibilità con Safari */
-    position: sticky;
-    top: 0;
-    z-index: 2; /* Aumentato per sicurezza */
-    background-color: var(--dark-card);
-    /* Aggiunge una linea sottile per separare l'header dal contenuto */
-    box-shadow: inset 0 -2px 0 var(--dark-nav);
-}
-
-/* 2. Colora le etichette di stato del magazzino */
-.bg-stock-status-post_prod {
-    background-color: var(--primary-color) !important; /* Arancione scuro */
-}
-.bg-stock-status-in_stock {
-    background-color: #0dcaf0 !important; /* Azzurro */
-}
-.bg-stock-status-consignment {
-    background-color: #6c757d !important; /* Grigio */
-    color: #000 !important;
-}
-.bg-stock-status-sold {
-    background-color: #198754 !important; /* Verde */
-}
-
-/* Stile per il sottotitolo del progetto nel modale magazzino */
-.modal-body .item-project-subtitle {
-    color: var(--text-light);
-    font-style: italic;
-}
-
-/* =================================================================== */
-/* Correzioni per la Pagina Impostazioni (16 Giugno 2025)              */
-/* =================================================================== */
-
-/* 1. Assicura che il testo e le icone nell'header dell'accordion siano visibili */
-.accordion-header .accordion-button,
-.accordion-header .accordion-button .fw-bold {
-    color: var(--text-light) !important; /* Forza il testo a essere chiaro */
-}
-
-/* Rende le icone colorate con il colore primario del tema */
-.accordion-header .accordion-button i {
-    color: var(--primary-color);
-}
-
-/* Assicura che il testo nei badge sia leggibile */
-.accordion-header .badge {
-    color: var(--text-light) !important;
-}
-
-/* Rende arancione il bottone attivo nei gruppi di selezione (come il tema) */
-.btn-check:checked + .btn-outline-secondary {
-    background-color: var(--primary-color);
-    border-color: var(--primary-color);
-    color: #000; /* Testo nero per un buon contrasto sull'arancione */
-}
-
-/* Centra il brand nella navbar su schermi piccoli (smartphone) */
+/* --- Responsive --- */
 @media (max-width: 991.98px) {
-  .navbar .container-fluid {
-    justify-content: center; /* Centra gli elementi figli */
-  }
-  .navbar-brand {
-    margin-right: 0; /* Rimuove il margine per un centraggio perfetto */
-  }
-  .navbar-toggler {
-    /* Posiziona il bottone del menu a destra senza interferire con il centraggio */
-    position: absolute;
-    right: 1rem;
-  }
+  .navbar .container-fluid { justify-content: center; }
+  .navbar-brand { margin-right: 0; }
+  .navbar-toggler { position: absolute; left: 1rem; }
 }
 
 /* =================================================================== */
-/* Rifiniture Finali per il Tema Chiaro (19 Giugno 2025)               */
+/* Stili TEMA CHIARO (consolidati e corretti)                          */
 /* =================================================================== */
 
-/* 1. Rende la scritta "MANAGEMENT" nera nella navbar del tema chiaro */
-html.light-theme .navbar-brand .fw-bold {
-    color: var(--text-light) !important; /* var(--text-light) nel tema chiaro è nero */
+html.light-theme {
+    --primary-color: #ffa500;
+    --dark-bg: #f4f6f8;
+    --dark-card: #ffffff;
+    --dark-nav: #e9ecef;
+    --text-light: #212529;
+    --text-muted: #6c757d;
 }
 
-/* 2. Imposta il testo NERO per i bottoni di navigazione ATTIVI in Impostazioni */
-/* (quelli con lo sfondo arancione) */
-html.light-theme .settings-nav .nav-link.active {
-    color: #000 !important; /* Forza il testo a essere nero per massima leggibilità */
-}
-
-/* 3. Imposta il testo BIANCO per i bottoni di navigazione in HOVER in Impostazioni */
-html.light-theme .settings-nav .nav-link:hover {
-    background-color: #6c757d; /* Sfondo grigio scuro al passaggio del mouse */
-    color: #fff !important;    /* Testo bianco in hover */
-    border-color: #6c757d;
-}
-/* 1. Imposta il colore di base del testo per le tabelle nel tema chiaro */
-html.light-theme .table {
-    color: var(--text-light); /* var(--text-light) nel tema chiaro è nero */
-}
-
-/* 2. Forza il colore corretto su tutte le celle, inclusi gli elementi in grassetto */
-html.light-theme .table td,
-html.light-theme .table th,
-html.light-theme .table .fw-bold {
-    color: var(--text-light);
-}
-
-/* 3. Corregge il colore del testo sull'hover delle righe */
-html.light-theme .table-hover > tbody > tr:hover > * {
-    /* Imposta la variabile di Bootstrap per il colore del testo su hover */
-    --bs-table-accent-bg: var(--bs-table-hover-bg);
-    /* Forza il colore del testo, per massima compatibilità */
-    color: var(--text-light);
-}
-
-/* 4. Mantiene il colore corretto per i link nell'intestazione della tabella */
-html.light-theme .table thead th a {
-    color: var(--primary-color);
-}
-
-/* 5. Corregge il colore dei badge usati come stato nella tabella (tema chiaro) */
-html.light-theme .badge.bg-status-todo {
-    color: #000 !important;
-}
-
-/* 2. Aggiunge l'effetto hover arancione ai link della navbar */
-/* Questa regola si applica a tutti i link non attivi nella barra
-   di navigazione quando ci passi sopra con il mouse. */
-.nav-link:not(.active):hover {
-    color: var(--primary-color) !important;
-}
-
-/* 1. Corregge il colore dei titoli delle card (es. "Info Progetto") */
-html.light-theme h5 {
-    color: var(--text-light);
-}
-
-/* 2. Corregge il colore del testo base all'interno dei popup */
-html.light-theme .modal-content.bg-dark-card {
-    color: var(--text-light);
-    background-color: var(--dark-card) !important;
-}
-
-/* 3. Assicura che titoli ed etichette nei popup siano leggibili */
-html.light-theme .modal-content.bg-dark-card .modal-title,
-html.light-theme .modal-content.bg-dark-card label {
-    color: var(--text-light);
-}
-
-/* 4. Sistema il testo "text-muted" nel tema chiaro */
-html.light-theme .text-muted {
-    color: #6c757d !important;
-}
+html.light-theme body { background-color: var(--dark-bg) !important; color: var(--text-light) !important; }
+html.light-theme .text-white, html.light-theme .accordion-button, html.light-theme .accordion-header .accordion-button .fw-bold, html.light-theme .settings-list-group .list-group-item, html.light-theme .modal-body .item-project-subtitle, html.light-theme h5, html.light-theme .modal-content.bg-dark-card, html.light-theme .modal-content.bg-dark-card .modal-title, html.light-theme .modal-content.bg-dark-card label { color: var(--text-light) !important; }
+html.light-theme .bg-dark-custom { background-color: var(--dark-nav) !important; border-bottom: 1px solid #dee2e6; }
+html.light-theme .navbar-brand .fw-bold { color: var(--text-light) !important; }
+html.light-theme .nav-link { color: #343a40 !important; }
+html.light-theme .nav-link.active { color: var(--primary-color) !important; }
+html.light-theme .btn-primary-custom, html.light-theme .btn-primary-custom:hover { color: white; }
+html.light-theme .table { --bs-table-hover-bg: #f1f3f5; border-color: #dee2e6; color: var(--text-light); }
+html.light-theme .table td, html.light-theme .table th, html.light-theme .table .fw-bold { color: var(--text-light); }
+html.light-theme .table-hover > tbody > tr:hover > * { --bs-table-accent-bg: var(--bs-table-hover-bg); color: var(--text-light); }
+html.light-theme .table thead th a { color: var(--primary-color); }
+html.light-theme .badge.bg-status-todo { color: #000 !important; }
+html.light-theme .accordion-button::after { filter: none; }
+html.light-theme .modal-content.bg-dark-card .form-control, html.light-theme .modal-content.bg-dark-card .form-select { background-color: #f1f3f5; color: var(--text-light); border-color: #ced4da; }
+html.light-theme .settings-nav .nav-link.active { color: #000 !important; }
+html.light-theme .settings-nav .nav-link:hover { background-color: #6c757d; color: #fff !important; border-color: #6c757d; }
+html.light-theme .text-muted { color: #6c757d !important; }
