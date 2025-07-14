@@ -3,6 +3,7 @@
     --primary-color: #ffa500; /* Arancione */
     --dark-bg: #1a1a1a;
     --dark-card: #2c2c2c;
+    --dark-card-lighter: #3a3a3a;
     --dark-nav: #212529;
     --text-light: #f8f9fa;
     --text-muted: #6c757d;
@@ -44,6 +45,7 @@ header {
 .btn-primary-custom { background-color: var(--primary-color); border-color: var(--primary-color); color: var(--dark-bg); font-weight: bold; }
 .btn-primary-custom:hover { background-color: #e69500; border-color: #e69500; color: #000; }
 .card.bg-dark-card { background-color: var(--dark-card) !important; border: none; border-radius: 0.5rem; }
+.card.bg-dark-card-lighter { background-color: var(--dark-card-lighter) !important; border: 1px solid #444; }
 .card.bg-dark-card .text-muted { color: #a0a0a0 !important; }
 
 /* --- Tabelle --- */
@@ -138,6 +140,13 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); }
 .settings-list-group .list-group-item:hover .item-actions, .accordion-header:hover .item-actions { opacity: 1; }
 .accordion-body .list-group-item { color: var(--text-light); }
 
+/* --- Stili per Manutenzione --- */
+.maintenance-card .card-header { background-color: rgba(0,0,0,0.1); }
+.maintenance-counters .text-muted { color: #a0a0a0 !important; }
+.maintenance-log-list .list-group-item { border-bottom: 1px solid #444; }
+.maintenance-log-list .list-group-item:last-child { border-bottom: 0; }
+.maintenance-log-list p { margin-bottom: 0.25rem; }
+
 /* --- Stili per i Modal --- */
 .modal-content.bg-dark-card { background-color: var(--dark-card) !important; color: var(--text-light); }
 .modal-content.bg-dark-card .form-control, .modal-content.bg-dark-card .form-select { background-color: var(--dark-bg); color: var(--text-light); border-color: #555; }
@@ -199,6 +208,26 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); }
   .navbar-toggler { position: absolute; left: 1rem; }
 }
 
+/* Stili per l'overlay di caricamento */
+.loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 1200; /* Più alto di qualsiasi altro elemento */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    backdrop-filter: blur(3px);
+}
+
+.loading-overlay .spinner-border {
+    width: 3rem;
+    height: 3rem;
+}
+
 /* =================================================================== */
 /* Stili TEMA CHIARO (consolidati e corretti)                          */
 /* =================================================================== */
@@ -207,6 +236,7 @@ html.light-theme {
     --primary-color: #ffa500;
     --dark-bg: #f4f6f8;
     --dark-card: #ffffff;
+    --dark-card-lighter: #f1f3f5;
     --dark-nav: #e9ecef;
     --text-light: #212529;
     --text-muted: #6c757d;
@@ -229,3 +259,72 @@ html.light-theme .modal-content.bg-dark-card .form-control, html.light-theme .mo
 html.light-theme .settings-nav .nav-link.active { color: #000 !important; }
 html.light-theme .settings-nav .nav-link:hover { background-color: #6c757d; color: #fff !important; border-color: #6c757d; }
 html.light-theme .text-muted { color: #6c757d !important; }
+html.light-theme .maintenance-card { border-color: #dee2e6; }
+html.light-theme .maintenance-log-list .list-group-item, html.light-theme .maintenance-counters .border-end { border-color: #dee2e6 !important; }
+
+
+
+/* =================================================================== */
+/* MODIFICA: Stili corretti per il menu mobile                         */
+/* =================================================================== */
+@media (max-width: 991.98px) {
+    .navbar-toggler {
+        /* Assicura che il bottone sia sopra l'overlay del menu */
+        z-index: 1050;
+    }
+
+    /*
+     * Applica gli stili dell'overlay a schermo intero SOLO quando
+     * il menu è aperto (classe .show) o in transizione (classe .collapsing).
+     * In questo modo non interferisce con lo stato chiuso.
+    */
+    .navbar-collapse.show,
+    .navbar-collapse.collapsing {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(26, 26, 26, 0.95); /* Sfondo scuro quasi opaco */
+        backdrop-filter: blur(5px); /* Effetto vetro smerigliato per lo sfondo */
+        z-index: 1040;
+
+        /* Centra i link del menu */
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        text-align: center;
+    }
+
+    /* Stili per i link all'interno del menu aperto */
+    .navbar-collapse .navbar-nav {
+        width: 100%;
+    }
+
+    .navbar-collapse .nav-item {
+        margin: 1.2rem 0;
+    }
+
+    .navbar-collapse .nav-link {
+        font-size: 1.75rem; /* Testo più grande per una migliore leggibilità */
+        font-weight: 500;
+        color: #fff !important;
+    }
+
+    .navbar-collapse .nav-link.active {
+        color: var(--primary-color) !important;
+    }
+
+    /* Stili per il menu a tendina dell'utente su mobile */
+    .navbar-collapse .dropdown-menu {
+        background: transparent !important;
+        border: none !important;
+        text-align: center !important;
+        font-size: 1.5rem;
+    }
+
+    .navbar-collapse .dropdown-item {
+        font-weight: 500;
+    }
+}

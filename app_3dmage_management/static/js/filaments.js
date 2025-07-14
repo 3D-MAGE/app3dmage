@@ -13,6 +13,9 @@ document.addEventListener('DOMContentLoaded', function() {
     };
     const csrftoken = getCookie('csrftoken');
 
+    // Flag to prevent reload when switching modals
+    let isSwitchingModals = false;
+
     // Function to determine text color based on background hex
     const getContrastYIQ = (hexcolor) => {
         hexcolor = hexcolor.replace("#", "");
@@ -59,9 +62,11 @@ document.addEventListener('DOMContentLoaded', function() {
     const activeSpoolListContainer = document.getElementById('active-spool-list-container');
     const inactiveSpoolListContainer = document.getElementById('inactive-spool-list-container');
 
-    // Confirmation Modal
-    const confirmDeleteModal = new bootstrap.Modal(document.getElementById('deleteFilamentConfirmModal'));
-    const confirmDeleteBtn = document.getElementById('confirmDeleteFilamentBtn');
+    // Confirmation Modals
+    const confirmDeleteFilamentModal = new bootstrap.Modal(document.getElementById('deleteFilamentConfirmModal'));
+    const confirmDeleteFilamentBtn = document.getElementById('confirmDeleteFilamentBtn');
+    const confirmDeleteSpoolModal = new bootstrap.Modal(document.getElementById('deleteSpoolConfirmModal'));
+    const confirmDeleteSpoolBtn = document.getElementById('confirmDeleteSpoolBtn');
 
     /**
      * Renders a single spool item as an HTML string.
@@ -82,7 +87,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 <div>
                     ${spool.purchase_link ? `<a href="${spool.purchase_link}" target="_blank" class="btn btn-sm btn-outline-info" title="Vai al link di acquisto" onclick="event.stopPropagation();"><i class="bi bi-link-45deg"></i></a>` : ''}
                     <span class="badge bg-secondary ms-2">${spool.cost}</span>
-                    <button type="button" class="btn btn-sm btn-outline-danger delete-spool-btn ms-2" data-spool-id="${spool.id}" onclick="event.stopPropagation();" title="Elimina Bobina"><i class="bi bi-trash-fill"></i></button>
+                    <button type="button" class="btn btn-sm btn-outline-danger delete-spool-btn ms-2" data-spool-id="${spool.id}" title="Elimina Bobina"><i class="bi bi-trash-fill"></i></button>
                 </div>
             </li>`;
     };
@@ -118,24 +123,13 @@ document.addEventListener('DOMContentLoaded', function() {
      * @param {object} data - The filament data object.
      */
     const renderFilamentDetails = (data) => {
+        // MODIFICA: Semplificata la vista per mostrare solo i campi richiesti.
         readonlyDetailsContainer.innerHTML = `
             <div class="col-md-6 col-lg-4">
-                <strong class="text-white-50">Materiale</strong>
-                <p>${data.material || 'N/D'}</p>
-            </div>
-            <div class="col-md-6 col-lg-4">
-                <strong class="text-white-50">Marca</strong>
-                <p>${data.brand || 'N/D'}</p>
-            </div>
-             <div class="col-md-6 col-lg-4">
                 <strong class="text-white-50">Nome Colore</strong>
-                <p>${data.color_name || 'N/D'}</p>
-            </div>
-            <div class="col-md-6 col-lg-4">
-                <strong class="text-white-50">Codice Colore</strong>
                 <p class="d-flex align-items-center">
                     <span class="d-inline-block me-2" style="width: 20px; height: 20px; background-color: ${data.color_hex}; border: 1px solid #555; border-radius: 4px;"></span>
-                    ${data.color_code || 'N/D'}
+                    ${data.color_name || 'N/D'}
                 </p>
             </div>
             <div class="col-md-6 col-lg-4">
@@ -145,6 +139,10 @@ document.addEventListener('DOMContentLoaded', function() {
             <div class="col-md-6 col-lg-4">
                 <strong class="text-white-50">Temp. Piatto</strong>
                 <p>${data.bed_temp}°C</p>
+            </div>
+             <div class="col-md-6 col-lg-4">
+                <strong class="text-white-50">Velocità Volumetrica</strong>
+                <p>${data.volumetric_speed} mm³/s</p>
             </div>
             <div class="col-12">
                 <strong class="text-white-50">Note</strong>
@@ -161,7 +159,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Set URLs and data attributes for forms and buttons
         editForm.action = `${URLS.base_filament}${filamentId}/edit/`;
-        confirmDeleteBtn.dataset.deleteUrl = `${URLS.base_filament}${filamentId}/delete/`;
+        confirmDeleteFilamentBtn.dataset.deleteUrl = `${URLS.base_filament}${filamentId}/delete/`;
         addSpoolBtnInModal.dataset.filamentId = filamentId;
 
         // Reset to view mode
@@ -190,22 +188,14 @@ document.addEventListener('DOMContentLoaded', function() {
         fetchAndRenderSpools(filamentId);
     });
 
-
+    // Refresh page on modal close to reflect main table changes
     detailModalEl.addEventListener('hidden.bs.modal', function () {
-        window.location.reload();
-    });
-
-    document.querySelectorAll('.filament-row').forEach(row => {
-      row.addEventListener('click', function () {
-        const filamentId = this.dataset.filamentId;
-        const modalTrigger = document.querySelector(`.filament-pill[data-filament-id="${filamentId}"]`);
-        if (modalTrigger) {
-          modalTrigger.click();
+        if (!isSwitchingModals) {
+            window.location.reload();
         }
-      });
+        // Reset the flag
+        isSwitchingModals = false;
     });
-
-
 
     // Switch to edit mode
     switchToEditBtn.addEventListener('click', function() {
@@ -236,7 +226,6 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(data => {
                 if (data.status === 'ok') {
                     showToast('Filamento aggiornato con successo.', 'success');
-                    // Instead of reloading, just refresh the data and switch to view mode
                     const filamentId = addSpoolBtnInModal.dataset.filamentId;
                     fetch(`${URLS.base_filament}${filamentId}/details/`).then(r => r.json()).then(renderFilamentDetails);
                     switchToViewBtn.click();
@@ -250,18 +239,21 @@ document.addEventListener('DOMContentLoaded', function() {
     addSpoolBtnInModal.addEventListener('click', function() {
         const filamentId = this.dataset.filamentId;
         document.querySelector('#addSpoolModal select[name="filament"]').value = filamentId;
+
+        isSwitchingModals = true;
+
         detailModal.hide();
         new bootstrap.Modal(document.getElementById('addSpoolModal')).show();
     });
 
-    // Trigger delete confirmation
+    // Trigger filament delete confirmation
     deleteBtnTrigger.addEventListener('click', function() {
         document.getElementById('deleteFilamentConfirmBody').textContent = `Sei sicuro di voler eliminare questo tipo di filamento? L'azione è irreversibile.`;
-        confirmDeleteModal.show();
+        confirmDeleteFilamentModal.show();
     });
 
-    // Confirm and execute deletion
-    confirmDeleteBtn.addEventListener('click', function() {
+    // Confirm and execute filament deletion
+    confirmDeleteFilamentBtn.addEventListener('click', function() {
         fetch(this.dataset.deleteUrl, {
                 method: 'POST',
                 headers: { 'X-CSRFToken': csrftoken }
@@ -272,7 +264,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     window.location.reload();
                 } else {
                     showToast(data.message || 'Errore durante l\'eliminazione.', 'error');
-                    confirmDeleteModal.hide();
+                    confirmDeleteFilamentModal.hide();
                 }
             });
     });
@@ -284,21 +276,8 @@ document.addEventListener('DOMContentLoaded', function() {
         if (deleteButton) {
             e.stopPropagation();
             const spoolId = deleteButton.dataset.spoolId;
-            if (confirm('Sei sicuro di voler eliminare questa bobina? L\'azione cancellerà anche la spesa associata e non è reversibile.')) {
-                fetch(`${URLS.base_spool}${spoolId}/delete/`, {
-                        method: 'POST',
-                        headers: { 'X-CSRFToken': csrftoken }
-                    })
-                    .then(res => res.json())
-                    .then(data => {
-                        if (data.status === 'ok') {
-                            showToast(data.message, 'success');
-                            document.getElementById(`spool-item-${spoolId}`).remove();
-                        } else {
-                            showToast(data.message, 'error');
-                        }
-                    });
-            }
+            confirmDeleteSpoolBtn.dataset.spoolId = spoolId;
+            confirmDeleteSpoolModal.show();
         }
 
         // Handle spool status toggle
@@ -330,14 +309,45 @@ document.addEventListener('DOMContentLoaded', function() {
                         }
                         list.appendChild(spoolItem);
                     }
-
                     showToast(`Bobina ${data.is_active ? 'riattivata' : 'disattivata'}.`, 'info');
                 } else {
                     showToast('Errore durante l\'aggiornamento dello stato.', 'error');
-                    // Revert the switch state on failure
                     toggleSwitch.checked = !toggleSwitch.checked;
                 }
             });
         }
+    });
+
+    // Add event listener for the new spool delete confirmation button
+    confirmDeleteSpoolBtn.addEventListener('click', function() {
+        const spoolId = this.dataset.spoolId;
+        if (!spoolId) return;
+
+        fetch(`${URLS.base_spool}${spoolId}/delete/`, {
+            method: 'POST',
+            headers: { 'X-CSRFToken': csrftoken }
+        })
+        .then(res => res.json())
+        .then(data => {
+            confirmDeleteSpoolModal.hide();
+            if (data.status === 'ok') {
+                showToast(data.message, 'success');
+                const spoolItem = document.getElementById(`spool-item-${spoolId}`);
+                if (spoolItem) {
+                    spoolItem.remove();
+                }
+                // Check if lists are empty and show placeholder text
+                const activeList = activeSpoolListContainer.querySelector('.spool-list-group');
+                if (activeList && activeList.children.length === 0) {
+                    activeSpoolListContainer.innerHTML = '<p class="text-white-50 small">Nessuna bobina attiva per questo filamento.</p>';
+                }
+                const inactiveList = inactiveSpoolListContainer.querySelector('.spool-list-group');
+                if (inactiveList && inactiveList.children.length === 0) {
+                    inactiveSpoolListContainer.innerHTML = '<p class="text-white-50 small">Nessuna bobina finita.</p>';
+                }
+            } else {
+                showToast(data.message, 'error');
+            }
+        });
     });
 });

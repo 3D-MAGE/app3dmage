@@ -3,8 +3,8 @@ from django.http import JsonResponse, HttpResponseBadRequest
 from django.views.decorators.http import require_POST
 import math
 from django.db.models import Prefetch, Sum, Case, When, Value, IntegerField, F, Q, Count, Max, ExpressionWrapper, DecimalField, OuterRef, Subquery
-from django.db.models.functions import Coalesce, TruncMonth
-from django.contrib.auth.decorators import login_required, permission_required
+from django.db.models.functions import Coalesce
+from django.contrib.auth.decorators import login_required
 from django.forms.models import model_to_dict
 from django.utils import timezone
 from django.db import transaction
@@ -12,6 +12,7 @@ from decimal import Decimal
 from django.urls import reverse
 import datetime
 import json
+import re
 
 
 from .models import (
@@ -19,13 +20,13 @@ from .models import (
     StockItem, PaymentMethod, Expense, ExpenseCategory, FilamentUsage, ExpenseCategory, MaintenanceLog, GlobalSetting, Quote, Notification
 )
 
-# MODIFICATO: Sostituito ElectricityCostForm con GeneralSettingsForm
 from .forms import (
     ProjectForm, PrintFileForm, StockItemForm, CompleteProjectForm,
     PrintFileEditForm, FilamentForm, SpoolForm, ExpenseForm, TransferForm, CorrectBalanceForm,
     PrinterForm, PlateForm, CategoryForm, PaymentMethodForm, ExpenseCategoryForm, MaintenanceLogForm, GeneralSettingsForm, SaleEditForm, ManualStockItemForm, ManualIncomeForm
 )
 
+@login_required
 def project_dashboard(request):
     # Filtri per Progetti Attivi
     search_query = request.GET.get('q', '')
@@ -35,10 +36,13 @@ def project_dashboard(request):
     # Filtri per Progetti Completati
     completed_search_query = request.GET.get('q_completed', '')
     completed_year_filter = request.GET.get('year_completed', '')
+    completed_category_filter = request.GET.get('category_completed', '')
+    completed_filament_filter = request.GET.get('filament_completed', '')
+
 
     # Flag per mantenere aperte le sezioni dei filtri
     active_filters_applied = bool(search_query or status_filter or category_filter)
-    completed_filters_applied = bool(completed_search_query or completed_year_filter)
+    completed_filters_applied = bool(completed_search_query or completed_year_filter or completed_category_filter or completed_filament_filter)
 
     # Anni disponibili per il filtro dei progetti completati
     completed_project_years = Project.objects.filter(
@@ -87,9 +91,20 @@ def project_dashboard(request):
     active_projects = active_projects_query.order_by(f'{order_prefix_active}{sort_active}')
 
     # --- Gestione Progetti Completati ---
-    completed_projects_query = all_projects.filter(status='DONE').annotate(
+    sort_completed = request.GET.get('sort_completed', 'completed_at')
+    order_completed = request.GET.get('order_completed', 'desc')
+    order_prefix_completed = '-' if order_completed == 'desc' else ''
+
+    completed_projects_query = all_projects.filter(status='DONE').prefetch_related(
+        Prefetch(
+            'print_files__filament_usages',
+            queryset=FilamentUsage.objects.select_related('spool__filament'),
+            to_attr='detailed_filament_usages'
+        )
+    ).annotate(
         total_print_time_seconds=Sum('print_files__print_time_seconds', default=0),
-        annotated_material_cost=Coalesce(cost_annotation, Decimal('0.00'), output_field=DecimalField())
+        annotated_material_cost=Coalesce(cost_annotation, Decimal('0.00'), output_field=DecimalField()),
+        total_grams_used=Coalesce(Sum('print_files__filament_usages__grams_used'), Decimal('0.00'))
     )
 
     if completed_search_query:
@@ -98,13 +113,34 @@ def project_dashboard(request):
         )
     if completed_year_filter and completed_year_filter.isdigit():
         completed_projects_query = completed_projects_query.filter(completed_at__year=int(completed_year_filter))
+    if completed_category_filter:
+        completed_projects_query = completed_projects_query.filter(category_id=completed_category_filter)
+    if completed_filament_filter:
+        completed_projects_query = completed_projects_query.filter(print_files__filament_usages__spool__filament_id=completed_filament_filter).distinct()
 
-    completed_projects = completed_projects_query.order_by('-completed_at')
+    valid_sort_fields_completed = ['name', 'completed_at', 'total_print_time_seconds', 'annotated_material_cost', 'category__name', 'total_grams_used']
+    if sort_completed not in valid_sort_fields_completed:
+        sort_completed = 'completed_at'
+    completed_projects = completed_projects_query.order_by(f'{order_prefix_completed}{sort_completed}')
+
+    for project in completed_projects:
+        usages = {}
+        for pf in project.print_files.all():
+            for usage in getattr(pf, 'detailed_filament_usages', []):
+                filament = usage.spool.filament
+                if filament.id not in usages:
+                    usages[filament.id] = {
+                        'name': str(filament),
+                        'color_hex': filament.color_hex,
+                    }
+        project.filament_summary_details = list(usages.values())
+
 
     context = {
         'active_projects': active_projects,
         'completed_projects': completed_projects,
         'all_categories': Category.objects.all(),
+        'all_filaments': Filament.objects.all().order_by('material', 'brand', 'color_name'),
         'all_statuses': Project.Status.choices,
         'project_form': ProjectForm(),
         'add_print_file_form': PrintFileForm(),
@@ -119,12 +155,16 @@ def project_dashboard(request):
         'order_active': order_active,
         'completed_search_query': completed_search_query,
         'completed_year_filter': completed_year_filter,
+        'completed_category_filter': completed_category_filter,
+        'completed_filament_filter': completed_filament_filter,
         'completed_filters_applied': completed_filters_applied,
         'completed_project_years': [d.year for d in completed_project_years],
+        'sort_completed': sort_completed,
+        'order_completed': order_completed,
     }
     return render(request, 'app_3dmage_management/dashboard.html', context)
 
-
+@login_required
 def project_kanban_board(request):
     kanban_columns = []
     statuses_to_show = [status for status in Project.Status.choices if status[0] != 'DONE']
@@ -134,31 +174,34 @@ def project_kanban_board(request):
     context = {'kanban_columns': kanban_columns, 'project_form': ProjectForm(), 'print_file_form': PrintFileForm(), 'page_title': 'Progetti', 'current_view': 'kanban'}
     return render(request, 'app_3dmage_management/kanban_board.html', context)
 
+@login_required
 def filament_dashboard(request):
     sort_by = request.GET.get('sort', 'material')
     order = request.GET.get('order', 'asc')
     order_prefix = '-' if order == 'desc' else ''
 
-    # MODIFICATO: Calcola il peso solo delle bobine ATTIVE
-    total_initial_weight_subquery = Spool.objects.filter(
+    active_spool_count_subquery = Spool.objects.filter(
         filament=OuterRef('pk'),
-        is_active=True  # Considera solo le bobine attive
-    ).values('filament').annotate(
-        s=Sum('initial_weight_g')
-    ).values('s')
+        is_active=True
+    ).values('filament').annotate(c=Count('id')).values('c')
 
-    # MODIFICATO: Calcola i grammi usati solo dalle bobine ATTIVE
-    total_used_weight_subquery = FilamentUsage.objects.filter(
-        spool__filament=OuterRef('pk'),
-        spool__is_active=True,  # Considera solo le bobine attive
-        print_file__status__in=['DONE', 'FAILED']
-    ).values('spool__filament').annotate(
-        s=Sum('grams_used')
-    ).values('s')
+    all_filaments = Filament.objects.annotate(
+        active_spool_count=Coalesce(Subquery(active_spool_count_subquery, output_field=IntegerField()), 0)
+    )
 
-    filaments_query = Filament.objects.annotate(
-        annotated_total_initial_weight=Coalesce(Subquery(total_initial_weight_subquery, output_field=IntegerField()), 0),
-        annotated_total_used_weight=Coalesce(Subquery(total_used_weight_subquery, output_field=DecimalField()), Decimal('0.00'))
+    active_filaments_query = all_filaments.filter(active_spool_count__gt=0)
+
+    active_initial_weight_subquery = Spool.objects.filter(
+        filament=OuterRef('pk'), is_active=True
+    ).values('filament').annotate(s=Sum('initial_weight_g')).values('s')
+
+    active_used_weight_subquery = FilamentUsage.objects.filter(
+        spool__filament=OuterRef('pk'), spool__is_active=True, print_file__status__in=['DONE', 'FAILED']
+    ).values('spool__filament').annotate(s=Sum('grams_used')).values('s')
+
+    active_filaments_query = active_filaments_query.annotate(
+        annotated_total_initial_weight=Coalesce(Subquery(active_initial_weight_subquery, output_field=IntegerField()), 0),
+        annotated_total_used_weight=Coalesce(Subquery(active_used_weight_subquery, output_field=DecimalField()), Decimal('0.00'))
     ).annotate(
         annotated_remaining_weight=ExpressionWrapper(
             F('annotated_total_initial_weight') - F('annotated_total_used_weight'),
@@ -169,12 +212,22 @@ def filament_dashboard(request):
     valid_sort_fields = ['material', 'brand', 'color_name', 'annotated_remaining_weight', 'annotated_total_used_weight']
     if sort_by not in valid_sort_fields:
         sort_by = 'material'
-
     order_fields = (f'{order_prefix}{sort_by}',)
-    filaments = filaments_query.order_by(*order_fields)
+    active_filaments = active_filaments_query.order_by(*order_fields)
+
+    exhausted_filaments_query = all_filaments.filter(active_spool_count=0, spools__isnull=False).distinct()
+
+    total_used_weight_subquery = FilamentUsage.objects.filter(
+        spool__filament=OuterRef('pk'), print_file__status__in=['DONE', 'FAILED']
+    ).values('spool__filament').annotate(s=Sum('grams_used')).values('s')
+
+    exhausted_filaments = exhausted_filaments_query.annotate(
+        total_grams_ever_used=Coalesce(Subquery(total_used_weight_subquery, output_field=DecimalField()), Decimal('0.00'))
+    ).order_by('material', 'brand', 'color_code')
 
     context = {
-        'filaments': filaments,
+        'active_filaments': active_filaments,
+        'exhausted_filaments': exhausted_filaments,
         'filament_form': FilamentForm(),
         'spool_form': SpoolForm(),
         'page_title': 'Filamenti',
@@ -183,6 +236,7 @@ def filament_dashboard(request):
     }
     return render(request, 'app_3dmage_management/filaments.html', context)
 
+@login_required
 def inventory_dashboard(request):
     search_query = request.GET.get('q', '')
     status_filter = request.GET.get('status', '')
@@ -232,6 +286,7 @@ def inventory_dashboard(request):
     }
     return render(request, 'app_3dmage_management/inventory.html', context)
 
+@login_required
 @require_POST
 def add_stock_item(request):
     form = ManualStockItemForm(request.POST)
@@ -257,7 +312,7 @@ def add_stock_item(request):
         return JsonResponse({'status': 'ok'})
     return JsonResponse({'status': 'error', 'errors': form.errors.as_json()}, status=400)
 
-
+@login_required
 def get_stock_item_details(request, item_id):
     item = get_object_or_404(StockItem.objects.select_related('project'), id=item_id)
     data = model_to_dict(item)
@@ -270,6 +325,7 @@ def get_stock_item_details(request, item_id):
 
 @require_POST
 @transaction.atomic
+@login_required
 def update_stock_item(request, item_id):
     item_to_process = get_object_or_404(StockItem, id=item_id)
     original_status = item_to_process.status
@@ -340,6 +396,7 @@ def update_stock_item(request, item_id):
 
 
 @require_POST
+@login_required
 def delete_stock_item(request, item_id):
     item = get_object_or_404(StockItem, id=item_id)
     if item.status == 'SOLD':
@@ -347,6 +404,7 @@ def delete_stock_item(request, item_id):
     item.delete()
     return JsonResponse({'status': 'ok', 'message': 'Oggetto eliminato con successo.'})
 
+@login_required
 def sales_dashboard(request):
     search_query = request.GET.get('q', '')
     sold_to_filter = request.GET.get('sold_to', '')
@@ -423,6 +481,7 @@ def sales_dashboard(request):
     }
     return render(request, 'app_3dmage_management/sales.html', context)
 
+@login_required
 def get_sale_details(request, item_id):
     sale = get_object_or_404(StockItem.objects.select_related('project'), id=item_id, status='SOLD')
     data = {
@@ -440,6 +499,7 @@ def get_sale_details(request, item_id):
 
 @require_POST
 @transaction.atomic
+@login_required
 def edit_sale(request, item_id):
     sale = get_object_or_404(StockItem, id=item_id, status='SOLD')
     old_total_price = (sale.sale_price or Decimal('0.00')) * sale.quantity
@@ -466,6 +526,7 @@ def edit_sale(request, item_id):
 
 @require_POST
 @transaction.atomic
+@login_required
 def reverse_sale(request, stock_item_id):
     sale_to_reverse = get_object_or_404(StockItem, id=stock_item_id, status='SOLD')
 
@@ -496,7 +557,7 @@ def reverse_sale(request, stock_item_id):
 
     return redirect('inventory_dashboard')
 
-
+@login_required
 def print_queue_board(request):
     active_print_files_qs = PrintFile.objects.filter(
         status__in=['TODO', 'PRINTING']
@@ -531,12 +592,15 @@ def print_queue_board(request):
     }
     return render(request, 'app_3dmage_management/print_queue.html', context)
 
+@login_required
 def project_detail(request, project_id):
     queryset = Project.objects.prefetch_related(
         Prefetch('print_files', queryset=PrintFile.objects.select_related('printer', 'plate')
                  .prefetch_related('filament_usages__spool__filament').order_by('created_at'))
     )
     project = get_object_or_404(queryset, id=project_id)
+
+    total_project_cost = sum(file.total_cost for file in project.print_files.all())
 
     referer = request.GET.get('from', 'kanban')
 
@@ -554,6 +618,7 @@ def project_detail(request, project_id):
 
     context = {
         'project': project,
+        'total_project_cost': total_project_cost,
         'completion_form': CompleteProjectForm(initial={'stock_item_name': project.name, 'stock_item_quantity': project.quantity}),
         'edit_project_form': ProjectForm(instance=project),
         'add_print_file_form': print_file_form,
@@ -565,6 +630,7 @@ def project_detail(request, project_id):
     return render(request, 'app_3dmage_management/project_detail.html', context)
 
 @require_POST
+@login_required
 def add_project(request):
     form = ProjectForm(request.POST)
     if form.is_valid():
@@ -572,6 +638,7 @@ def add_project(request):
     return redirect(request.META.get('HTTP_REFERER', 'project_dashboard'))
 
 @require_POST
+@login_required
 def edit_project(request, project_id):
     project = get_object_or_404(Project, id=project_id)
     form = ProjectForm(request.POST, instance=project)
@@ -582,6 +649,7 @@ def edit_project(request, project_id):
 
 @require_POST
 @transaction.atomic
+@login_required
 def complete_project(request, project_id):
     project = get_object_or_404(Project.objects.prefetch_related('print_files__filament_usages__spool'), id=project_id)
     form = CompleteProjectForm(request.POST)
@@ -627,6 +695,7 @@ def complete_project(request, project_id):
     return redirect('project_detail', project_id=project.id)
 
 @require_POST
+@login_required
 def delete_project(request, project_id):
     project = get_object_or_404(Project, id=project_id)
     project.delete()
@@ -634,6 +703,7 @@ def delete_project(request, project_id):
 
 @require_POST
 @transaction.atomic
+@login_required
 def add_print_file(request):
     try:
         filament_data = json.loads(request.POST.get('filament_data', '[]'))
@@ -699,6 +769,7 @@ def add_print_file(request):
 
 @require_POST
 @transaction.atomic
+@login_required
 def clone_print_file(request):
     try:
         data = json.loads(request.body)
@@ -708,12 +779,34 @@ def clone_print_file(request):
         if not original_file_id or count <= 0:
             return JsonResponse({'status': 'error', 'message': 'Dati per la clonazione non validi.'}, status=400)
 
-        original_file = PrintFile.objects.select_related('project').prefetch_related('filament_usages__spool').get(id=original_file_id)
+        original_file = PrintFile.objects.select_related('project').get(id=original_file_id)
+
+        base_name = re.sub(r'\s\(\d+\)$', '', original_file.name).strip()
+        for suffix in [" (Copia)", " (Da ristampare)"]:
+             if base_name.endswith(suffix):
+                base_name = base_name[:-len(suffix)]
+
+        existing_files = PrintFile.objects.filter(
+            project=original_file.project,
+            name__startswith=base_name
+        )
+        max_num = 0
+        if existing_files.filter(name=base_name).exists():
+            max_num = 1
+        for file in existing_files:
+            match = re.search(r'\((\d+)\)$', file.name)
+            if match:
+                num = int(match.group(1))
+                if num > max_num:
+                    max_num = num
+
+        start_num = max_num + 1
 
         for i in range(count):
+            new_name = f"{base_name} ({start_num + i})"
             new_file = PrintFile.objects.create(
                 project=original_file.project,
-                name=f"{original_file.name.replace(' (Copia)', '')} (Copia {i+1})",
+                name=new_name,
                 printer=original_file.printer,
                 plate=original_file.plate,
                 print_time_seconds=original_file.print_time_seconds,
@@ -737,6 +830,7 @@ def clone_print_file(request):
 
 
 @require_POST
+@login_required
 def edit_print_file(request, file_id):
     instance = get_object_or_404(PrintFile, id=file_id)
 
@@ -792,6 +886,7 @@ def edit_print_file(request, file_id):
 
 @require_POST
 @transaction.atomic
+@login_required
 def requeue_print_file(request, file_id):
     try:
         original_file = get_object_or_404(PrintFile, id=file_id)
@@ -832,6 +927,7 @@ def requeue_print_file(request, file_id):
     except Exception as e:
         return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
 
+@login_required
 def get_print_file_details(request, file_id):
     print_file = get_object_or_404(PrintFile, id=file_id)
     data = model_to_dict(print_file, fields=['name', 'printer', 'plate', 'status', 'produced_quantity', 'actual_quantity'])
@@ -839,6 +935,7 @@ def get_print_file_details(request, file_id):
     data['filaments_used'] = list(print_file.filament_usages.select_related('spool__filament').values('spool__filament_id', 'spool_id', 'grams_used'))
     return JsonResponse(data)
 
+@login_required
 def api_get_all_projects(request):
     projects = Project.objects.filter(status__in=['QUOTE', 'TODO', 'POST']).order_by('name')
     data = [{'id': p.id, 'name': p.name} for p in projects]
@@ -846,6 +943,7 @@ def api_get_all_projects(request):
 
 
 @require_POST
+@login_required
 def delete_print_file(request, file_id):
     try:
         print_file = get_object_or_404(PrintFile, id=file_id)
@@ -855,6 +953,7 @@ def delete_print_file(request, file_id):
         return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
 
 @require_POST
+@login_required
 def update_project_status(request):
     try:
         data = json.loads(request.body)
@@ -869,6 +968,7 @@ def update_project_status(request):
         return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
 
 @require_POST
+@login_required
 def update_print_queue(request):
     try:
         data = json.loads(request.body)
@@ -880,6 +980,7 @@ def update_print_queue(request):
     except Exception as e:
         return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
 
+@login_required
 def load_plates(request):
     printer_id = request.GET.get('printer_id')
     try:
@@ -889,6 +990,7 @@ def load_plates(request):
         return JsonResponse([], safe=False)
 
 @require_POST
+@login_required
 def reprint_project(request, project_id):
     original_project = get_object_or_404(Project.objects.prefetch_related('print_files__filament_usages__spool'), id=project_id)
 
@@ -920,6 +1022,7 @@ def reprint_project(request, project_id):
     return redirect('project_dashboard')
 
 @require_POST
+@login_required
 def update_project_inline(request, project_id):
     try:
         data = json.loads(request.body)
@@ -940,20 +1043,16 @@ def update_project_inline(request, project_id):
 
 @require_POST
 @transaction.atomic
+@login_required
 def add_spool(request):
     form = SpoolForm(request.POST)
     if form.is_valid():
         filament = form.cleaned_data['filament']
         purchase_date = form.cleaned_data['purchase_date']
 
-        # Conta le bobine dello stesso filamento nello stesso mese
-        existing_spools = Spool.objects.filter(
-            filament=filament,
-            purchase_date__year=purchase_date.year,
-            purchase_date__month=purchase_date.month
-        ).count()
+        existing_spools = Spool.objects.filter(filament=filament, purchase_date=purchase_date).count()
+        new_identifier = chr(ord('A') + existing_spools)
 
-        new_identifier = chr(ord('A') + existing_spools) if existing_spools > 0 else ''
         spool = form.save(commit=False)
         spool.identifier = new_identifier
         spool.save()
@@ -964,19 +1063,17 @@ def add_spool(request):
 
         Expense.objects.create(
             description=f"Acquisto bobina: {spool.filament} ({spool})",
-            amount=cost,
-            category=material_category,
-            expense_date=spool.purchase_date,
-            payment_method=payment_method
+            amount=cost, category=material_category,
+            expense_date=spool.purchase_date, payment_method=payment_method
         )
 
         payment_method.balance -= cost
         payment_method.save()
 
-        return redirect('filament_dashboard')
-
+    return redirect('filament_dashboard')
 
 @require_POST
+@login_required
 def delete_spool(request, spool_id):
     spool = get_object_or_404(Spool, id=spool_id)
     if spool.usages.exists():
@@ -999,11 +1096,13 @@ def delete_spool(request, spool_id):
     spool.delete()
     return JsonResponse({'status': 'ok', 'message': 'Bobina eliminata con successo.'})
 
+@login_required
 def get_filament_details(request, filament_id):
     filament = get_object_or_404(Filament, id=filament_id)
     return JsonResponse(model_to_dict(filament))
 
 @require_POST
+@login_required
 def add_filament(request):
     form = FilamentForm(request.POST)
     if form.is_valid():
@@ -1011,6 +1110,7 @@ def add_filament(request):
     return redirect('filament_dashboard')
 
 @require_POST
+@login_required
 def edit_filament(request, filament_id):
     instance = get_object_or_404(Filament, id=filament_id)
     form = FilamentForm(request.POST, instance=instance)
@@ -1020,6 +1120,7 @@ def edit_filament(request, filament_id):
     return JsonResponse({'status': 'error', 'errors': form.errors.as_json()}, status=400)
 
 @require_POST
+@login_required
 def delete_filament(request, filament_id):
     filament = get_object_or_404(Filament, id=filament_id)
     if filament.spools.exists():
@@ -1027,10 +1128,9 @@ def delete_filament(request, filament_id):
     filament.delete()
     return JsonResponse({'status': 'ok'})
 
-# MODIFICATO: Ora restituisce solo le bobine attive
+@login_required
 def get_spools_for_filament(request):
     filament_id = request.GET.get('filament_id')
-    # Filtra solo per bobine attive!
     spools = Spool.objects.filter(filament_id=filament_id, is_active=True)
 
     spools_data = []
@@ -1045,6 +1145,7 @@ def get_spools_for_filament(request):
             })
     return JsonResponse(spools_data, safe=False)
 
+@login_required
 def _handle_filament_data(print_file, filament_data_json, wasted_grams_str=None):
     """Funzione helper per gestire i dati dei filamenti."""
     print_file.filament_usages.all().delete()
@@ -1079,53 +1180,62 @@ def _handle_filament_data(print_file, filament_data_json, wasted_grams_str=None)
                 spool = get_object_or_404(Spool, id=spool_id)
                 FilamentUsage.objects.create(print_file=print_file, spool=spool, grams_used=grams)
 
+@login_required
 def api_get_all_filaments(request):
-    filaments = Filament.objects.all().order_by('material', 'brand', 'color_name')
+    filaments = Filament.objects.annotate(
+        num_active_spools=Count('spools', filter=Q(spools__is_active=True))
+    ).filter(num_active_spools__gt=0).order_by('material', 'brand', 'color_name')
+
     data = [{'id': f.id, 'name': str(f), 'color_hex': f.color_hex} for f in filaments]
     return JsonResponse(data, safe=False)
 
-# MODIFICATO: Ora restituisce due liste di bobine (attive e non)
+@login_required
 def api_get_filament_spools(request, filament_id):
-    all_spools = Spool.objects.filter(filament_id=filament_id).order_by('identifier')
-
+    spools = Spool.objects.filter(filament_id=filament_id).order_by('identifier')
     active_spools_data = []
     inactive_spools_data = []
 
-    for spool in all_spools:
+    for spool in spools:
+        used_on_spool = spool.usages.filter(
+            print_file__status__in=['DONE', 'FAILED']
+        ).aggregate(total=Sum('grams_used'))['total'] or Decimal('0')
+
+        remaining = Decimal(spool.initial_weight_g) - used_on_spool
+
         spool_data = {
             'id': spool.id,
             'text': str(spool),
-            'remaining': spool.initial_weight_g,
+            'remaining': remaining,
             'cost': f"{spool.cost}€",
             'purchase_link': spool.purchase_link,
             'is_active': spool.is_active
         }
+
         if spool.is_active:
-            active_spools_data.append(spool_data)
+             active_spools_data.append(spool_data)
         else:
-            inactive_spools_data.append(spool_data)
+             inactive_spools_data.append(spool_data)
+
 
     return JsonResponse({
         'active_spools': active_spools_data,
         'inactive_spools': inactive_spools_data
     })
 
-
-# NUOVA VISTA: per cambiare lo stato della bobina
 @require_POST
+@login_required
 def toggle_spool_status(request, spool_id):
     spool = get_object_or_404(Spool, id=spool_id)
     spool.is_active = not spool.is_active
     spool.save()
     return JsonResponse({'status': 'ok', 'is_active': spool.is_active})
 
-
+@login_required
 def accounting_dashboard(request):
     search_query = request.GET.get('q', '')
     year_filter = request.GET.get('year', '')
     payment_method_filter = request.GET.get('payment_method', '')
 
-    # MODIFIED: Correct sorting order (newest first)
     income_items = StockItem.objects.filter(status='SOLD', payment_method__isnull=False).select_related('payment_method').order_by('-sold_at', '-id')
     expenses = Expense.objects.select_related('category', 'payment_method').order_by('-expense_date', '-id')
 
@@ -1165,6 +1275,7 @@ def accounting_dashboard(request):
 
 @require_POST
 @transaction.atomic
+@login_required
 def add_manual_income(request):
     form = ManualIncomeForm(request.POST)
     if form.is_valid():
@@ -1179,6 +1290,7 @@ def add_manual_income(request):
     return redirect('accounting_dashboard')
 
 @require_POST
+@login_required
 def add_expense(request):
     form = ExpenseForm(request.POST)
     if form.is_valid():
@@ -1190,6 +1302,7 @@ def add_expense(request):
     return redirect('accounting_dashboard')
 
 @require_POST
+@login_required
 def transfer_funds(request):
     form = TransferForm(request.POST)
     if form.is_valid():
@@ -1204,6 +1317,7 @@ def transfer_funds(request):
     return redirect('accounting_dashboard')
 
 @require_POST
+@login_required
 def correct_balance(request, method_id):
     payment_method = get_object_or_404(PaymentMethod, id=method_id)
     form = CorrectBalanceForm(request.POST)
@@ -1212,6 +1326,7 @@ def correct_balance(request, method_id):
         payment_method.save()
     return redirect('accounting_dashboard')
 
+@login_required
 def get_expense_details(request, expense_id):
     expense = get_object_or_404(Expense, id=expense_id)
     data = model_to_dict(expense)
@@ -1220,6 +1335,7 @@ def get_expense_details(request, expense_id):
     return JsonResponse(data)
 
 @require_POST
+@login_required
 def edit_expense(request, expense_id):
     expense = get_object_or_404(Expense, id=expense_id)
     old_amount = expense.amount
@@ -1241,6 +1357,7 @@ def edit_expense(request, expense_id):
     return JsonResponse({'status': 'error', 'errors': form.errors.as_json()}, status=400)
 
 @require_POST
+@login_required
 def delete_expense(request, expense_id):
     expense = get_object_or_404(Expense, id=expense_id)
     if expense.payment_method and expense.amount:
@@ -1249,11 +1366,42 @@ def delete_expense(request, expense_id):
     expense.delete()
     return JsonResponse({'status': 'ok'})
 
+@login_required
 def settings_dashboard(request):
-    printers = Printer.objects.prefetch_related('plates', 'maintenance_logs').annotate(
-        plate_count=Count('plates'),
-        maintenance_count=Count('maintenance_logs')
+    printers_query = Printer.objects.prefetch_related('plates', 'maintenance_logs').annotate(
+        # CORREZIONE: Usa distinct=True per contare correttamente i piatti
+        plate_count=Count('plates', distinct=True),
+        maintenance_count=Count('maintenance_logs', distinct=True),
+        # CORREZIONE: La somma deve essere distinta per evitare moltiplicazioni
+        total_print_seconds=Coalesce(Sum(
+            'print_files__print_time_seconds',
+            filter=Q(print_files__status='DONE'),
+            distinct=True
+        ), 0),
+        # NUOVO: Calcola le ore di stampa dall'ultimo reset
+        seconds_since_maintenance=Coalesce(Sum(
+            'print_files__print_time_seconds',
+            filter=Q(print_files__status='DONE', print_files__project__completed_at__gte=F('last_maintenance_reset')),
+            distinct=True
+        ), 0)
     ).order_by('name')
+
+    printers = []
+    for printer in printers_query:
+        # Formattazione ore totali
+        total_seconds = printer.total_print_seconds
+        h_total = total_seconds // 3600
+        m_total = (total_seconds % 3600) // 60
+        printer.total_print_time_formatted = f"{h_total} ore {m_total} min"
+
+        # Formattazione ore parziali
+        partial_seconds = printer.seconds_since_maintenance
+        h_partial = partial_seconds // 3600
+        m_partial = (partial_seconds % 3600) // 60
+        printer.partial_print_time_formatted = f"{h_partial} ore {m_partial} min"
+
+        printers.append(printer)
+
     categories = Category.objects.annotate(project_count=Count('project')).order_by('name')
     payment_methods = PaymentMethod.objects.annotate(expense_count=Count('expense'), sale_count=Count('stockitem')).order_by('name')
     expense_categories = ExpenseCategory.objects.annotate(expense_count=Count('expense')).order_by('name')
@@ -1289,6 +1437,15 @@ def settings_dashboard(request):
     return render(request, 'app_3dmage_management/settings.html', context)
 
 @require_POST
+@login_required
+def reset_maintenance_counter(request, printer_id):
+    printer = get_object_or_404(Printer, id=printer_id)
+    printer.last_maintenance_reset = timezone.now()
+    printer.save()
+    return JsonResponse({'status': 'ok', 'message': f'Contatore per {printer.name} azzerato.'})
+
+@require_POST
+@login_required
 def update_general_settings(request):
     form = GeneralSettingsForm(request.POST)
     if form.is_valid():
@@ -1305,53 +1462,64 @@ def update_general_settings(request):
 
 # --- Viste per AGGIUNGERE ---
 @require_POST
+@login_required
 def add_printer(request):
     form = PrinterForm(request.POST)
     if form.is_valid(): form.save()
     return redirect('settings_dashboard')
 
 @require_POST
+@login_required
 def add_plate(request):
     form = PlateForm(request.POST)
     if form.is_valid(): form.save()
     return redirect('settings_dashboard')
 
 @require_POST
+@login_required
 def add_category(request):
     form = CategoryForm(request.POST)
     if form.is_valid(): form.save()
     return redirect('settings_dashboard')
 
 @require_POST
+@login_required
 def add_payment_method(request):
     form = PaymentMethodForm(request.POST)
     if form.is_valid(): form.save()
     return redirect('settings_dashboard')
 
 @require_POST
+@login_required
 def add_expense_category(request):
     form = ExpenseCategoryForm(request.POST)
     if form.is_valid(): form.save()
     return redirect('settings_dashboard')
 
 # --- Viste per PRENDERE DETTAGLI (AJAX) ---
+@login_required
 def get_printer_details(request, pk):
     return JsonResponse(model_to_dict(get_object_or_404(Printer, pk=pk)))
 
+@login_required
 def get_plate_details(request, pk):
     return JsonResponse(model_to_dict(get_object_or_404(Plate, pk=pk)))
 
+@login_required
 def get_category_details(request, pk):
     return JsonResponse(model_to_dict(get_object_or_404(Category, pk=pk)))
 
+@login_required
 def get_payment_method_details(request, pk):
     return JsonResponse(model_to_dict(get_object_or_404(PaymentMethod, pk=pk)))
 
+@login_required
 def get_expense_category_details(request, pk):
     return JsonResponse(model_to_dict(get_object_or_404(ExpenseCategory, pk=pk)))
 
 # --- Viste per MODIFICARE ---
 @require_POST
+@login_required
 def edit_printer(request, pk):
     instance = get_object_or_404(Printer, pk=pk)
     form = PrinterForm(request.POST, instance=instance)
@@ -1361,6 +1529,7 @@ def edit_printer(request, pk):
     return JsonResponse({'status': 'error', 'errors': form.errors.as_json()}, status=400)
 
 @require_POST
+@login_required
 def edit_plate(request, pk):
     instance = get_object_or_404(Plate, pk=pk)
     form = PlateForm(request.POST, instance=instance)
@@ -1370,6 +1539,7 @@ def edit_plate(request, pk):
     return JsonResponse({'status': 'error', 'errors': form.errors.as_json()}, status=400)
 
 @require_POST
+@login_required
 def edit_category(request, pk):
     instance = get_object_or_404(Category, pk=pk)
     form = CategoryForm(request.POST, instance=instance)
@@ -1379,6 +1549,7 @@ def edit_category(request, pk):
     return JsonResponse({'status': 'error', 'errors': form.errors.as_json()}, status=400)
 
 @require_POST
+@login_required
 def edit_payment_method(request, pk):
     instance = get_object_or_404(PaymentMethod, pk=pk)
     form = PaymentMethodForm(request.POST, instance=instance)
@@ -1388,6 +1559,7 @@ def edit_payment_method(request, pk):
     return JsonResponse({'status': 'error', 'errors': form.errors.as_json()}, status=400)
 
 @require_POST
+@login_required
 def edit_expense_category(request, pk):
     instance = get_object_or_404(ExpenseCategory, pk=pk)
     form = ExpenseCategoryForm(request.POST, instance=instance)
@@ -1398,6 +1570,7 @@ def edit_expense_category(request, pk):
 
 # --- Viste per ELIMINARE ---
 @require_POST
+@login_required
 def delete_printer(request, pk):
     instance = get_object_or_404(Printer, pk=pk)
     if instance.print_files.exists():
@@ -1408,6 +1581,7 @@ def delete_printer(request, pk):
     return JsonResponse({'status': 'ok'})
 
 @require_POST
+@login_required
 def delete_plate(request, pk):
     instance = get_object_or_404(Plate, pk=pk)
     if instance.printfile_set.exists():
@@ -1416,6 +1590,7 @@ def delete_plate(request, pk):
     return JsonResponse({'status': 'ok'})
 
 @require_POST
+@login_required
 def delete_category(request, pk):
     instance = get_object_or_404(Category, pk=pk)
     if instance.project_set.exists():
@@ -1424,6 +1599,7 @@ def delete_category(request, pk):
     return JsonResponse({'status': 'ok'})
 
 @require_POST
+@login_required
 def delete_payment_method(request, pk):
     instance = get_object_or_404(PaymentMethod, pk=pk)
     if instance.expense_set.exists() or instance.stockitem_set.exists():
@@ -1432,6 +1608,7 @@ def delete_payment_method(request, pk):
     return JsonResponse({'status': 'ok'})
 
 @require_POST
+@login_required
 def delete_expense_category(request, pk):
     instance = get_object_or_404(ExpenseCategory, pk=pk)
     if instance.expense_set.exists():
@@ -1439,12 +1616,18 @@ def delete_expense_category(request, pk):
     instance.delete()
     return JsonResponse({'status': 'ok'})
 
+
+
 @require_POST
+@login_required
 def add_maintenance_log(request):
     form = MaintenanceLogForm(request.POST)
     if form.is_valid():
         form.save()
+    return redirect('settings_dashboard')
 
+
+@login_required
 def api_get_costs(request):
     try:
         cost_obj = GlobalSetting.objects.get(key='electricity_cost_kwh')
@@ -1468,6 +1651,7 @@ def api_get_costs(request):
         'filaments': filaments_data
     })
 
+@login_required
 def quote_calculator(request):
     saved_quotes = Quote.objects.all()
     for quote in saved_quotes:
@@ -1480,6 +1664,7 @@ def quote_calculator(request):
     return render(request, 'app_3dmage_management/quotes.html', context)
 
 @require_POST
+@login_required
 def save_quote(request):
     data = json.loads(request.body)
     Quote.objects.create(
@@ -1490,15 +1675,18 @@ def save_quote(request):
     return JsonResponse({'status': 'ok'})
 
 @require_POST
+@login_required
 def delete_quote(request, quote_id):
     quote = get_object_or_404(Quote, id=quote_id)
     quote.delete()
     return JsonResponse({'status': 'ok'})
 
+@login_required
 def get_quote_details(request, quote_id):
     quote = get_object_or_404(Quote, id=quote_id)
     return JsonResponse({'details': quote.details})
 
+@login_required
 def api_get_notifications(request):
     notifications = Notification.objects.filter(is_read=False)
     data = {
@@ -1508,11 +1696,13 @@ def api_get_notifications(request):
     return JsonResponse(data)
 
 @require_POST
+@login_required
 def api_mark_notifications_as_read(request):
     Notification.objects.filter(is_read=False).update(is_read=True)
     return JsonResponse({'status': 'ok'})
 
 @require_POST
+@login_required
 def api_delete_notification(request, notification_id):
     notification = get_object_or_404(Notification, id=notification_id)
     notification.is_read = True
@@ -1521,6 +1711,7 @@ def api_delete_notification(request, notification_id):
 
 @require_POST
 @transaction.atomic
+@login_required
 def set_print_file_status(request, file_id):
     try:
         data = json.loads(request.body)
@@ -1547,6 +1738,7 @@ def set_print_file_status(request, file_id):
         return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
 @require_POST
 @transaction.atomic
+@login_required
 def create_project_from_quote(request):
     """
     Crea un nuovo progetto e un file di stampa associato

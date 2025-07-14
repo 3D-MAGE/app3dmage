@@ -1,8 +1,10 @@
-from django.urls import path
+from django.urls import path, include
 from . import views
 from django.views.generic import TemplateView
 
 urlpatterns = [
+    path('accounts/', include('django.contrib.auth.urls')),
+
     # Progetti
     path('', views.project_dashboard, name='project_dashboard'),
     path('projects/kanban/', views.project_kanban_board, name='project_kanban_board'),
@@ -45,7 +47,6 @@ urlpatterns = [
     path('filament/<int:filament_id>/edit/', views.edit_filament, name='edit_filament'),
     path('filament/<int:filament_id>/delete/', views.delete_filament, name='delete_filament'),
     path('spool/<int:spool_id>/delete/', views.delete_spool, name='delete_spool'),
-    # NUOVO URL per attivare/disattivare bobina
     path('spool/<int:spool_id>/toggle_status/', views.toggle_spool_status, name='toggle_spool_status'),
 
     # Magazzino
@@ -64,7 +65,7 @@ urlpatterns = [
     # Contabilità
     path('accounting/', views.accounting_dashboard, name='accounting_dashboard'),
     path('expense/add/', views.add_expense, name='add_expense'),
-    path('income/add/', views.add_manual_income, name='add_manual_income'), # NUOVO URL
+    path('income/add/', views.add_manual_income, name='add_manual_income'),
     path('funds/transfer/', views.transfer_funds, name='transfer_funds'),
     path('payment_method/<int:method_id>/correct/', views.correct_balance, name='correct_balance'),
     path('expense/<int:expense_id>/details/', views.get_expense_details, name='get_expense_details'),
@@ -103,6 +104,7 @@ urlpatterns = [
     path('settings/expense_category/<int:pk>/edit/', views.edit_expense_category, name='edit_expense_category'),
     path('settings/expense_category/<int:pk>/delete/', views.delete_expense_category, name='delete_expense_category'),
     path('settings/maintenance/add/', views.add_maintenance_log, name='add_maintenance_log'),
+    path('settings/maintenance/reset_counter/<int:printer_id>/', views.reset_maintenance_counter, name='reset_maintenance_counter'), # NUOVO URL
     path('settings/general/update/', views.update_general_settings, name='update_general_settings'),
     path('quotes/', views.quote_calculator, name='quote_calculator'),
 

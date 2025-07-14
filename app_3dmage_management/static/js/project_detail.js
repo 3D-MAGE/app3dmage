@@ -39,6 +39,8 @@ document.addEventListener('DOMContentLoaded', async function() {
     let lastFailedFileId = null;
     let lastPlannedFilamentUsage = null;
 
+    let tomSelectInstances = new Map();
+
     const filamentsResponse = await fetch(URLS.apiFilaments);
     if (!filamentsResponse.ok) { console.error("Impossibile caricare i dati dei filamenti."); return; }
     const allFilaments = await filamentsResponse.json();
@@ -51,7 +53,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         if (actualWrapper && actualInput) {
             const isVisible = (status === 'DONE' || status === 'FAILED');
             actualWrapper.style.display = isVisible ? 'block' : 'none';
-            actualInput.required = isVisible; // Imposta 'required' solo se visibile
+            actualInput.required = isVisible;
 
             if (isVisible) {
                 if (status === 'DONE' && producedInput) {
@@ -80,13 +82,89 @@ document.addEventListener('DOMContentLoaded', async function() {
     // -----------------------------------------------------------------
     // FUNZIONI HELPER
     // -----------------------------------------------------------------
-    function getCookie(name) { let cookieValue = null; if (document.cookie && document.cookie !== '') { const cookies = document.cookie.split(';'); for (let i = 0; i < cookies.length; i++) { const cookie = cookies[i].trim(); if (cookie.substring(0, name.length + 1) === (name + '=')) { cookieValue = decodeURIComponent(cookie.substring(name.length + 1)); break; } } } return cookieValue; }
-    function showToast(message, type = 'success') { const toastEl = document.getElementById('appToast'); if (!toastEl) return; const toastBody = toastEl.querySelector('.toast-body'); toastEl.classList.remove('bg-success', 'bg-danger', 'bg-warning', 'bg-info'); const bgColor = type === 'error' ? 'danger' : type; toastEl.classList.add(`bg-${bgColor}`); toastBody.textContent = message; new bootstrap.Toast(toastEl).show(); }
-    function showLoader() { document.getElementById('loading-overlay')?.classList.remove('d-none'); }
-    function hideLoader() { document.getElementById('loading-overlay')?.classList.add('d-none'); }
-    const getContrastYIQ = (hex) => { if (!hex) return 'white'; const c = hex.substring(1); const rgb = parseInt(c, 16); const r = (rgb >> 16) & 0xff; const g = (rgb >> 8) & 0xff; const b = (rgb >> 0) & 0xff; const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000; return (yiq >= 128) ? 'black' : 'white'; };
-    const createFilamentRow = () => { const row = document.createElement('div'); row.className = 'row align-items-center filament-row mb-2'; const opts = allFilaments.map(f => `<option value="${f.id}" style="background-color:${f.color_hex};color:${getContrastYIQ(f.color_hex)};">${f.name}</option>`).join(''); row.innerHTML = `<div class="col-md-5"><select class="form-select filament-select"><option value="">Seleziona Filamento...</option>${opts}</select></div><div class="col-md-4"><select class="form-select spool-select" disabled><option value="">Scegli un filamento</option></select></div><div class="col-md-3"><input type="number" class="form-control grams-input" placeholder="grammi" min="0.01" step="0.01"><div class="form-text text-warning warning-message small" style="display: none;">Scorta insufficiente!</div></div>`; return row; };
-    const updateFilamentRows = (desiredCount) => { const container = printFileModalEl.querySelector('#filament-inputs-container'); const currentRows = container.querySelectorAll('.filament-row'); const currentCount = currentRows.length; if (desiredCount > currentCount) { for (let i = currentCount; i < desiredCount; i++) { container.appendChild(createFilamentRow()); } } else if (desiredCount < currentCount) { for (let i = currentCount; i > desiredCount; i--) { container.removeChild(container.lastChild); } } };
+    const getContrastYIQ = (hexcolor) => {
+        if (!hexcolor) return 'black';
+        hexcolor = hexcolor.replace("#", "");
+        if (hexcolor.length === 3) {
+            hexcolor = hexcolor.split('').map(char => char + char).join('');
+        }
+        if (hexcolor.length !== 6) {
+            return 'black';
+        }
+        const r = parseInt(hexcolor.substr(0, 2), 16);
+        const g = parseInt(hexcolor.substr(2, 2), 16);
+        const b = parseInt(hexcolor.substr(4, 2), 16);
+        const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
+        return (yiq >= 128) ? 'black' : 'white';
+    };
+
+    const createFilamentRow = () => {
+        const row = document.createElement('div');
+        row.className = 'row align-items-center filament-row mb-2';
+        row.innerHTML = `
+            <div class="col-md-5">
+                <select class="form-select tom-select-filament" placeholder="Seleziona Filamento..."></select>
+            </div>
+            <div class="col-md-4">
+                <select class="form-select spool-select" disabled>
+                    <option value="">Scegli un filamento</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <input type="number" class="form-control grams-input" placeholder="grammi" min="0.01" step="0.01">
+                <div class="form-text text-warning warning-message small" style="display: none;">Scorta insufficiente!</div>
+            </div>`;
+        return row;
+    };
+
+    const initializeTomSelect = (selectElement) => {
+        if (!selectElement) return;
+        const instance = new TomSelect(selectElement, {
+            valueField: 'id',
+            labelField: 'name',
+            searchField: 'name',
+            options: allFilaments,
+            create: false,
+            render: {
+                option: function(data, escape) {
+                    return `<div style="background-color:${data.color_hex}; color:${getContrastYIQ(data.color_hex)}; padding: 5px 10px;">${escape(data.name)}</div>`;
+                },
+                item: function(data, escape) {
+                    return `<div style="background-color:${data.color_hex}; color:${getContrastYIQ(data.color_hex)};">${escape(data.name)}</div>`;
+                }
+            },
+            onChange: function(value) {
+                const changeEvent = new Event('change', { bubbles: true });
+                selectElement.dispatchEvent(changeEvent);
+            }
+        });
+        tomSelectInstances.set(selectElement, instance);
+    };
+
+    const updateFilamentRows = (desiredCount) => {
+        const container = printFileModalEl.querySelector('#filament-inputs-container');
+        const currentRows = container.querySelectorAll('.filament-row');
+        const currentCount = currentRows.length;
+
+        if (desiredCount > currentCount) {
+            for (let i = currentCount; i < desiredCount; i++) {
+                const newRow = createFilamentRow();
+                container.appendChild(newRow);
+                initializeTomSelect(newRow.querySelector('.tom-select-filament'));
+            }
+        } else if (desiredCount < currentCount) {
+            for (let i = currentCount; i > desiredCount; i--) {
+                const rowToRemove = container.lastChild;
+                const selectToDestroy = rowToRemove.querySelector('.tom-select-filament');
+                if (tomSelectInstances.has(selectToDestroy)) {
+                    tomSelectInstances.get(selectToDestroy).destroy();
+                    tomSelectInstances.delete(selectToDestroy);
+                }
+                container.removeChild(rowToRemove);
+            }
+        }
+    };
+
     const setActiveStatus = (statusValue) => { const sHidden = printFileModalEl.querySelector('#id_status_hidden'); const sContainer = printFileModalEl.querySelector('#status-btn-container'); if (sHidden && sContainer) { sHidden.value = statusValue; sContainer.querySelectorAll('.status-btn').forEach(b => { b.classList.remove('active'); if (b.dataset.status === statusValue) b.classList.add('active'); }); } };
     const checkWeightAndWarn = (gramsInput) => { const r = gramsInput.closest('.row'); if (!r) return; const s = r.querySelector('.spool-select'); const w = r.querySelector('.warning-message'); const opt = s.options[s.selectedIndex]; if (!opt || !opt.value || !opt.dataset.remaining) { w.style.display = 'none'; return; } const g = parseFloat(gramsInput.value) || 0; const a = parseFloat(opt.dataset.remaining); w.style.display = g > a ? 'block' : 'none'; };
     const toggleWastedGrams = (status) => {
@@ -102,6 +180,7 @@ document.addEventListener('DOMContentLoaded', async function() {
             wastedWrapper.style.display = 'none';
         }
     };
+
     function resetPrintFileForm() {
         const form = document.getElementById('printFileForm');
         form.reset();
@@ -120,7 +199,6 @@ document.addEventListener('DOMContentLoaded', async function() {
         printFileModalEl.querySelector('#delete-print-file-btn').style.display = 'none';
         printFileModalEl.querySelector('#clone-print-file-btn').style.display = 'none';
 
-        // CORREZIONE: Assicura che i campi condizionali siano nascosti e non obbligatori
         const wastedWrapper = printFileModalEl.querySelector('#wasted-grams-wrapper');
         if(wastedWrapper) wastedWrapper.style.display = 'none';
 
@@ -132,17 +210,24 @@ document.addEventListener('DOMContentLoaded', async function() {
         const countSelector = printFileModalEl.querySelector('#filament-count-selector');
         countSelector.querySelector('.active')?.classList.remove('active');
         countSelector.querySelector('[data-count="1"]').classList.add('active');
+
+        tomSelectInstances.forEach(instance => instance.destroy());
+        tomSelectInstances.clear();
         const cont = printFileModalEl.querySelector('#filament-inputs-container');
         cont.innerHTML = '';
-        cont.appendChild(createFilamentRow());
+
+        const firstRow = createFilamentRow();
+        cont.appendChild(firstRow);
+        initializeTomSelect(firstRow.querySelector('.tom-select-filament'));
+
         setActiveStatus('TODO');
-        printFileModalEl.querySelectorAll('.filament-select, .spool-select').forEach(sel => { sel.style.backgroundColor = ''; sel.style.color = ''; });
 
         const projectIdHiddenInput = form.querySelector('#id_project_hidden');
         if (projectIdHiddenInput && projectId) {
             projectIdHiddenInput.value = projectId;
         }
     }
+
     async function loadAndSelectPlate(printerId, plateIdToSelect = null) {
         const plateSelect = printFileModalEl.querySelector('select[name="plate"]');
         plateSelect.innerHTML = '<option value="">Caricamento...</option>';
@@ -157,6 +242,7 @@ document.addEventListener('DOMContentLoaded', async function() {
             if (plateIdToSelect) plateSelect.value = plateIdToSelect;
         } catch (error) { plateSelect.innerHTML = '<option value="">Errore</option>'; }
     }
+
     async function showEditModal(fileId) {
         if (!fileId) return;
         resetPrintFileForm();
@@ -195,24 +281,21 @@ document.addEventListener('DOMContentLoaded', async function() {
         countSelector.querySelector('.active')?.classList.remove('active');
         const btnToActivate = countSelector.querySelector(`[data-count="${filamentsUsed.length || 1}"]`);
         if (btnToActivate) btnToActivate.classList.add('active');
-        const cont = printFileModalEl.querySelector('#filament-inputs-container');
-        cont.innerHTML = '';
-        if (filamentsUsed.length === 0) {
-            cont.appendChild(createFilamentRow());
-        } else {
-            for (let i = 0; i < filamentsUsed.length; i++) {
-                cont.appendChild(createFilamentRow());
-            }
-        }
+
+        updateFilamentRows(filamentsUsed.length || 1);
+
         const rows = printFileModalEl.querySelectorAll('.filament-row');
         for (let i = 0; i < filamentsUsed.length; i++) {
             const usage = filamentsUsed[i];
             const row = rows[i];
-            const filamentSelect = row.querySelector('.filament-select');
+            const filamentSelect = row.querySelector('.tom-select-filament');
             const spoolSelect = row.querySelector('.spool-select');
-            filamentSelect.value = usage.spool__filament_id;
-            const selectedOption = filamentSelect.options[filamentSelect.selectedIndex];
-            if(selectedOption.value){ filamentSelect.style.backgroundColor = selectedOption.style.backgroundColor; filamentSelect.style.color = selectedOption.style.color; }
+
+            const tomInstance = tomSelectInstances.get(filamentSelect);
+            if (tomInstance) {
+                tomInstance.setValue(usage.spool__filament_id, true);
+            }
+
             const spoolUrl = URLS.apiSpoolsUrlBase.replace('0', usage.spool__filament_id);
             const spoolsResponse = await fetch(spoolUrl);
             const spoolsData = await spoolsResponse.json();
@@ -236,9 +319,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     function updateSelectColor(select) { if (!select) return; select.className = 'form-select-inline'; const f = select.dataset.field, v = select.value; if (f && v) select.classList.add(`select-${f}-${v.toLowerCase()}`); }
     function saveInlineField(el) { fetch(`${URLS.projectBase}${el.dataset.projectId}/update_inline/`, { method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrftoken}, body: JSON.stringify({ field: el.dataset.field, value: el.value }) }).then(res => res.json()).then(data => { if (data.status === 'ok') showToast('Progetto aggiornato!'); else showToast(`Errore: ${data.message}`, 'error'); }).catch(e => showToast('Errore di connessione.','error'));}
 
-    // -----------------------------------------------------------------
-    // EVENT LISTENERS
-    // -----------------------------------------------------------------
+    // ... (Il resto del file rimane identico fino alla fine)
     const tooltipTriggerList = Array.from(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
     tooltipTriggerList.forEach(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl));
 
@@ -274,7 +355,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     if (mainForm) {
         mainForm.addEventListener('submit', function(e) {
             e.preventDefault();
-
+            showLoader(); // Mostra l'overlay
             const formData = new FormData(this);
 
             const fCont = printFileModalEl.querySelector('#filament-inputs-container');
@@ -293,10 +374,12 @@ document.addEventListener('DOMContentLoaded', async function() {
             const totalMinutes = (days * 1440) + (hours * 60) + minutes;
             if (totalMinutes < 1) {
                 showToast('Il tempo di stampa deve essere di almeno 1 minuto.', 'error');
+                hideLoader();
                 return;
             }
             if (fUsages.length === 0) {
                 showToast('Devi specificare almeno un filamento e i grammi utilizzati.', 'error');
+                hideLoader();
                 return;
             }
 
@@ -348,23 +431,19 @@ document.addEventListener('DOMContentLoaded', async function() {
                 printFileModal.hide();
                 const errorMessage = err.message || (err.errors ? Object.values(err.errors).join(' ') : 'Errore durante il salvataggio.');
                 showToast(errorMessage, 'error');
+            }).finally(() => {
+                hideLoader(); // Nasconde l'overlay
             });
         });
     }
 
-    // Listener per il modale di creazione automatica
     document.getElementById('confirm-auto-create-btn')?.addEventListener('click', function() {
         const fileId = this.dataset.fileId;
         const count = this.dataset.count;
-
         showLoader();
-
         fetch(URLS.cloneFile, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': csrftoken
-            },
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
             body: JSON.stringify({ file_id: fileId, count: count })
         })
         .then(res => res.json())
@@ -377,9 +456,7 @@ document.addEventListener('DOMContentLoaded', async function() {
             console.error('Errore durante la clonazione:', error);
             showToast('Errore durante la clonazione dei file.', 'error');
         })
-        .finally(() => {
-            hideLoader();
-        });
+        .finally(() => { hideLoader(); });
     });
 
     document.getElementById('cancel-auto-create-btn')?.addEventListener('click', () => {
@@ -389,6 +466,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     const requeueModalInstance = requeueModalEl ? bootstrap.Modal.getInstance(requeueModalEl) : null;
     document.getElementById('confirm-requeue-btn')?.addEventListener('click', function() {
         if (!lastFailedFileId) return;
+        showLoader();
         fetch(`${URLS.fileBase}${lastFailedFileId}/requeue/`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
@@ -398,7 +476,7 @@ document.addEventListener('DOMContentLoaded', async function() {
             showToast(data.message || 'Errore', data.status === 'ok' ? 'success' : 'error');
             if (requeueModalInstance) requeueModalInstance.hide();
             setTimeout(() => window.location.reload(), 800);
-        });
+        }).finally(() => hideLoader());
     });
     document.getElementById('requeue-no-btn')?.addEventListener('click', () => window.location.reload());
 
@@ -413,65 +491,45 @@ document.addEventListener('DOMContentLoaded', async function() {
         });
     }
 
-    // Listener per il pulsante Clona
     document.getElementById('clone-print-file-btn')?.addEventListener('click', async function() {
         const fileId = this.dataset.fileId;
-        const response = await fetch(`${URLS.fileBase}${fileId}/details/`);
-        const data = await response.json();
+        if (!fileId) return;
+
+        showLoader(); // Mostra l'overlay
 
         printFileModal.hide();
 
-        setTimeout(async () => {
-            resetPrintFileForm();
-            const form = document.getElementById('printFileForm');
-
-            form.querySelector('[name="name"]').value = `${data.name} (Copia)`;
-            form.querySelector('[name="printer"]').value = data.printer;
-
-            const totalSeconds = data.print_time_seconds || 0;
-            const days = Math.floor(totalSeconds / 86400);
-            const remainingSecondsAfterDays = totalSeconds % 86400;
-            const hours = Math.floor(remainingSecondsAfterDays / 3600);
-            const minutes = Math.floor((remainingSecondsAfterDays % 3600) / 60);
-            form.querySelector('input[name="print_time_days"]').value = days;
-            form.querySelector('input[name="print_time_hours"]').value = hours;
-            form.querySelector('input[name="print_time_minutes"]').value = minutes;
-            form.querySelector('[name="produced_quantity"]').value = data.produced_quantity;
-
-            await loadAndSelectPlate(data.printer, data.plate);
-
-            const filamentsUsed = data.filaments_used || [];
-            updateFilamentRows(filamentsUsed.length || 1);
-
-            const rows = document.querySelectorAll('#filament-inputs-container .filament-row');
-            for (let i = 0; i < filamentsUsed.length; i++) {
-                const usage = filamentsUsed[i];
-                const row = rows[i];
-                const filamentSelect = row.querySelector('.filament-select');
-                const spoolSelect = row.querySelector('.spool-select');
-                const gramsInput = row.querySelector('.grams-input');
-
-                filamentSelect.value = usage.spool__filament_id;
-                filamentSelect.dispatchEvent(new Event('change', { bubbles: true }));
-
-                await new Promise(resolve => setTimeout(resolve, 300));
-
-                spoolSelect.value = usage.spool_id;
-                gramsInput.value = usage.grams_used;
+        try {
+            const response = await fetch(URLS.cloneFile, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
+                body: JSON.stringify({ file_id: fileId, count: 1 })
+            });
+            const data = await response.json();
+            showToast(data.message || 'Errore', data.status === 'ok' ? 'success' : 'error');
+            if (data.status === 'ok') {
+                setTimeout(() => window.location.reload(), 800);
             }
-
-            printFileModal.show();
-        }, 500);
+        } catch (error) {
+            console.error('Errore durante la clonazione:', error);
+            showToast('Errore durante la clonazione del file.', 'error');
+        } finally {
+            // Nasconde l'overlay solo dopo che il toast è stato mostrato e il timeout è partito
+            if (! (await response.json()).status === 'ok') {
+                hideLoader();
+            }
+        }
     });
 
     const deleteConfirmForm = document.getElementById('deletePrintFileForm');
     if (deleteConfirmForm) {
         deleteConfirmForm.addEventListener('submit', function(e) {
             e.preventDefault();
+            showLoader();
             fetch(this.action, { method: 'POST', headers: { 'X-CSRFToken': csrftoken } }).then(res => res.json()).then(data => {
                 if (data.status === 'ok') { if (confirmDeleteModal) confirmDeleteModal.hide(); window.location.reload(); }
-                else { showToast('Errore durante l\'eliminazione.', 'error'); }
-            }).catch(e => showToast('Errore di connessione.', 'error'));
+                else { showToast('Errore durante l\'eliminazione.', 'error'); hideLoader(); }
+            }).catch(e => {showToast('Errore di connessione.', 'error'); hideLoader();});
         });
     }
 
@@ -479,10 +537,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     if(filamentContainer) {
         filamentContainer.addEventListener('change', function(e) {
             const target = e.target;
-            if (target.classList.contains('filament-select')) {
-                const selOpt = target.options[target.selectedIndex];
-                target.style.backgroundColor = selOpt.value ? selOpt.style.backgroundColor : '';
-                target.style.color = selOpt.value ? selOpt.style.color : '';
+            if (target.classList.contains('tom-select-filament')) {
                 const fId = target.value;
                 const spoolSelect = target.closest('.filament-row').querySelector('.spool-select');
                 spoolSelect.innerHTML = '<option>Caricamento...</option>';

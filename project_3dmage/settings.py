@@ -100,6 +100,8 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # --- Debug Toolbar ---
 INTERNAL_IPS = ["127.0.0.1"]
 
-# --- Redirects ---
-LOGIN_REDIRECT_URL = '/'
-LOGOUT_REDIRECT_URL = '/'
+
+# Impostazioni di Autenticazione
+LOGIN_URL = 'login'
+LOGIN_REDIRECT_URL = 'project_dashboard'
+LOGOUT_REDIRECT_URL = 'login'

@@ -3,6 +3,31 @@
 {% block title %}Dettaglio {{ project.name }} - 3DMAGE MANAGEMENT{% endblock %}
 
 {% block content %}
+<!-- MODIFICA: Aggiunti stili per Tom-Select e la libreria CSS -->
+<link href="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/css/tom-select.bootstrap5.css" rel="stylesheet">
+<style>
+    /* Stili per adattare Tom-Select al tema scuro */
+    .ts-control {
+        background-color: var(--dark-bg) !important;
+        border-color: #555 !important;
+    }
+    .ts-control input {
+        color: var(--text-light) !important;
+    }
+    .ts-dropdown {
+        background-color: var(--dark-card) !important;
+        border-color: #555 !important;
+    }
+    .ts-dropdown .option {
+        color: var(--text-light) !important;
+    }
+    /* MODIFICA: Sostituisce lo sfondo arancione con un overlay traslucido per non coprire il colore del filamento */
+    .ts-dropdown .option:hover, .ts-dropdown .active {
+        background-color: rgba(255, 255, 255, 0.15) !important;
+        color: inherit !important; /* Lascia che il colore del testo sia gestito dal div interno */
+    }
+</style>
+
 <div class="d-flex justify-content-between align-items-center mb-4">
     <a href="{% if referer == 'table' %}{% url 'project_dashboard' %}{% elif referer == 'queue' %}{% url 'print_queue_board' %}{% else %}{% url 'project_kanban_board' %}{% endif %}" class="btn btn-outline-secondary"><i class="bi bi-arrow-left me-2"></i>Indietro</a>
     <div>
@@ -30,29 +55,28 @@
     </div>
     <div class="card-body">
         <div class="row">
-          <div class="col-md-4">
-              <p class="mb-2 d-flex align-items-center"><strong class="text-muted me-2">Status:</strong>
-                  {% if project.status == 'DONE' %}
-                      <span class="badge bg-status-done">{{ project.get_status_display }}</span>
-                  {% else %}
-                      <select class="form-select-inline" data-field="status" data-project-id="{{ project.id }}">
-                          {% for value, display in project.Status.choices %}{% if value != 'DONE' %}<option value="{{ value }}" {% if project.status == value %}selected{% endif %}>{{ display }}</option>{% endif %}{% endfor %}
-                      </select>
-                  {% endif %}
-              </p>
-              <p class="mb-1 d-flex align-items-center"><strong class="text-muted me-2">Priorità:</strong>
-                  {% if project.status == 'DONE' %}
-                       <span class="badge bg-priority-{{ project.priority|lower }}">{{ project.get_priority_display }}</span>
-                  {% else %}
-                      <select class="form-select-inline" data-field="priority" data-project-id="{{ project.id }}">
-                          {% for value, display in project.Priority.choices %}<option value="{{ value }}" {% if project.priority == value %}selected{% endif %}>{{ display }}</option>{% endfor %}
-                      </select>
-                  {% endif %}
-              </p>
-          </div>
+            <div class="col-md-4">
+                <p class="mb-2 d-flex align-items-center"><strong class="text-muted me-2">Status:</strong>
+                    {% if project.status == 'DONE' %}
+                        <span class="badge bg-status-done">{{ project.get_status_display }}</span>
+                    {% else %}
+                        <select class="form-select-inline" data-field="status" data-project-id="{{ project.id }}">
+                            {% for value, display in project.Status.choices %}{% if value != 'DONE' %}<option value="{{ value }}" {% if project.status == value %}selected{% endif %}>{{ display }}</option>{% endif %}{% endfor %}
+                        </select>
+                    {% endif %}
+                </p>
+                <p class="mb-1 d-flex align-items-center"><strong class="text-muted me-2">Priorità:</strong>
+                    {% if project.status == 'DONE' %}
+                         <span class="badge bg-priority-{{ project.priority|lower }}">{{ project.get_priority_display }}</span>
+                    {% else %}
+                        <select class="form-select-inline" data-field="priority" data-project-id="{{ project.id }}">
+                            {% for value, display in project.Priority.choices %}<option value="{{ value }}" {% if project.priority == value %}selected{% endif %}>{{ display }}</option>{% endfor %}
+                        </select>
+                    {% endif %}
+                </p>
+            </div>
             <div class="col-md-4">
                 <p class="mb-2"><strong class="text-muted">Categoria:</strong> {{ project.category.name|default:"N/D" }}</p>
-                <!-- NUOVO BLOCCO QUANTITÀ -->
                 <p class="mb-1">
                     <strong class="text-muted">Quantità:</strong>
                     <span class="badge bg-secondary" data-bs-toggle="tooltip" title="Totale ordine">{{ project.quantity }}</span> /
@@ -60,11 +84,31 @@
                     <span class="badge {% if project.remaining_objects > 0 %}bg-warning text-dark{% else %}bg-secondary{% endif %}" data-bs-toggle="tooltip" title="Rimanenti">{{ project.remaining_objects }}</span>
                 </p>
             </div>
-            <div class="col-md-4"><p class="mb-2"><strong class="text-muted">Tempo Totale:</strong> {{ project.total_print_time }}</p><p class="mb-1"><strong class="text-muted">Tempo Rimanente:</strong> {{ project.remaining_print_time }}</p></div>
+            <div class="col-md-4">
+                <p class="mb-2"><strong class="text-muted">Tempo Totale:</strong> {{ project.total_print_time }}</p>
+                <p class="mb-1"><strong class="text-muted">Tempo Rimanente:</strong> {{ project.remaining_print_time }}</p>
+            </div>
         </div>
         <hr class="border-secondary my-3">
-        <div class="row"><div class="col-12" style="position: relative;"><p class="mb-1 text-center"><strong class="text-muted">Progresso:</strong> {{ project.progress }}</p><div class="progress" style="height: 10px; background-color: #444;"><div class="progress-bar" role="progressbar" style="width: {{ project.progress_percentage }}%; background-color: #ffa500;"></div></div></div></div>
-        <div class="row mt-3"><div class="col-12"><p class="mb-1"><strong class="text-muted">Annotazioni:</strong></p><div class="notes-text-display">{{ project.notes|default:"Nessuna annotazione." }}</div></div></div>
+        <!-- MODIFICA: Layout per progresso e costo totale -->
+        <div class="row align-items-center">
+            <div class="col-md-8">
+                <p class="mb-1 text-center small text-muted">Progresso: {{ project.progress }}</p>
+                <div class="progress" style="height: 10px; background-color: #444;">
+                    <div class="progress-bar" role="progressbar" style="width: {{ project.progress_percentage }}%; background-color: #ffa500;"></div>
+                </div>
+            </div>
+            <div class="col-md-4 text-center mt-2 mt-md-0">
+                <strong class="text-muted">Costo Totale Stimato:</strong>
+                <h4 class="text-warning fw-bold mb-0">{{ total_project_cost|floatformat:2 }}€</h4>
+            </div>
+        </div>
+        <div class="row mt-3">
+            <div class="col-12">
+                <p class="mb-1"><strong class="text-muted">Annotazioni:</strong></p>
+                <div class="notes-text-display">{{ project.notes|default:"Nessuna annotazione." }}</div>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -161,5 +205,7 @@
     defer>
 </script>
 
+<!-- MODIFICA: Aggiunta libreria Tom-Select JS -->
+<script src="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/js/tom-select.complete.min.js"></script>
 <script src="{% static 'js/project_detail.js' %}" defer></script>
 {% endblock %}

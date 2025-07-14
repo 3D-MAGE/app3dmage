@@ -31,7 +31,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     };
 
-    // MODIFIED: Check for a toast message from a previous page (e.g., after a redirect)
+    // Check for a toast message from a previous page (e.g., after a redirect)
     const toastMessage = sessionStorage.getItem('toastMessage');
     if (toastMessage) {
         const toastType = sessionStorage.getItem('toastType') || 'success';
@@ -53,13 +53,21 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Logica popup Modifica/Elimina Spesa
+    // --- Logica Modifica/Elimina Spesa ---
     const editExpenseModalEl = document.getElementById('editExpenseModal');
     if (editExpenseModalEl) {
         const modal = new bootstrap.Modal(editExpenseModalEl);
         const form = editExpenseModalEl.querySelector('form');
         const deleteBtn = document.getElementById('deleteExpenseBtn');
 
+        // Modals di conferma
+        const confirmModalEl = document.getElementById('confirmationModal');
+        const confirmModal = new bootstrap.Modal(confirmModalEl);
+        const confirmModalTitle = document.getElementById('confirmationModalTitle');
+        const confirmModalBody = document.getElementById('confirmationModalBody');
+        const confirmActionBtn = document.getElementById('confirmActionBtn');
+
+        // Apri modal di modifica
         document.getElementById('expenses-table')?.addEventListener('click', function(e) {
             const row = e.target.closest('tr.clickable-row');
             if (row && row.dataset.action === 'edit-expense') {
@@ -77,12 +85,12 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
 
+        // Salva modifiche
         form.addEventListener('submit', function(e) {
             e.preventDefault();
             fetch(this.action, { method: 'POST', body: new FormData(this), headers: {'X-CSRFToken': csrftoken} })
             .then(res => res.json()).then(data => {
                 if(data.status === 'ok') {
-                    // MODIFIED: Show success toast before reloading
                     showToast('Modifiche salvate con successo!', 'success');
                     setTimeout(() => window.location.reload(), 1000);
                 } else {
@@ -91,20 +99,34 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
 
+        // CORREZIONE: Usa il modal di conferma per l'eliminazione
         deleteBtn.addEventListener('click', function() {
-            // Using standard confirm for simplicity, can be replaced with a custom modal
-            if (confirm('Sei sicuro di voler eliminare questa spesa? L\'importo verrà riaccreditato sulla cassa selezionata.')) {
-                fetch(this.dataset.deleteUrl, { method: 'POST', headers: {'X-CSRFToken': csrftoken} })
+            const deleteUrl = this.dataset.deleteUrl;
+
+            // Imposta il modal di conferma
+            if(confirmModalTitle) confirmModalTitle.textContent = 'Conferma Eliminazione Spesa';
+            confirmModalBody.textContent = 'Sei sicuro di voler eliminare questa spesa? L\'importo verrà riaccreditato sulla cassa selezionata.';
+
+            // Definisce l'azione del pulsante di conferma
+            const deleteAction = () => {
+                fetch(deleteUrl, { method: 'POST', headers: {'X-CSRFToken': csrftoken} })
                 .then(res => res.json()).then(data => {
+                    confirmModal.hide(); // Nasconde il modal di conferma
                     if(data.status === 'ok') {
-                        // MODIFIED: Show success toast before reloading
                         showToast('Spesa eliminata con successo.', 'success');
-                        setTimeout(() => window.location.reload(), 1000);
+                        modal.hide(); // Nasconde il modal di modifica
+                        setTimeout(() => window.location.reload(), 500);
                     } else {
                         showToast(data.message || 'Errore durante l\'eliminazione.', 'error');
                     }
                 });
-            }
+            };
+
+            // Aggiunge l'evento al pulsante di conferma, assicurandosi che venga eseguito una sola volta
+            confirmActionBtn.addEventListener('click', deleteAction, { once: true });
+
+            // Mostra il modal di conferma
+            confirmModal.show();
         });
     }
 
@@ -115,10 +137,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
         const confirmModalEl = document.getElementById('confirmationModal');
         const confirmModal = new bootstrap.Modal(confirmModalEl);
+        const confirmModalTitle = document.getElementById('confirmationModalTitle');
+        const confirmModalBody = document.getElementById('confirmationModalBody');
+        const confirmActionBtn = document.getElementById('confirmActionBtn');
 
-        document.getElementById('confirmationModalBody').textContent = `Sei sicuro di voler annullare la vendita per "${row.dataset.name}"? L'importo verrà stornato e l'oggetto/entrata verrà rimosso o ripristinato.`;
+        if(confirmModalTitle) confirmModalTitle.textContent = 'Conferma Storno Vendita';
+        confirmModalBody.textContent = `Sei sicuro di voler annullare la vendita per "${row.dataset.name}"? L'importo verrà stornato e l'oggetto/entrata verrà rimosso o ripristinato.`;
 
-        document.getElementById('confirmActionBtn').onclick = function() {
+        const reverseAction = () => {
             const saleId = row.dataset.id;
             fetch(`/sale/${saleId}/reverse/`, {
                 method: 'POST',
@@ -147,7 +173,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
             })
             .then(data => {
-                // MODIFIED: Use sessionStorage to show toast after redirect
                 if (data.redirect_url) {
                     sessionStorage.setItem('toastMessage', 'Operazione di storno completata!');
                     sessionStorage.setItem('toastType', 'success');
@@ -162,6 +187,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 showToast(error.message || 'Errore durante lo storno della vendita.', 'error');
             });
         };
+
+        confirmActionBtn.addEventListener('click', reverseAction, { once: true });
         confirmModal.show();
     });
 });

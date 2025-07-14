@@ -11,13 +11,13 @@
     </div>
 </div>
 
+<!-- Sezione Progetti Attivi (invariata) -->
 <div class="d-flex justify-content-between align-items-center mt-4">
     <h3 class="text-white">Progetti In Corso</h3>
     <a class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse" href="#activeFiltersCollapse" role="button" aria-expanded="false" aria-controls="activeFiltersCollapse">
         <i class="bi bi-funnel-fill me-1"></i> Filtra Progetti Attivi
     </a>
 </div>
-
 <div class="collapse {% if active_filters_applied %}show{% endif %}" id="activeFiltersCollapse">
     <div class="card bg-dark-card mt-3 mb-4">
         <div class="card-body">
@@ -50,7 +50,6 @@
         </div>
     </div>
 </div>
-
 <div class="card bg-dark-card mt-3">
     <div class="card-body">
         <div class="table-responsive">
@@ -86,6 +85,7 @@
     </div>
 </div>
 
+<!-- Sezione Progetti Completati -->
 <div class="d-flex justify-content-between align-items-center mt-5">
     <h3 class="text-white">Progetti Completati</h3>
     <a class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse" href="#completedFiltersCollapse" role="button" aria-expanded="false" aria-controls="completedFiltersCollapse">
@@ -93,20 +93,39 @@
     </a>
 </div>
 
+<!-- MODIFICA: Aggiunti nuovi filtri per categoria e filamento -->
 <div class="collapse {% if completed_filters_applied %}show{% endif %}" id="completedFiltersCollapse">
     <div class="card bg-dark-card mt-3 mb-4">
         <div class="card-body">
             <form method="get" action="{% url 'project_dashboard' %}" class="row g-3 align-items-end">
-                <div class="col-md-5">
+                <div class="col-md-3">
                     <label for="q_completed" class="form-label">Cerca per Nome o ID</label>
                     <input type="text" class="form-control form-control-sm" name="q_completed" id="q_completed" value="{{ completed_search_query }}">
                 </div>
-                <div class="col-md-5">
-                    <label for="year_completed" class="form-label">Filtra per Anno Completamento</label>
+                <div class="col-md-2">
+                    <label for="year_completed" class="form-label">Anno</label>
                     <select class="form-select form-select-sm" name="year_completed" id="year_completed">
-                        <option value="">Tutti gli Anni</option>
+                        <option value="">Tutti</option>
                         {% for year in completed_project_years %}
                             <option value="{{ year }}" {% if year|stringformat:"s" == completed_year_filter %}selected{% endif %}>{{ year }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="category_completed" class="form-label">Categoria</label>
+                    <select class="form-select form-select-sm" name="category_completed" id="category_completed">
+                        <option value="">Tutte</option>
+                        {% for cat in all_categories %}
+                            <option value="{{ cat.id }}" {% if cat.id|stringformat:"s" == completed_category_filter %}selected{% endif %}>{{ cat.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label for="filament_completed" class="form-label">Filamento</label>
+                    <select class="form-select form-select-sm" name="filament_completed" id="filament_completed">
+                        <option value="">Tutti</option>
+                        {% for f in all_filaments %}
+                            <option value="{{ f.id }}" {% if f.id|stringformat:"s" == completed_filament_filter %}selected{% endif %}>{{ f }}</option>
                         {% endfor %}
                     </select>
                 </div>
@@ -125,15 +144,16 @@
     <div class="card-body">
         <div class="table-responsive">
             <table class="table table-dark table-hover align-middle">
+                <!-- MODIFICA: Aggiunti link e icone per l'ordinamento -->
                 <thead>
                     <tr>
-                        <th>Nome</th>
-                        <th class="text-center">Data Completamento</th>
-                        <th class="text-center">Tempo Totale</th>
-                        <th class="text-center">Costo Materiali</th>
-                        <th class="text-center">Categoria</th>
+                        <th><a href="?sort_completed=name&order_completed={% if sort_completed == 'name' and order_completed == 'asc' %}desc{% else %}asc{% endif %}">Nome {% if sort_completed == 'name' %}<i class="bi bi-caret-{% if order_completed == 'asc' %}up{% else %}down{% endif %}-fill"></i>{% endif %}</a></th>
+                        <th class="text-center"><a href="?sort_completed=completed_at&order_completed={% if sort_completed == 'completed_at' and order_completed == 'asc' %}desc{% else %}asc{% endif %}">Data Compl. {% if sort_completed == 'completed_at' %}<i class="bi bi-caret-{% if order_completed == 'asc' %}up{% else %}down{% endif %}-fill"></i>{% endif %}</a></th>
+                        <th class="text-center"><a href="?sort_completed=total_print_time_seconds&order_completed={% if sort_completed == 'total_print_time_seconds' and order_completed == 'asc' %}desc{% else %}asc{% endif %}">Tempo Totale {% if sort_completed == 'total_print_time_seconds' %}<i class="bi bi-caret-{% if order_completed == 'asc' %}up{% else %}down{% endif %}-fill"></i>{% endif %}</a></th>
+                        <th class="text-center"><a href="?sort_completed=annotated_material_cost&order_completed={% if sort_completed == 'annotated_material_cost' and order_completed == 'asc' %}desc{% else %}asc{% endif %}">Costo Materiali {% if sort_completed == 'annotated_material_cost' %}<i class="bi bi-caret-{% if order_completed == 'asc' %}up{% else %}down{% endif %}-fill"></i>{% endif %}</a></th>
+                        <th class="text-center"><a href="?sort_completed=category__name&order_completed={% if sort_completed == 'category__name' and order_completed == 'asc' %}desc{% else %}asc{% endif %}">Categoria {% if sort_completed == 'category__name' %}<i class="bi bi-caret-{% if order_completed == 'asc' %}up{% else %}down{% endif %}-fill"></i>{% endif %}</a></th>
                         <th class="text-center">Filamenti Usati</th>
-                        <th class="text-center">Peso totale</th>
+                        <th class="text-center"><a href="?sort_completed=total_grams_used&order_completed={% if sort_completed == 'total_grams_used' and order_completed == 'asc' %}desc{% else %}asc{% endif %}">Peso totale {% if sort_completed == 'total_grams_used' %}<i class="bi bi-caret-{% if order_completed == 'asc' %}up{% else %}down{% endif %}-fill"></i>{% endif %}</a></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -144,8 +164,15 @@
                         <td class="text-center">{{ project.total_print_time }}</td>
                         <td class="text-center text-warning fw-bold">{{ project.annotated_material_cost|floatformat:2 }}€</td>
                         <td class="text-center">{{ project.category.name|default:"N/A" }}</td>
-                        <td class="text-center">{{ project.filament_summary }}</td>
-                        <td class="text-center">{{ project.total_filament_grams|floatformat:2 }}g</td>
+                        <!-- MODIFICA: Loop per mostrare le pillole colorate -->
+                        <td class="text-center">
+                            {% for filament in project.filament_summary_details %}
+                                <span class="filament-pill" style="background-color: {{ filament.color_hex }};" title="{{ filament.name }}">{{ filament.name }}</span>&nbsp;
+                            {% empty %}
+                                -
+                            {% endfor %}
+                        </td>
+                        <td class="text-center">{{ project.total_grams_used|floatformat:2 }}g</td>
                     </tr>
                     {% empty %}
                     <tr><td colspan="7" class="text-center py-4"><p class="text-muted">Nessun progetto completato trovato per i filtri selezionati.</p></td></tr>

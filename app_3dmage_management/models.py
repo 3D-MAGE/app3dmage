@@ -20,11 +20,13 @@ class Category(models.Model):
 class Printer(models.Model):
     name = models.CharField(max_length=100, verbose_name="Nome Stampante")
     model = models.CharField(max_length=100, blank=True, verbose_name="Modello")
-    # NUOVO CAMPO: Consumo in Watt
     power_consumption = models.PositiveIntegerField(
         default=150,
         help_text="Consumo medio in Watt della stampante durante la stampa."
     )
+    # NUOVO CAMPO: Data dell'ultimo reset del contatore di manutenzione
+    last_maintenance_reset = models.DateTimeField(default=timezone.now, verbose_name="Ultimo Reset Manutenzione")
+
 
     def __str__(self):
         return self.name
@@ -116,20 +118,13 @@ class Spool(models.Model):
     cost = models.DecimalField(max_digits=8, decimal_places=2, verbose_name="Costo (€)")
     purchase_date = models.DateField(default=timezone.now, verbose_name="Data Acquisto")
     purchase_link = models.URLField(max_length=512, blank=True, null=True, verbose_name="Link Acquisto")
-    # NUOVO CAMPO per stato bobina
     is_active = models.BooleanField(default=True, verbose_name="Attiva")
 
 
     def __str__(self):
-        base_name = self.filament.color_name or "Senza Nome"
-        suffix = f" {self.identifier}" if self.identifier and self.identifier != 'A' else ""
-        try:
-            date_str = self.purchase_date.strftime('%m/%y')
-        except Exception:
-            date_str = "??/??"
-        return f"{base_name}{suffix} - {date_str}"
-
-
+        weight_kg = self.initial_weight_g / 1000
+        weight_str = f"{int(weight_kg) if weight_kg.is_integer() else weight_kg}Kg"
+        return f"Bobina {self.identifier} - {weight_str} - {self.purchase_date.strftime('%m/%y')}"
 
     class Meta:
         verbose_name = "Bobina"
