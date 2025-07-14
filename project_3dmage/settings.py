@@ -20,7 +20,7 @@ if IS_PRODUCTION:
     CSRF_TRUSTED_ORIGINS = [f"https://{DOMAIN}.pythonanywhere.com"]
 else:
     # --- Locale ---
-    SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-ctq!%_ci$qoua%4&8re4v*(dkvtlz$o+(s#*v9()_t7a9ivg5#')
+    SECRET_KEY = os.getenv('SECRET_KEY', 'dev-insecure-key')
     DEBUG = True
     ALLOWED_HOSTS = []
     CSRF_TRUSTED_ORIGINS = []
