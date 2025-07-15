@@ -110,7 +110,6 @@ class Filament(models.Model):
         ordering = ['material', 'brand', 'color_code']
 
 
-# Modello per le singole Bobine di filamento
 class Spool(models.Model):
     filament = models.ForeignKey(Filament, on_delete=models.CASCADE, related_name="spools", verbose_name="Filamento")
     identifier = models.CharField(max_length=2, blank=True, verbose_name="Identificatore")
@@ -120,11 +119,15 @@ class Spool(models.Model):
     purchase_link = models.URLField(max_length=512, blank=True, null=True, verbose_name="Link Acquisto")
     is_active = models.BooleanField(default=True, verbose_name="Attiva")
 
-
+    # MODIFICATO: Metodo __str__ per il nuovo formato del nome
     def __str__(self):
         weight_kg = self.initial_weight_g / 1000
         weight_str = f"{int(weight_kg) if weight_kg.is_integer() else weight_kg}Kg"
-        return f"Bobina {self.identifier} - {weight_str} - {self.purchase_date.strftime('%m/%y')}"
+
+        # Aggiunge l'identificatore (es. " B") solo se non è vuoto
+        identifier_str = f" {self.identifier}" if self.identifier else ""
+
+        return f"{self.filament.color_name}{identifier_str} - {self.purchase_date.strftime('%m/%y')} - {weight_str}"
 
     class Meta:
         verbose_name = "Bobina"

@@ -47,8 +47,8 @@
 <div class="card bg-dark-card mb-4">
     <div class="card-body">
         <form method="get" action="{% url 'accounting_dashboard' %}" class="row g-3 align-items-end">
-            <div class="col-md-5">
-                <label for="q" class="form-label">Cerca per Descrizione</label>
+            <div class="col-md-3">
+                <label for="q" class="form-label">Cerca per Descrizione/Note</label>
                 <input type="text" class="form-control form-control-sm" name="q" id="q" value="{{ search_query|default:'' }}">
             </div>
             <div class="col-md-3">
@@ -60,7 +60,17 @@
                     {% endfor %}
                 </select>
             </div>
-            <div class="col-md-2">
+            <!-- NUOVO: Filtro Categoria -->
+            <div class="col-md-3">
+                <label for="category" class="form-label">Categoria Spesa</label>
+                <select class="form-select form-select-sm" name="category" id="category">
+                    <option value="">Tutte</option>
+                    {% for cat in all_expense_categories %}
+                        <option value="{{ cat.id }}" {% if cat.id|stringformat:"s" == category_filter %}selected{% endif %}>{{ cat.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-1">
                 <label for="year" class="form-label">Anno</label>
                 <select class="form-select form-select-sm" name="year" id="year">
                     <option value="">Tutti</option>

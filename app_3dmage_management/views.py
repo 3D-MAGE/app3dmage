@@ -212,7 +212,13 @@ def filament_dashboard(request):
     valid_sort_fields = ['material', 'brand', 'color_name', 'annotated_remaining_weight', 'annotated_total_used_weight']
     if sort_by not in valid_sort_fields:
         sort_by = 'material'
-    order_fields = (f'{order_prefix}{sort_by}',)
+
+    # MODIFICATO: Logica di ordinamento migliorata
+    if sort_by == 'material':
+        order_fields = (f'{order_prefix}material', f'{order_prefix}color_code', f'{order_prefix}brand')
+    else:
+        order_fields = (f'{order_prefix}{sort_by}',)
+
     active_filaments = active_filaments_query.order_by(*order_fields)
 
     exhausted_filaments_query = all_filaments.filter(active_spool_count=0, spools__isnull=False).distinct()
@@ -702,8 +708,8 @@ def delete_project(request, project_id):
     return redirect('project_dashboard')
 
 @require_POST
-@transaction.atomic
 @login_required
+@transaction.atomic
 def add_print_file(request):
     try:
         filament_data = json.loads(request.POST.get('filament_data', '[]'))
@@ -730,9 +736,12 @@ def add_print_file(request):
                 print_file.actual_quantity = 0
 
             print_file.save()
+
+            # MODIFICA: Aggiunto 'request' alla chiamata della funzione
             _handle_filament_data(
-                filament_data_json=request.POST.get('filament_data', '[]'),
-                print_file=print_file
+                request,
+                print_file=print_file,
+                filament_data_json=request.POST.get('filament_data', '[]')
             )
 
             project = print_file.project
@@ -869,9 +878,12 @@ def edit_print_file(request, file_id):
             print_file.save()
 
             wasted_grams_str = request.POST.get('wasted_grams') if new_status == 'FAILED' else None
+
+            # MODIFICA: Aggiunto 'request' alla chiamata della funzione
             _handle_filament_data(
-                filament_data_json=request.POST.get('filament_data', '[]'),
+                request,
                 print_file=print_file,
+                filament_data_json=request.POST.get('filament_data', '[]'),
                 wasted_grams_str=wasted_grams_str
             )
 
@@ -1050,8 +1062,17 @@ def add_spool(request):
         filament = form.cleaned_data['filament']
         purchase_date = form.cleaned_data['purchase_date']
 
-        existing_spools = Spool.objects.filter(filament=filament, purchase_date=purchase_date).count()
-        new_identifier = chr(ord('A') + existing_spools)
+        # MODIFICATO: Logica per generare l'identificatore progressivo
+        existing_spools_count = Spool.objects.filter(
+            filament=filament,
+            purchase_date__year=purchase_date.year,
+            purchase_date__month=purchase_date.month
+        ).count()
+
+        new_identifier = ""
+        if existing_spools_count > 0:
+            # Salta la 'A', parte da 'B' per la seconda bobina del mese
+            new_identifier = chr(ord('A') + existing_spools_count)
 
         spool = form.save(commit=False)
         spool.identifier = new_identifier
@@ -1061,8 +1082,11 @@ def add_spool(request):
         cost = form.cleaned_data['cost']
         material_category, created = ExpenseCategory.objects.get_or_create(name='Bobine')
 
+        # MODIFICATO: Descrizione spesa più dettagliata
+        expense_description = f"Bobina {spool.filament} {spool}"
+
         Expense.objects.create(
-            description=f"Acquisto bobina: {spool.filament} ({spool})",
+            description=expense_description,
             amount=cost, category=material_category,
             expense_date=spool.purchase_date, payment_method=payment_method
         )
@@ -1145,8 +1169,7 @@ def get_spools_for_filament(request):
             })
     return JsonResponse(spools_data, safe=False)
 
-@login_required
-def _handle_filament_data(print_file, filament_data_json, wasted_grams_str=None):
+def _handle_filament_data(request, print_file, filament_data_json, wasted_grams_str=None):
     """Funzione helper per gestire i dati dei filamenti."""
     print_file.filament_usages.all().delete()
     filament_data = json.loads(filament_data_json)
@@ -1235,19 +1258,35 @@ def accounting_dashboard(request):
     search_query = request.GET.get('q', '')
     year_filter = request.GET.get('year', '')
     payment_method_filter = request.GET.get('payment_method', '')
+    category_filter = request.GET.get('category', '')
 
-    income_items = StockItem.objects.filter(status='SOLD', payment_method__isnull=False).select_related('payment_method').order_by('-sold_at', '-id')
-    expenses = Expense.objects.select_related('category', 'payment_method').order_by('-expense_date', '-id')
-
+    # Query per le entrate
+    income_items_query = StockItem.objects.filter(status='SOLD', payment_method__isnull=False)
     if search_query:
-        income_items = income_items.filter(name__icontains=search_query)
-        expenses = expenses.filter(description__icontains=search_query)
+        income_items_query = income_items_query.filter(
+            Q(name__icontains=search_query) | Q(notes__icontains=search_query)
+        )
+
+    # Query per le uscite
+    expenses_query = Expense.objects.select_related('category', 'payment_method')
+    if search_query:
+        expenses_query = expenses_query.filter(
+            Q(description__icontains=search_query) | Q(notes__icontains=search_query)
+        )
+
+    # Applica filtri comuni
     if year_filter:
-        income_items = income_items.filter(sold_at__year=year_filter)
-        expenses = expenses.filter(expense_date__year=year_filter)
+        income_items_query = income_items_query.filter(sold_at__year=year_filter)
+        expenses_query = expenses_query.filter(expense_date__year=year_filter)
     if payment_method_filter:
-        income_items = income_items.filter(payment_method_id=payment_method_filter)
-        expenses = expenses.filter(payment_method_id=payment_method_filter)
+        income_items_query = income_items_query.filter(payment_method_id=payment_method_filter)
+        expenses_query = expenses_query.filter(payment_method_id=payment_method_filter)
+
+    if category_filter:
+        expenses_query = expenses_query.filter(category_id=category_filter)
+
+    income_items = income_items_query.select_related('payment_method').order_by('-sold_at', '-id')
+    expenses = expenses_query.order_by('-expense_date', '-id')
 
     total_income = income_items.annotate(total_price=F('quantity') * F('sale_price')).aggregate(total=Sum('total_price'))['total'] or Decimal('0.00')
     total_expenses = expenses.aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
@@ -1262,12 +1301,15 @@ def accounting_dashboard(request):
     context = {
         'income_items': income_items, 'total_income': total_income, 'expenses': expenses,
         'total_expenses': total_expenses, 'payment_methods': PaymentMethod.objects.all(),
-        'all_payment_methods': PaymentMethod.objects.all(), 'profit': profit,
+        'all_payment_methods': PaymentMethod.objects.all(),
+        'all_expense_categories': ExpenseCategory.objects.all(),
+        'profit': profit,
         'total_cash': total_cash, 'expense_form': ExpenseForm(),
         'manual_income_form': ManualIncomeForm(),
         'transfer_form': TransferForm(), 'correct_balance_form': CorrectBalanceForm(),
         'available_years': available_years, 'search_query': search_query,
         'year_filter': year_filter, 'payment_method_filter': payment_method_filter,
+        'category_filter': category_filter,
         'page_title': 'Contabilità'
     }
     return render(request, 'app_3dmage_management/accounting.html', context)
