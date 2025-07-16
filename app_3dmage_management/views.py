@@ -23,7 +23,7 @@ from .models import (
 from .forms import (
     ProjectForm, PrintFileForm, StockItemForm, CompleteProjectForm,
     PrintFileEditForm, FilamentForm, SpoolForm, ExpenseForm, TransferForm, CorrectBalanceForm,
-    PrinterForm, PlateForm, CategoryForm, PaymentMethodForm, ExpenseCategoryForm, MaintenanceLogForm, GeneralSettingsForm, SaleEditForm, ManualStockItemForm, ManualIncomeForm
+    PrinterForm, PlateForm, CategoryForm, PaymentMethodForm, ExpenseCategoryForm, MaintenanceLogForm, GeneralSettingsForm, SaleEditForm, ManualStockItemForm, ManualIncomeForm, SpoolForm, SpoolEditForm
 )
 
 @login_required
@@ -661,45 +661,54 @@ def complete_project(request, project_id):
     form = CompleteProjectForm(request.POST)
 
     if form.is_valid():
-        current_year = timezone.now().year
-        last_item_id = Project.objects.filter(
-            completed_at__year=current_year,
-            custom_id__isnull=False
-        ).aggregate(max_id=Max('custom_id'))['max_id']
+        # --- ID Generation (Logica Robusta) ---
+        current_year_str = timezone.now().strftime('%y')  # Es. "25"
 
-        if last_item_id:
-            last_sequential = int(last_item_id[2:])
-            new_sequential = last_sequential + 1
-        else:
-            new_sequential = 1
+        # Filtra i progetti di quest'anno che hanno un ID numerico valido
+        last_project_this_year = Project.objects.filter(
+            custom_id__startswith=current_year_str,
+            custom_id__regex=r'^\d{5}$'  # Assicura che l'ID sia di 5 cifre
+        ).order_by('-custom_id').first()
 
-        new_custom_id = f"{current_year % 100:02d}{new_sequential:03d}"
+        new_sequential = 1
+        if last_project_this_year:
+            try:
+                # Estrae il numero sequenziale (le ultime 3 cifre)
+                last_sequential = int(last_project_this_year.custom_id[2:])
+                new_sequential = last_sequential + 1
+            except (ValueError, IndexError):
+                # Fallback nel caso improbabile di un ID non valido, nonostante il filtro regex
+                # Qui si potrebbe aggiungere un log di errore per monitoraggio
+                pass
 
+        new_custom_id = f"{current_year_str}{new_sequential:03d}"
+
+        # --- Aggiornamento del Progetto ---
         project.status = Project.Status.DONE
         project.completed_at = timezone.now()
         project.custom_id = new_custom_id
         project.save()
 
-        stock_item, created = StockItem.objects.get_or_create(
-            project=project,
+        # --- Creazione/Aggiornamento Oggetto a Magazzino (Logica Robusta) ---
+        total_cost = project.total_material_cost
+
+        # Usa update_or_create per una logica più pulita e sicura
+        stock_item, created = StockItem.objects.update_or_create(
+            project=project,  # Cerca uno StockItem collegato a questo progetto
             defaults={
                 'custom_id': new_custom_id,
                 'name': form.cleaned_data['stock_item_name'],
                 'quantity': form.cleaned_data['stock_item_quantity'],
-                'material_cost': project.total_material_cost
+                'material_cost': total_cost,
+                'status': StockItem.Status.IN_STOCK,  # Imposta lo stato iniziale
+                'suggested_price': total_cost * Decimal('1.5')  # Esempio di prezzo suggerito
             }
         )
-        if not created:
-            stock_item.custom_id = new_custom_id
-            stock_item.name = form.cleaned_data['stock_item_name']
-            stock_item.quantity = form.cleaned_data['stock_item_quantity']
-            stock_item.material_cost = project.total_material_cost
-            stock_item.save()
 
         return redirect('inventory_dashboard')
 
+    # Se il form non è valido, torna alla pagina di dettaglio
     return redirect('project_detail', project_id=project.id)
-
 @require_POST
 @login_required
 def delete_project(request, project_id):
@@ -1252,6 +1261,29 @@ def toggle_spool_status(request, spool_id):
     spool.is_active = not spool.is_active
     spool.save()
     return JsonResponse({'status': 'ok', 'is_active': spool.is_active})
+
+@login_required
+def get_spool_details(request, spool_id):
+    spool = get_object_or_404(Spool, id=spool_id)
+    data = model_to_dict(spool, fields=['id', 'cost', 'purchase_link', 'is_active', 'weight_adjustment'])
+    return JsonResponse(data)
+
+@require_POST
+@login_required
+def edit_spool(request, spool_id):
+    spool = get_object_or_404(Spool, id=spool_id)
+    form = SpoolEditForm(request.POST, instance=spool)
+    if form.is_valid():
+        correction = form.cleaned_data.get('correction') or 0
+
+        spool.cost = form.cleaned_data.get('cost')
+        spool.purchase_link = form.cleaned_data.get('purchase_link')
+        spool.is_active = form.cleaned_data.get('is_active')
+        spool.weight_adjustment += correction
+        spool.save()
+
+        return JsonResponse({'status': 'ok'})
+    return JsonResponse({'status': 'error', 'errors': form.errors.as_json()}, status=400)
 
 @login_required
 def accounting_dashboard(request):

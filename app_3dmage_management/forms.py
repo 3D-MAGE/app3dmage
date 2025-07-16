@@ -187,6 +187,23 @@ class SpoolForm(forms.ModelForm):
             'purchase_link': forms.URLInput(attrs={'class': 'form-control', 'placeholder': 'https://...'}),
         }
 
+class SpoolEditForm(forms.ModelForm):
+    correction = forms.DecimalField(
+        label="Correzione Grammi (+/-)",
+        required=False,
+        help_text="Aggiungi o sottrai grammi. Es: -50 per togliere, 25 per aggiungere.",
+        widget=forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'Es. -50 o 25'})
+    )
+
+    class Meta:
+        model = Spool
+        fields = ['cost', 'purchase_link', 'is_active', 'correction']
+        widgets = {
+            'cost': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
+            'purchase_link': forms.URLInput(attrs={'class': 'form-control', 'placeholder': 'https://...'}),
+            'is_active': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+        }
+
 class ExpenseForm(forms.ModelForm):
     # MODIFIED: Set the default date to today
     expense_date = forms.DateField(

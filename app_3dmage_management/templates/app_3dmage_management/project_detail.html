@@ -3,7 +3,6 @@
 {% block title %}Dettaglio {{ project.name }} - 3DMAGE MANAGEMENT{% endblock %}
 
 {% block content %}
-<!-- MODIFICA: Aggiunti stili per Tom-Select e la libreria CSS -->
 <link href="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/css/tom-select.bootstrap5.css" rel="stylesheet">
 <style>
     /* Stili per adattare Tom-Select al tema scuro */
@@ -21,10 +20,9 @@
     .ts-dropdown .option {
         color: var(--text-light) !important;
     }
-    /* MODIFICA: Sostituisce lo sfondo arancione con un overlay traslucido per non coprire il colore del filamento */
     .ts-dropdown .option:hover, .ts-dropdown .active {
         background-color: rgba(255, 255, 255, 0.15) !important;
-        color: inherit !important; /* Lascia che il colore del testo sia gestito dal div interno */
+        color: inherit !important;
     }
 </style>
 
@@ -90,19 +88,21 @@
             </div>
         </div>
         <hr class="border-secondary my-3">
-        <!-- MODIFICA: Layout per progresso e costo totale -->
-        <div class="row align-items-center">
-            <div class="col-md-8">
+
+        <!-- MODIFICA: Layout corretto per progresso e costo totale -->
+        <div class="d-flex flex-column flex-md-row align-items-md-center">
+            <div class="flex-grow-1 me-md-4">
                 <p class="mb-1 text-center small text-muted">Progresso: {{ project.progress }}</p>
                 <div class="progress" style="height: 10px; background-color: #444;">
                     <div class="progress-bar" role="progressbar" style="width: {{ project.progress_percentage }}%; background-color: #ffa500;"></div>
                 </div>
             </div>
-            <div class="col-md-4 text-center mt-2 mt-md-0">
+            <div class="text-center mt-3 mt-md-0">
                 <strong class="text-muted">Costo Totale Stimato:</strong>
                 <h4 class="text-warning fw-bold mb-0">{{ total_project_cost|floatformat:2 }}€</h4>
             </div>
         </div>
+
         <div class="row mt-3">
             <div class="col-12">
                 <p class="mb-1"><strong class="text-muted">Annotazioni:</strong></p>
@@ -205,7 +205,6 @@
     defer>
 </script>
 
-<!-- MODIFICA: Aggiunta libreria Tom-Select JS -->
 <script src="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/js/tom-select.complete.min.js"></script>
 <script src="{% static 'js/project_detail.js' %}" defer></script>
 {% endblock %}

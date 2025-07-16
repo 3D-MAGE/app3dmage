@@ -114,6 +114,7 @@ class Spool(models.Model):
     filament = models.ForeignKey(Filament, on_delete=models.CASCADE, related_name="spools", verbose_name="Filamento")
     identifier = models.CharField(max_length=2, blank=True, verbose_name="Identificatore")
     initial_weight_g = models.PositiveIntegerField(default=1000, verbose_name="Peso Iniziale (g)")
+    weight_adjustment = models.DecimalField(max_digits=7, decimal_places=2, default=0.00, verbose_name="Aggiustamento Manuale (g)")
     cost = models.DecimalField(max_digits=8, decimal_places=2, verbose_name="Costo (€)")
     purchase_date = models.DateField(default=timezone.now, verbose_name="Data Acquisto")
     purchase_link = models.URLField(max_length=512, blank=True, null=True, verbose_name="Link Acquisto")
@@ -203,7 +204,8 @@ class Project(models.Model):
         for print_file in self.print_files.all():
             for usage in print_file.filament_usages.all():
                 if usage.spool and usage.spool.initial_weight_g > 0:
-                    cost_per_gram = usage.spool.cost / usage.spool.initial_weight_g
+                    # MODIFICA: Conversione esplicita a Decimal per maggiore sicurezza
+                    cost_per_gram = usage.spool.cost / Decimal(usage.spool.initial_weight_g)
                     total_cost += Decimal(usage.grams_used) * cost_per_gram
         return total_cost.quantize(Decimal('0.01'))
 

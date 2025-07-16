@@ -16,9 +16,16 @@ document.addEventListener('DOMContentLoaded', function() {
     // Flag to prevent reload when switching modals
     let isSwitchingModals = false;
 
-    // Function to determine text color based on background hex
+    // Helper function to determine text color based on background hex
     const getContrastYIQ = (hexcolor) => {
+        if (!hexcolor) return 'black';
         hexcolor = hexcolor.replace("#", "");
+        if (hexcolor.length === 3) {
+            hexcolor = hexcolor.split('').map(char => char + char).join('');
+        }
+        if (hexcolor.length !== 6) {
+            return 'black';
+        }
         const r = parseInt(hexcolor.substr(0, 2), 16);
         const g = parseInt(hexcolor.substr(2, 2), 16);
         const b = parseInt(hexcolor.substr(4, 2), 16);
@@ -40,8 +47,6 @@ document.addEventListener('DOMContentLoaded', function() {
     // Modal containers for view/edit modes
     const viewContainer = document.getElementById('filament-view-container');
     const editContainer = document.getElementById('filament-edit-container');
-
-    // Modal footers for view/edit modes
     const viewFooter = document.getElementById('footer-view-mode');
     const editFooter = document.getElementById('footer-edit-mode');
 
@@ -52,13 +57,11 @@ document.addEventListener('DOMContentLoaded', function() {
     const deleteBtnTrigger = document.getElementById('deleteFilamentBtnTrigger');
     const addSpoolBtnInModal = detailModalEl.querySelector('.add-spool-from-modal-btn');
 
-    // Form and title
+    // Forms and dynamic content areas
     const editForm = document.getElementById('editFilamentForm');
     const title = document.getElementById('filamentDetailModalTitle');
     const editFormContainer = document.getElementById('editFilamentFormContainer');
     const readonlyDetailsContainer = document.getElementById('filament-details-readonly');
-
-    // Spool list containers
     const activeSpoolListContainer = document.getElementById('active-spool-list-container');
     const inactiveSpoolListContainer = document.getElementById('inactive-spool-list-container');
 
@@ -67,6 +70,12 @@ document.addEventListener('DOMContentLoaded', function() {
     const confirmDeleteFilamentBtn = document.getElementById('confirmDeleteFilamentBtn');
     const confirmDeleteSpoolModal = new bootstrap.Modal(document.getElementById('deleteSpoolConfirmModal'));
     const confirmDeleteSpoolBtn = document.getElementById('confirmDeleteSpoolBtn');
+
+    // Edit Spool Modal
+    const editSpoolModalEl = document.getElementById('editSpoolModal');
+    const editSpoolModal = new bootstrap.Modal(editSpoolModalEl);
+    const editSpoolForm = document.getElementById('editSpoolForm');
+
 
     /**
      * Renders a single spool item as an HTML string.
@@ -85,8 +94,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     </label>
                 </div>
                 <div>
-                    ${spool.purchase_link ? `<a href="${spool.purchase_link}" target="_blank" class="btn btn-sm btn-outline-info" title="Vai al link di acquisto" onclick="event.stopPropagation();"><i class="bi bi-link-45deg"></i></a>` : ''}
+                    ${spool.purchase_link ? `<a href="${spool.purchase_link}" target="_blank" class="btn btn-sm btn-outline-info" title="Vai al link di acquisto"><i class="bi bi-link-45deg"></i></a>` : ''}
                     <span class="badge bg-secondary ms-2">${spool.cost}</span>
+                    <button type="button" class="btn btn-sm btn-outline-light edit-spool-btn ms-2" data-spool-id="${spool.id}" title="Modifica Bobina"><i class="bi bi-pencil-fill"></i></button>
                     <button type="button" class="btn btn-sm btn-outline-danger delete-spool-btn ms-2" data-spool-id="${spool.id}" title="Elimina Bobina"><i class="bi bi-trash-fill"></i></button>
                 </div>
             </li>`;
@@ -103,18 +113,8 @@ document.addEventListener('DOMContentLoaded', function() {
         fetch(`${URLS.api_base_spool}${filamentId}/spools/`)
             .then(res => res.json())
             .then(data => {
-                // Render active spools
-                if (data.active_spools.length > 0) {
-                    activeSpoolListContainer.innerHTML = `<ul class="list-group list-group-flush spool-list-group">${data.active_spools.map(renderSpool).join('')}</ul>`;
-                } else {
-                    activeSpoolListContainer.innerHTML = '<p class="text-white-50 small">Nessuna bobina attiva per questo filamento.</p>';
-                }
-                // Render inactive spools
-                if (data.inactive_spools.length > 0) {
-                    inactiveSpoolListContainer.innerHTML = `<ul class="list-group list-group-flush spool-list-group">${data.inactive_spools.map(renderSpool).join('')}</ul>`;
-                } else {
-                    inactiveSpoolListContainer.innerHTML = '<p class="text-white-50 small">Nessuna bobina finita.</p>';
-                }
+                activeSpoolListContainer.innerHTML = data.active_spools.length > 0 ? `<ul class="list-group list-group-flush spool-list-group">${data.active_spools.map(renderSpool).join('')}</ul>` : '<p class="text-white-50 small">Nessuna bobina attiva.</p>';
+                inactiveSpoolListContainer.innerHTML = data.inactive_spools.length > 0 ? `<ul class="list-group list-group-flush spool-list-group">${data.inactive_spools.map(renderSpool).join('')}</ul>` : '<p class="text-white-50 small">Nessuna bobina finita.</p>';
             });
     };
 
@@ -123,7 +123,6 @@ document.addEventListener('DOMContentLoaded', function() {
      * @param {object} data - The filament data object.
      */
     const renderFilamentDetails = (data) => {
-        // MODIFICA: Semplificata la vista per mostrare solo i campi richiesti.
         readonlyDetailsContainer.innerHTML = `
             <div class="col-md-6 col-lg-4">
                 <strong class="text-white-50">Nome Colore</strong>
@@ -157,23 +156,19 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!row || !row.dataset.filamentId) return;
         const filamentId = row.dataset.filamentId;
 
-        // Set URLs and data attributes for forms and buttons
         editForm.action = `${URLS.base_filament}${filamentId}/edit/`;
         confirmDeleteFilamentBtn.dataset.deleteUrl = `${URLS.base_filament}${filamentId}/delete/`;
         addSpoolBtnInModal.dataset.filamentId = filamentId;
 
-        // Reset to view mode
         viewContainer.style.display = 'block';
         editContainer.style.display = 'none';
         viewFooter.style.display = 'flex';
         editFooter.style.display = 'none';
 
-        // Fetch filament data
         fetch(`${URLS.base_filament}${filamentId}/details/`)
             .then(res => res.json())
             .then(data => {
                 title.textContent = `Dettaglio: ${data.material}-${data.color_code}-${data.brand}`;
-                // Populate both read-only view and edit form
                 renderFilamentDetails(data);
                 editFormContainer.innerHTML = document.getElementById('filament-form-template').innerHTML;
                 for (const key in data) {
@@ -184,7 +179,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             });
 
-        // Fetch and display spools
         fetchAndRenderSpools(filamentId);
     });
 
@@ -193,7 +187,6 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!isSwitchingModals) {
             window.location.reload();
         }
-        // Reset the flag
         isSwitchingModals = false;
     });
 
@@ -217,6 +210,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Save changes from edit form
     saveChangesBtn.addEventListener('click', function() {
+        showLoader();
         fetch(editForm.action, {
                 method: 'POST',
                 body: new FormData(editForm),
@@ -232,16 +226,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 } else {
                     showToast('Errore durante la modifica.', 'error');
                 }
-            });
+            }).finally(() => hideLoader());
     });
 
     // Open "Add Spool" modal
     addSpoolBtnInModal.addEventListener('click', function() {
         const filamentId = this.dataset.filamentId;
         document.querySelector('#addSpoolModal select[name="filament"]').value = filamentId;
-
         isSwitchingModals = true;
-
         detailModal.hide();
         new bootstrap.Modal(document.getElementById('addSpoolModal')).show();
     });
@@ -254,6 +246,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Confirm and execute filament deletion
     confirmDeleteFilamentBtn.addEventListener('click', function() {
+        showLoader();
         fetch(this.dataset.deleteUrl, {
                 method: 'POST',
                 headers: { 'X-CSRFToken': csrftoken }
@@ -265,14 +258,17 @@ document.addEventListener('DOMContentLoaded', function() {
                 } else {
                     showToast(data.message || 'Errore durante l\'eliminazione.', 'error');
                     confirmDeleteFilamentModal.hide();
+                    hideLoader();
                 }
-            });
+            }).catch(() => hideLoader());
     });
 
-    // Event delegation for dynamically created spool buttons (delete and toggle)
+    // Event delegation for dynamically created spool buttons
     detailModalEl.addEventListener('click', function(e) {
-        // Handle spool deletion
         const deleteButton = e.target.closest('.delete-spool-btn');
+        const editButton = e.target.closest('.edit-spool-btn');
+        const toggleSwitch = e.target.closest('.spool-status-toggle');
+
         if (deleteButton) {
             e.stopPropagation();
             const spoolId = deleteButton.dataset.spoolId;
@@ -280,8 +276,27 @@ document.addEventListener('DOMContentLoaded', function() {
             confirmDeleteSpoolModal.show();
         }
 
-        // Handle spool status toggle
-        const toggleSwitch = e.target.closest('.spool-status-toggle');
+        if (editButton) {
+            e.stopPropagation();
+            const spoolId = editButton.dataset.spoolId;
+            editSpoolForm.action = `${URLS.base_spool}${spoolId}/edit/`;
+
+            fetch(`${URLS.base_spool}${spoolId}/details/`)
+            .then(res => res.json())
+            .then(data => {
+                const modalBody = document.getElementById('editSpoolModalBody');
+                const template = document.getElementById('spool-edit-form-template');
+                modalBody.innerHTML = '';
+                modalBody.appendChild(template.content.cloneNode(true));
+
+                modalBody.querySelector('[name="cost"]').value = data.cost;
+                modalBody.querySelector('[name="purchase_link"]').value = data.purchase_link || '';
+                modalBody.querySelector('[name="is_active"]').checked = data.is_active;
+
+                editSpoolModal.show();
+            });
+        }
+
         if (toggleSwitch) {
             const spoolId = toggleSwitch.dataset.spoolId;
             fetch(`${URLS.toggle_spool_status}${spoolId}/toggle_status/`, {
@@ -289,26 +304,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 headers: { 'X-CSRFToken': csrftoken }
             }).then(res => res.json()).then(data => {
                 if (data.status === 'ok') {
-                    const spoolItem = document.getElementById(`spool-item-${spoolId}`);
-                    if (data.is_active) {
-                        let list = activeSpoolListContainer.querySelector('.spool-list-group');
-                        if (!list) {
-                            list = document.createElement('ul');
-                            list.className = 'list-group list-group-flush spool-list-group';
-                            activeSpoolListContainer.innerHTML = '';
-                            activeSpoolListContainer.appendChild(list);
-                        }
-                        list.appendChild(spoolItem);
-                    } else {
-                        let list = inactiveSpoolListContainer.querySelector('.spool-list-group');
-                        if (!list) {
-                            list = document.createElement('ul');
-                            list.className = 'list-group list-group-flush spool-list-group';
-                            inactiveSpoolListContainer.innerHTML = '';
-                            inactiveSpoolListContainer.appendChild(list);
-                        }
-                        list.appendChild(spoolItem);
-                    }
+                    fetchAndRenderSpools(addSpoolBtnInModal.dataset.filamentId); // Refresh lists
                     showToast(`Bobina ${data.is_active ? 'riattivata' : 'disattivata'}.`, 'info');
                 } else {
                     showToast('Errore durante l\'aggiornamento dello stato.', 'error');
@@ -318,36 +314,47 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // Add event listener for the new spool delete confirmation button
+    // Confirm and execute spool deletion
     confirmDeleteSpoolBtn.addEventListener('click', function() {
         const spoolId = this.dataset.spoolId;
         if (!spoolId) return;
-
+        showLoader();
         fetch(`${URLS.base_spool}${spoolId}/delete/`, {
             method: 'POST',
             headers: { 'X-CSRFToken': csrftoken }
         })
         .then(res => res.json())
         .then(data => {
-            confirmDeleteSpoolModal.hide();
             if (data.status === 'ok') {
                 showToast(data.message, 'success');
-                const spoolItem = document.getElementById(`spool-item-${spoolId}`);
-                if (spoolItem) {
-                    spoolItem.remove();
-                }
-                // Check if lists are empty and show placeholder text
-                const activeList = activeSpoolListContainer.querySelector('.spool-list-group');
-                if (activeList && activeList.children.length === 0) {
-                    activeSpoolListContainer.innerHTML = '<p class="text-white-50 small">Nessuna bobina attiva per questo filamento.</p>';
-                }
-                const inactiveList = inactiveSpoolListContainer.querySelector('.spool-list-group');
-                if (inactiveList && inactiveList.children.length === 0) {
-                    inactiveSpoolListContainer.innerHTML = '<p class="text-white-50 small">Nessuna bobina finita.</p>';
-                }
+                fetchAndRenderSpools(addSpoolBtnInModal.dataset.filamentId); // Refresh lists
             } else {
                 showToast(data.message, 'error');
             }
+        }).finally(() => {
+            confirmDeleteSpoolModal.hide();
+            hideLoader();
         });
+    });
+
+    // Handle edit spool form submission
+    editSpoolForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        showLoader();
+        fetch(this.action, {
+            method: 'POST',
+            body: new FormData(this),
+            headers: { 'X-CSRFToken': csrftoken }
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.status === 'ok') {
+                showToast('Bobina aggiornata con successo.', 'success');
+                editSpoolModal.hide();
+                fetchAndRenderSpools(addSpoolBtnInModal.dataset.filamentId); // Refresh lists
+            } else {
+                showToast('Errore durante la modifica.', 'error');
+            }
+        }).finally(() => hideLoader());
     });
 });

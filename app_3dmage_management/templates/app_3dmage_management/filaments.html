@@ -150,7 +150,7 @@
             <div class="modal-footer border-secondary" id="footer-view-mode">
                 <button type="button" class="btn btn-outline-primary" id="switchToEditModeBtn">Modifica</button>
                 <button type="button" class="btn btn-danger me-auto" id="deleteFilamentBtnTrigger">Elimina</button>
-                <button type="button" class="btn btn-primary-custom" data-bs-dismiss="modal">Chiudi</button>        
+                <button type="button" class="btn btn-primary-custom" data-bs-dismiss="modal">Chiudi</button>
             </div>
             <div class="modal-footer border-secondary" id="footer-edit-mode" style="display: none;">
                 <button type="button" class="btn btn-secondary" id="switchToViewModeBtn">Annulla</button>
@@ -160,10 +160,10 @@
     </div>
 </div>
 
-{# Modal di conferma eliminazione FILAMENTO, rimane invariato #}
+{# Modal di conferma eliminazione FILAMENTO #}
 <div class="modal fade" id="deleteFilamentConfirmModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content bg-dark-card text-white"><div class="modal-header border-danger bg-danger"><h5 class="modal-title">Conferma Eliminazione</h5></div><div class="modal-body" id="deleteFilamentConfirmBody"></div><div class="modal-footer border-secondary"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button><button type="button" class="btn btn-danger" id="confirmDeleteFilamentBtn">Sì, Elimina</button></div></div></div></div>
 
-{# NUOVO: Modal di conferma eliminazione BOBINA #}
+{# Modal di conferma eliminazione BOBINA #}
 <div class="modal fade" id="deleteSpoolConfirmModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content bg-dark-card text-white">
@@ -181,6 +181,33 @@
         </div>
     </div>
 </div>
+
+<!-- Modal Modifica Bobina -->
+<div class="modal fade" id="editSpoolModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-dark-card text-white">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title" id="editSpoolModalLabel">Modifica Bobina</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="editSpoolForm" method="post">
+                <div class="modal-body" id="editSpoolModalBody">
+                    <!-- Il form verrà iniettato qui -->
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button>
+                    <button type="submit" class="btn btn-primary-custom">Salva Modifiche</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Template per il form di modifica bobina -->
+<template id="spool-edit-form-template">
+    {% csrf_token %}
+    {{ spool_edit_form.as_p }}
+</template>
 
 {% endblock %}
 

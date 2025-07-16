@@ -42,6 +42,8 @@ urlpatterns = [
     # Filamenti
     path('filaments/', views.filament_dashboard, name='filament_dashboard'),
     path('spool/add/', views.add_spool, name='add_spool'),
+    path('spool/<int:spool_id>/details/', views.get_spool_details, name='get_spool_details'),
+    path('spool/<int:spool_id>/edit/', views.edit_spool, name='edit_spool'),
     path('filament/<int:filament_id>/details/', views.get_filament_details, name='get_filament_details'),
     path('filament/add/', views.add_filament, name='add_filament'),
     path('filament/<int:filament_id>/edit/', views.edit_filament, name='edit_filament'),
