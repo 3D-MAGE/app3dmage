@@ -147,6 +147,13 @@ class PrintFileEditForm(forms.ModelForm):
 class CompleteProjectForm(forms.Form):
     stock_item_name = forms.CharField(label="Nome Oggetto per Magazzino", widget=forms.TextInput(attrs={'class': 'form-control'}))
     stock_item_quantity = forms.IntegerField(label="Quantità da Mettere a Magazzino", min_value=1, widget=forms.NumberInput(attrs={'class': 'form-control'}))
+    labor_cost = forms.DecimalField(
+        label="Costo Manodopera (€)",
+        min_value=0,
+        initial=0.00,
+        required=False,
+        widget=forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'placeholder': 'Es. 5.50'})
+    )
 
 class FilamentForm(forms.ModelForm):
     class Meta:

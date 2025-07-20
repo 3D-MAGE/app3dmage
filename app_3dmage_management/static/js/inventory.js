@@ -30,18 +30,15 @@ document.addEventListener('DOMContentLoaded', function() {
         const suggestedPriceInput = form.querySelector('[name="suggested_price"]');
         const quantityToSellInput = form.querySelector('[name="quantity_to_sell"]');
         const paymentMethodSelect = form.querySelector('[name="payment_method"]');
-        // MODIFIED: Reference to the sale date field
         const soldAtInput = form.querySelector('[name="sold_at"]');
 
         // Mostra o nasconde la sezione di vendita in base allo stato
         const toggleSaleSection = () => {
             if (statusSelect.value === 'SOLD') {
                 saleDetailsSection.classList.remove('d-none');
-                // Imposta il prezzo di vendita uguale a quello suggerito quando la sezione appare
                 if (!salePriceInput.value) {
                     salePriceInput.value = suggestedPriceInput.value;
                 }
-                // MODIFIED: Default sale date to today if not already set
                 if (!soldAtInput.value) {
                     soldAtInput.valueAsDate = new Date();
                 }
@@ -54,24 +51,32 @@ document.addEventListener('DOMContentLoaded', function() {
         editModalEl.addEventListener('show.bs.modal', function(event) {
             const triggerRow = event.relatedTarget;
             currentItemId = triggerRow.dataset.itemId;
+            const form = editModalEl.querySelector('#editStockItemForm');
             form.action = `/ajax/stock_item/${currentItemId}/update/`;
 
             fetch(`/ajax/stock_item/${currentItemId}/details/`)
                 .then(res => res.json())
                 .then(data => {
-                    modalTitle.textContent = `Gestisci: ${data.name}`;
+                    const modalTitle = editModalEl.querySelector('#editStockItemModalLabel');
+                    // CORREZIONE BUG 1: Mostra il custom_id dell'oggetto nel titolo
+                    modalTitle.textContent = `Gestisci: ${data.name} (#${data.custom_id})`;
                     form.querySelector('[name="name"]').value = data.name;
                     form.querySelector('[name="quantity"]').value = data.quantity;
                     form.querySelector('[name="suggested_price"]').value = data.suggested_price;
                     form.querySelector('[name="status"]').value = data.status;
 
-                    // NEW: Populate material cost
                     const materialCostEl = document.getElementById('itemMaterialCost');
+                    const laborCostEl = document.getElementById('itemLaborCost');
+
                     if (materialCostEl) {
-                        materialCostEl.textContent = `${parseFloat(data.material_cost_per_unit).toFixed(2)}€`;
+                        materialCostEl.textContent = `${parseFloat(data.production_cost_per_unit).toFixed(2)}€`;
+                    }
+                    if (laborCostEl) {
+                        laborCostEl.textContent = `${parseFloat(data.labor_cost_per_unit).toFixed(2)}€`;
                     }
 
                     document.getElementById('itemProjectName').textContent = data.project_name || 'N/A';
+                    // Questo ora riceve e mostra l'ID corretto del progetto dalla view
                     document.getElementById('itemProjectID').textContent = data.project_id ? `(#${data.project_id})` : '';
 
                     const notesWrapper = document.getElementById('project-notes-wrapper');

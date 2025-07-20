@@ -204,10 +204,18 @@ class Project(models.Model):
         for print_file in self.print_files.all():
             for usage in print_file.filament_usages.all():
                 if usage.spool and usage.spool.initial_weight_g > 0:
-                    # MODIFICA: Conversione esplicita a Decimal per maggiore sicurezza
                     cost_per_gram = usage.spool.cost / Decimal(usage.spool.initial_weight_g)
                     total_cost += Decimal(usage.grams_used) * cost_per_gram
         return total_cost.quantize(Decimal('0.01'))
+
+    # NUOVA PROPRIETA' per il costo totale comprensivo
+    @property
+    def full_total_cost(self):
+        total_cost = Decimal('0.00')
+        for print_file in self.print_files.all():
+            # La property total_cost del PrintFile include già materiale, elettricità e usura
+            total_cost += print_file.total_cost
+        return total_cost
 
     @property
     def total_objects_printed(self):
@@ -341,12 +349,17 @@ class StockItem(models.Model):
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.POST_PROD, verbose_name="Stato")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Aggiunto il")
     material_cost = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, verbose_name="Costo Materiali")
+    labor_cost = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, verbose_name="Costo Manodopera")
     suggested_price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, verbose_name="Prezzo di Vendita Previsto")
     sold_at = models.DateField(null=True, blank=True, verbose_name="Data Vendita")
     sale_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, verbose_name="Prezzo di Vendita")
     payment_method = models.ForeignKey(PaymentMethod, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Metodo di Pagamento")
     sold_to = models.CharField(max_length=100, blank=True, verbose_name="Venduto a (o rimborsato da)")
     notes = models.TextField(blank=True, verbose_name="Note sulla vendita")
+
+    @property
+    def total_cost(self):
+        return self.material_cost + self.labor_cost
 
     @property
     def cost_per_item(self):

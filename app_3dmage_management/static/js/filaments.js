@@ -13,9 +13,6 @@ document.addEventListener('DOMContentLoaded', function() {
     };
     const csrftoken = getCookie('csrftoken');
 
-    // Flag to prevent reload when switching modals
-    let isSwitchingModals = false;
-
     // Helper function to determine text color based on background hex
     const getContrastYIQ = (hexcolor) => {
         if (!hexcolor) return 'black';
@@ -75,6 +72,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const editSpoolModalEl = document.getElementById('editSpoolModal');
     const editSpoolModal = new bootstrap.Modal(editSpoolModalEl);
     const editSpoolForm = document.getElementById('editSpoolForm');
+    const addSpoolModalEl = document.getElementById('addSpoolModal');
 
 
     /**
@@ -115,6 +113,9 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(data => {
                 activeSpoolListContainer.innerHTML = data.active_spools.length > 0 ? `<ul class="list-group list-group-flush spool-list-group">${data.active_spools.map(renderSpool).join('')}</ul>` : '<p class="text-white-50 small">Nessuna bobina attiva.</p>';
                 inactiveSpoolListContainer.innerHTML = data.inactive_spools.length > 0 ? `<ul class="list-group list-group-flush spool-list-group">${data.inactive_spools.map(renderSpool).join('')}</ul>` : '<p class="text-white-50 small">Nessuna bobina finita.</p>';
+            }).catch(err => {
+                console.error("Failed to fetch spools:", err);
+                activeSpoolListContainer.innerHTML = '<p class="text-danger small">Errore nel caricamento delle bobine.</p>';
             });
     };
 
@@ -182,12 +183,48 @@ document.addEventListener('DOMContentLoaded', function() {
         fetchAndRenderSpools(filamentId);
     });
 
-    // Refresh page on modal close to reflect main table changes
+    // --- REVISED AND CENTRALIZED MODAL HIDING LOGIC ---
     detailModalEl.addEventListener('hidden.bs.modal', function () {
-        if (!isSwitchingModals) {
-            window.location.reload();
+        const nextAction = detailModalEl.dataset.nextAction;
+
+        // Clean up the action attribute for the next time.
+        delete detailModalEl.dataset.nextAction;
+
+        if (nextAction === 'editSpool') {
+            const spoolId = detailModalEl.dataset.spoolIdToEdit;
+            delete detailModalEl.dataset.spoolIdToEdit; // Clean up
+            if (spoolId) {
+                // Prepare and show the edit spool modal
+                editSpoolForm.action = `${URLS.base_spool}${spoolId}/edit/`;
+                fetch(`${URLS.base_spool}${spoolId}/details/`)
+                    .then(res => res.json())
+                    .then(data => {
+                        const modalBody = document.getElementById('editSpoolModalBody');
+                        const template = document.getElementById('spool-edit-form-template');
+                        modalBody.innerHTML = ''; // Clear previous content
+                        modalBody.appendChild(template.content.cloneNode(true));
+
+                        // Populate the form fields
+                        modalBody.querySelector('[name="cost"]').value = data.cost;
+                        modalBody.querySelector('[name="purchase_link"]').value = data.purchase_link || '';
+                        modalBody.querySelector('[name="is_active"]').checked = data.is_active;
+                        modalBody.querySelector('[name="correction"]').value = '';
+
+                        editSpoolModal.show();
+                    }).catch(err => {
+                        console.error("Failed to fetch spool details:", err);
+                        showToast('Errore nel caricare i dati della bobina.', 'error');
+                        window.location.reload(); // Reload to be safe
+                    });
+            }
+        } else if (nextAction === 'addSpool') {
+            const filamentId = addSpoolBtnInModal.dataset.filamentId;
+            document.querySelector('#addSpoolModal select[name="filament"]').value = filamentId;
+            new bootstrap.Modal(document.getElementById('addSpoolModal')).show();
+        } else {
+            // If no specific action was planned, it's a normal close. Reload the page.
+            window.location.reload();
         }
-        isSwitchingModals = false;
     });
 
     // Switch to edit mode
@@ -229,13 +266,10 @@ document.addEventListener('DOMContentLoaded', function() {
             }).finally(() => hideLoader());
     });
 
-    // Open "Add Spool" modal
+    // Open "Add Spool" modal from within the detail modal
     addSpoolBtnInModal.addEventListener('click', function() {
-        const filamentId = this.dataset.filamentId;
-        document.querySelector('#addSpoolModal select[name="filament"]').value = filamentId;
-        isSwitchingModals = true;
+        detailModalEl.dataset.nextAction = 'addSpool';
         detailModal.hide();
-        new bootstrap.Modal(document.getElementById('addSpoolModal')).show();
     });
 
     // Trigger filament delete confirmation
@@ -279,22 +313,11 @@ document.addEventListener('DOMContentLoaded', function() {
         if (editButton) {
             e.stopPropagation();
             const spoolId = editButton.dataset.spoolId;
-            editSpoolForm.action = `${URLS.base_spool}${spoolId}/edit/`;
-
-            fetch(`${URLS.base_spool}${spoolId}/details/`)
-            .then(res => res.json())
-            .then(data => {
-                const modalBody = document.getElementById('editSpoolModalBody');
-                const template = document.getElementById('spool-edit-form-template');
-                modalBody.innerHTML = '';
-                modalBody.appendChild(template.content.cloneNode(true));
-
-                modalBody.querySelector('[name="cost"]').value = data.cost;
-                modalBody.querySelector('[name="purchase_link"]').value = data.purchase_link || '';
-                modalBody.querySelector('[name="is_active"]').checked = data.is_active;
-
-                editSpoolModal.show();
-            });
+            // Set data attributes to trigger the correct action when the modal hides
+            detailModalEl.dataset.nextAction = 'editSpool';
+            detailModalEl.dataset.spoolIdToEdit = spoolId;
+            // Now, hide the current modal. The 'hidden.bs.modal' event will take over.
+            detailModal.hide();
         }
 
         if (toggleSwitch) {
@@ -350,11 +373,26 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(data => {
             if (data.status === 'ok') {
                 showToast('Bobina aggiornata con successo.', 'success');
-                editSpoolModal.hide();
-                fetchAndRenderSpools(addSpoolBtnInModal.dataset.filamentId); // Refresh lists
+                editSpoolModal.hide(); // This will trigger the 'hidden' event below
+                // The list will be refreshed automatically when the detail modal is re-shown
             } else {
                 showToast('Errore durante la modifica.', 'error');
             }
         }).finally(() => hideLoader());
     });
+
+    // When the edit/add modals are closed, show the main detail modal again.
+    // This handles both successful saves and manual closes ("Annulla").
+    const reShowDetailModal = function() {
+        // Check if the detail modal is already open to prevent loops.
+        if (!detailModalEl.classList.contains('show')) {
+            detailModal.show();
+        }
+    };
+
+    editSpoolModalEl.addEventListener('hidden.bs.modal', reShowDetailModal);
+
+    if (addSpoolModalEl) {
+        addSpoolModalEl.addEventListener('hidden.bs.modal', reShowDetailModal);
+    }
 });

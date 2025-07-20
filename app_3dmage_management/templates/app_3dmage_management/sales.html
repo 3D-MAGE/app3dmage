@@ -47,7 +47,6 @@
                 <label for="payment_method" class="form-label">Metodo Pagamento</label>
                 <select class="form-select form-select-sm" name="payment_method">
                     <option value="">Tutti</option>
-                    <!-- NEW: Option to filter for unpaid items -->
                     <option value="UNPAID" {% if "UNPAID" == payment_method_filter %}selected{% endif %}>DA PAGARE</option>
                     {% for method in all_payment_methods %}
                         <option value="{{ method.id }}" {% if method.id|stringformat:"s" == payment_method_filter %}selected{% endif %}>{{ method.name }}</option>
@@ -85,19 +84,17 @@
                         <th>Metodo Pag.</th>
                         <th>Note</th>
                         <th class="text-end"><a href="?sort=total_sale_price&order={% if sort_by == 'total_sale_price' and order == 'asc' %}desc{% else %}asc{% endif %}&{{ request.GET.urlencode|cut:'sort'|cut:'order' }}">Prezzo Totale</a></th>
-                        <th class="text-end"><a href="?sort=material_cost&order={% if sort_by == 'material_cost' and order == 'asc' %}desc{% else %}asc{% endif %}&{{ request.GET.urlencode|cut:'sort'|cut:'order' }}">Costo Materiali</a></th>
+                        <th class="text-end"><a href="?sort=annotated_total_cost&order={% if sort_by == 'annotated_total_cost' and order == 'asc' %}desc{% else %}asc{% endif %}&{{ request.GET.urlencode|cut:'sort'|cut:'order' }}">Costo Totale</a></th>
                         <th class="text-end"><a href="?sort=profit&order={% if sort_by == 'profit' and order == 'asc' %}desc{% else %}asc{% endif %}&{{ request.GET.urlencode|cut:'sort'|cut:'order' }}">Profitto</a></th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for item in sold_items %}
-                    <!-- MODIFIED: Add a class if the item is unpaid -->
                     <tr style="cursor: pointer;" class="{% if not item.payment_method %}table-danger{% endif %}" data-bs-toggle="modal" data-bs-target="#editSaleModal" data-item-id="{{ item.id }}">
                         <td>{{ item.sold_at|date:"d/m/Y" }}</td>
                         <td class="fw-bold">{{ item.name }}</td>
                         <td class="text-center">{{ item.quantity }}</td>
                         <td>{{ item.sold_to|default:"-" }}</td>
-                        <!-- MODIFIED: Show 'DA PAGARE' if no payment method -->
                         <td>
                             {% if item.payment_method %}
                                 {{ item.payment_method.name }}
@@ -107,7 +104,7 @@
                         </td>
                         <td>{{ item.notes|truncatechars:20 }}</td>
                         <td class="text-end text-success fw-bold">{{ item.total_sale_price|floatformat:2 }}€</td>
-                        <td class="text-end text-warning">{{ item.material_cost|floatformat:2 }}€</td>
+                        <td class="text-end text-warning">{{ item.annotated_total_cost|floatformat:2 }}€</td>
                         <td class="text-end fw-bold {% if item.profit > 0 %}text-success{% elif item.profit < 0 %}text-danger{% endif %}">{{ item.profit|floatformat:2 }}€</td>
                     </tr>
                     {% empty %}
@@ -135,10 +132,10 @@
                     <p class="mb-1"><strong>ID Oggetto:</strong> <span id="saleItemId"></span></p>
                     <p class="mb-3"><strong>ID Progetto:</strong> <span id="saleProjectId"></span></p>
                     <hr class="border-secondary">
-                    <!-- NEW: Placeholder for material cost display -->
+                    <!-- CORREZIONE BUG 3: Etichetta e ID dell'elemento cambiati -->
                     <div class="mb-3">
-                        <label class="form-label">Costo Materiali Totale</label>
-                        <p class="form-control-plaintext text-warning fw-bold" id="saleMaterialCost">--</p>
+                        <label class="form-label">Costo Totale</label>
+                        <p class="form-control-plaintext text-warning fw-bold" id="saleTotalCost">--</p>
                     </div>
                     {{ sale_edit_form.as_p }}
                 </div>

@@ -149,7 +149,30 @@
 <!-- Tutti i Modal -->
 {% include 'app_3dmage_management/partials/add_edit_print_file_modal.html' %}
 {% include 'app_3dmage_management/partials/add_project_modal.html' %}
-<div class="modal fade" id="completeProjectModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content bg-dark-card text-white"><div class="modal-header border-secondary"><h5 class="modal-title" id="completeProjectModalLabel">Conferma Completamento</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><form action="{% url 'complete_project' project.id %}" method="post">{% csrf_token %}<div class="modal-body"><p>Stai per segnare il progetto <strong>"{{ project.name }}"</strong> come completato.</p><hr class="border-secondary"><div class="mb-3">{{ completion_form.stock_item_name.label_tag }}{{ completion_form.stock_item_name }}</div><div class="mb-3">{{ completion_form.stock_item_quantity.label_tag }}{{ completion_form.stock_item_quantity }}</div></div><div class="modal-footer border-secondary"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button><button type="submit" class="btn btn-success">Conferma e Completa</button></div></form></div></div></div>
+<div class="modal fade" id="completeProjectModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-dark-card text-white">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title" id="completeProjectModalLabel">Conferma Completamento</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form action="{% url 'complete_project' project.id %}" method="post">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <p>Stai per segnare il progetto <strong>"{{ project.name }}"</strong> come completato.</p>
+                    <hr class="border-secondary">
+                    <div class="mb-3">{{ completion_form.stock_item_name.label_tag }}{{ completion_form.stock_item_name }}</div>
+                    <div class="mb-3">{{ completion_form.stock_item_quantity.label_tag }}{{ completion_form.stock_item_quantity }}</div>
+                    <div class="mb-3">{{ completion_form.labor_cost.label_tag }}{{ completion_form.labor_cost }}</div>
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button>
+                    <button type="submit" class="btn btn-success">Conferma e Completa</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 <div class="modal fade" id="editProjectModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content bg-dark-card text-white"><div class="modal-header border-secondary"><h5 class="modal-title">Modifica Progetto</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><form id="editProjectForm" action="{% url 'edit_project' project.id %}" method="post">{% csrf_token %}<div class="modal-body">{{ edit_project_form.as_p }}</div><div class="modal-footer border-secondary"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button><button type="submit" class="btn btn-primary-custom">Salva Modifiche</button></div></form></div></div></div>
 <div class="modal fade" id="deleteProjectModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content bg-dark-card text-white"><div class="modal-header border-danger bg-danger"><h5 class="modal-title">Conferma Eliminazione</h5></div><div class="modal-body"><p>Sei sicuro di voler eliminare il progetto <strong>"{{ project.name }}"</strong>?</p><p class="text-danger small">Questa azione è permanente e non può essere annullata.</p></div><div class="modal-footer border-secondary"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button><form id="deleteProjectForm" action="{% url 'delete_project' project.id %}" method="post">{% csrf_token %}<button type="submit" class="btn btn-danger">Sì, Elimina</button></form></div></div></div></div>
 

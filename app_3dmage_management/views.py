@@ -76,9 +76,10 @@ def project_dashboard(request):
     )
 
     if search_query:
-        q_filter = Q(name__icontains=search_query)
+        # CORREZIONE: Migliorata la logica di ricerca per coerenza
+        q_filter = Q(name__icontains=search_query) | Q(custom_id__icontains=search_query)
         if search_query.isdigit():
-            q_filter |= Q(id=search_query) | Q(custom_id__icontains=search_query)
+            q_filter |= Q(id=search_query)
         active_projects_query = active_projects_query.filter(q_filter)
     if status_filter:
         active_projects_query = active_projects_query.filter(status=status_filter)
@@ -108,9 +109,12 @@ def project_dashboard(request):
     )
 
     if completed_search_query:
-        completed_projects_query = completed_projects_query.filter(
-            Q(name__icontains=completed_search_query) | Q(custom_id__icontains=completed_search_query)
-        )
+        # CORREZIONE: Aggiunta la ricerca per ID numerico anche ai progetti completati
+        q_filter_completed = Q(name__icontains=completed_search_query) | Q(custom_id__icontains=completed_search_query)
+        if completed_search_query.isdigit():
+            q_filter_completed |= Q(id=completed_search_query)
+        completed_projects_query = completed_projects_query.filter(q_filter_completed)
+
     if completed_year_filter and completed_year_filter.isdigit():
         completed_projects_query = completed_projects_query.filter(completed_at__year=int(completed_year_filter))
     if completed_category_filter:
@@ -191,20 +195,29 @@ def filament_dashboard(request):
 
     active_filaments_query = all_filaments.filter(active_spool_count__gt=0)
 
+    # Subquery per il peso iniziale delle bobine attive
     active_initial_weight_subquery = Spool.objects.filter(
         filament=OuterRef('pk'), is_active=True
     ).values('filament').annotate(s=Sum('initial_weight_g')).values('s')
 
+    # Subquery per il peso usato dalle bobine attive
     active_used_weight_subquery = FilamentUsage.objects.filter(
         spool__filament=OuterRef('pk'), spool__is_active=True, print_file__status__in=['DONE', 'FAILED']
     ).values('spool__filament').annotate(s=Sum('grams_used')).values('s')
 
+    # *** FIX: Subquery per la correzione manuale del peso ***
+    active_adjustment_subquery = Spool.objects.filter(
+        filament=OuterRef('pk'), is_active=True
+    ).values('filament').annotate(s=Sum('weight_adjustment')).values('s')
+
+    # *** FIX: Annotazioni aggiornate per includere la correzione ***
     active_filaments_query = active_filaments_query.annotate(
-        annotated_total_initial_weight=Coalesce(Subquery(active_initial_weight_subquery, output_field=IntegerField()), 0),
-        annotated_total_used_weight=Coalesce(Subquery(active_used_weight_subquery, output_field=DecimalField()), Decimal('0.00'))
+        annotated_total_initial_weight=Coalesce(Subquery(active_initial_weight_subquery, output_field=DecimalField()), Decimal('0.00')),
+        annotated_total_used_weight=Coalesce(Subquery(active_used_weight_subquery, output_field=DecimalField()), Decimal('0.00')),
+        annotated_total_adjustment=Coalesce(Subquery(active_adjustment_subquery, output_field=DecimalField()), Decimal('0.00'))
     ).annotate(
         annotated_remaining_weight=ExpressionWrapper(
-            F('annotated_total_initial_weight') - F('annotated_total_used_weight'),
+            F('annotated_total_initial_weight') + F('annotated_total_adjustment') - F('annotated_total_used_weight'),
             output_field=DecimalField()
         )
     )
@@ -213,7 +226,6 @@ def filament_dashboard(request):
     if sort_by not in valid_sort_fields:
         sort_by = 'material'
 
-    # MODIFICATO: Logica di ordinamento migliorata
     if sort_by == 'material':
         order_fields = (f'{order_prefix}material', f'{order_prefix}color_code', f'{order_prefix}brand')
     else:
@@ -236,6 +248,7 @@ def filament_dashboard(request):
         'exhausted_filaments': exhausted_filaments,
         'filament_form': FilamentForm(),
         'spool_form': SpoolForm(),
+        'spool_edit_form': SpoolEditForm(),
         'page_title': 'Filamenti',
         'sort_by': sort_by,
         'order': order
@@ -253,8 +266,9 @@ def inventory_dashboard(request):
     order_prefix = '-' if order == 'desc' else ''
 
     stock_items_query = StockItem.objects.exclude(status='SOLD').select_related('project').annotate(
-        material_cost_per_unit=Case(
-            When(quantity__gt=0, then=F('material_cost') / F('quantity')),
+        annotated_total_cost=F('material_cost') + F('labor_cost'),
+        cost_per_unit=Case(
+            When(quantity__gt=0, then=(F('material_cost') + F('labor_cost')) / F('quantity')),
             default=Value(0),
             output_field=DecimalField(decimal_places=2)
         )
@@ -268,15 +282,11 @@ def inventory_dashboard(request):
     if status_filter:
         stock_items_query = stock_items_query.filter(status=status_filter)
 
-    valid_sort_fields = ['custom_id', 'quantity', 'name', 'status', 'suggested_price', 'material_cost']
+    valid_sort_fields = ['custom_id', 'quantity', 'name', 'status', 'suggested_price', 'total_cost']
     if sort_by not in valid_sort_fields:
         sort_by = 'created_at'
 
-    if sort_by == 'material_cost':
-        stock_items = stock_items_query.order_by(f'{order_prefix}material_cost_per_unit')
-    else:
-        stock_items = stock_items_query.order_by(f'{order_prefix}{sort_by}')
-
+    stock_items = stock_items_query.order_by(f'{order_prefix}{sort_by}')
 
     context = {
         'stock_items': stock_items,
@@ -323,9 +333,17 @@ def get_stock_item_details(request, item_id):
     item = get_object_or_404(StockItem.objects.select_related('project'), id=item_id)
     data = model_to_dict(item)
     data['project_name'] = item.project.name if item.project else None
-    data['project_id'] = item.project.custom_id if item.project else None
+    # CORREZIONE BUG 1: Invia l'ID primario del progetto, non il custom_id che viene sovrascritto.
+    data['project_id'] = item.project.id if item.project else None
     data['project_notes'] = item.project.notes if item.project else ''
-    data['material_cost_per_unit'] = (item.material_cost / item.quantity) if item.quantity > 0 else 0
+
+    if item.quantity > 0:
+        data['production_cost_per_unit'] = str(item.material_cost / item.quantity)
+        data['labor_cost_per_unit'] = str(item.labor_cost / item.quantity)
+    else:
+        data['production_cost_per_unit'] = '0.00'
+        data['labor_cost_per_unit'] = '0.00'
+
     return JsonResponse(data)
 
 
@@ -353,14 +371,18 @@ def update_stock_item(request, item_id):
         form.save()
         return JsonResponse({'status': 'ok', 'message': 'Oggetto aggiornato con successo!'})
 
+    # --- Logica di Vendita ---
     quantity_to_sell = form.cleaned_data.get('quantity_to_sell')
 
     if not quantity_to_sell or not (0 < quantity_to_sell <= item_to_process.quantity):
         return JsonResponse({'status': 'error', 'message': 'Quantità da vendere non valida.'}, status=400)
 
-    cost_per_unit = item_to_process.material_cost / item_to_process.quantity if item_to_process.quantity > 0 else Decimal('0')
+    # Calcola i costi unitari per una ripartizione corretta
+    production_cost_per_unit = item_to_process.material_cost / item_to_process.quantity if item_to_process.quantity > 0 else Decimal('0')
+    labor_cost_per_unit = item_to_process.labor_cost / item_to_process.quantity if item_to_process.quantity > 0 else Decimal('0')
 
     if quantity_to_sell == item_to_process.quantity:
+        # Caso 1: Vendi l'intero lotto
         item_to_process.status = 'SOLD'
         item_to_process.sold_at = form.cleaned_data.get('sold_at') or timezone.now().date()
         item_to_process.sale_price = form.cleaned_data.get('sale_price')
@@ -374,13 +396,15 @@ def update_stock_item(request, item_id):
             item_to_process.payment_method.balance += total_sale_price
             item_to_process.payment_method.save()
     else:
+        # Caso 2: Vendi una parte del lotto (split)
         newly_sold_item = StockItem.objects.create(
             project=item_to_process.project,
             custom_id=item_to_process.custom_id,
             name=item_to_process.name,
             quantity=quantity_to_sell,
             status='SOLD',
-            material_cost=cost_per_unit * quantity_to_sell,
+            material_cost=production_cost_per_unit * quantity_to_sell,
+            labor_cost=labor_cost_per_unit * quantity_to_sell,
             suggested_price=item_to_process.suggested_price,
             sold_at=form.cleaned_data.get('sold_at') or timezone.now().date(),
             sale_price=form.cleaned_data.get('sale_price'),
@@ -388,8 +412,10 @@ def update_stock_item(request, item_id):
             sold_to=form.cleaned_data.get('sold_to'),
             notes=form.cleaned_data.get('notes'),
         )
+        # Aggiorna il lotto rimanente in magazzino
         item_to_process.quantity -= quantity_to_sell
-        item_to_process.material_cost -= (cost_per_unit * quantity_to_sell)
+        item_to_process.material_cost -= (production_cost_per_unit * quantity_to_sell)
+        item_to_process.labor_cost -= (labor_cost_per_unit * quantity_to_sell)
         item_to_process.status = original_status
         item_to_process.save()
 
@@ -424,9 +450,11 @@ def sales_dashboard(request):
     order_prefix = '-' if order == 'desc' else ''
 
     sold_items_query = StockItem.objects.filter(status='SOLD').annotate(
+        annotated_total_cost=F('material_cost') + F('labor_cost'),
         total_sale_price=F('sale_price') * F('quantity'),
-        profit= (F('sale_price') * F('quantity')) - F('material_cost')
+        profit= (F('sale_price') * F('quantity')) - (F('material_cost') + F('labor_cost'))
     ).select_related('project', 'payment_method')
+
 
     filter_summary_parts = []
     if search_query:
@@ -468,7 +496,7 @@ def sales_dashboard(request):
     total_profit = sold_items_query.aggregate(total=Coalesce(Sum('profit'), Decimal('0.00')))['total']
 
     context = {
-        'sold_items': sold_items,
+        'sold_items': sold_items_query.order_by(f'{order_prefix}{sort_by}'),
         'page_title': 'Vendite',
         'all_payment_methods': PaymentMethod.objects.all(),
         'sale_edit_form': SaleEditForm(),
@@ -482,24 +510,25 @@ def sales_dashboard(request):
         'order': order,
         'total_sales': total_sales,
         'total_profit': total_profit,
-        'filters_applied': filters_applied,
-        'filter_summary': filter_summary,
+        'filters_applied': bool(search_query or sold_to_filter or payment_method_filter or notes_filter or start_date or end_date),
     }
     return render(request, 'app_3dmage_management/sales.html', context)
 
 @login_required
 def get_sale_details(request, item_id):
     sale = get_object_or_404(StockItem.objects.select_related('project'), id=item_id, status='SOLD')
+    # CORREZIONE BUG 2 e 3: Invia i dati corretti al frontend
     data = {
-        'id': sale.id,
+        'id': sale.id, # Manteniamo l'ID primario per l'URL del form
+        'item_custom_id': sale.custom_id, # ID da mostrare per l'oggetto
+        'project_id': sale.project.id if sale.project else None, # ID da mostrare per il progetto
         'name': sale.name,
-        'project_custom_id': sale.project.custom_id if sale.project else None,
         'sold_at': sale.sold_at.strftime('%Y-%m-%d') if sale.sold_at else '',
         'sale_price': sale.sale_price,
         'payment_method': sale.payment_method.id if sale.payment_method else None,
         'sold_to': sale.sold_to,
         'notes': sale.notes,
-        'material_cost': sale.material_cost,
+        'total_cost': sale.material_cost + sale.labor_cost, # Invia il costo totale
     }
     return JsonResponse(data)
 
@@ -657,58 +686,61 @@ def edit_project(request, project_id):
 @transaction.atomic
 @login_required
 def complete_project(request, project_id):
-    project = get_object_or_404(Project.objects.prefetch_related('print_files__filament_usages__spool'), id=project_id)
+    project = get_object_or_404(Project.objects.prefetch_related('print_files'), id=project_id)
     form = CompleteProjectForm(request.POST)
 
     if form.is_valid():
-        # --- ID Generation (Logica Robusta) ---
-        current_year_str = timezone.now().strftime('%y')  # Es. "25"
-
-        # Filtra i progetti di quest'anno che hanno un ID numerico valido
-        last_project_this_year = Project.objects.filter(
-            custom_id__startswith=current_year_str,
-            custom_id__regex=r'^\d{5}$'  # Assicura che l'ID sia di 5 cifre
-        ).order_by('-custom_id').first()
-
+        current_year_str = timezone.now().strftime('%y')
+        last_project_this_year = Project.objects.filter(custom_id__startswith=current_year_str, custom_id__regex=r'^\d{5}$').order_by('-custom_id').first()
         new_sequential = 1
         if last_project_this_year:
             try:
-                # Estrae il numero sequenziale (le ultime 3 cifre)
                 last_sequential = int(last_project_this_year.custom_id[2:])
                 new_sequential = last_sequential + 1
             except (ValueError, IndexError):
-                # Fallback nel caso improbabile di un ID non valido, nonostante il filtro regex
-                # Qui si potrebbe aggiungere un log di errore per monitoraggio
                 pass
-
         new_custom_id = f"{current_year_str}{new_sequential:03d}"
 
-        # --- Aggiornamento del Progetto ---
         project.status = Project.Status.DONE
         project.completed_at = timezone.now()
         project.custom_id = new_custom_id
         project.save()
 
-        # --- Creazione/Aggiornamento Oggetto a Magazzino (Logica Robusta) ---
-        total_cost = project.total_material_cost
+        # Dati dal form
+        stock_item_quantity = form.cleaned_data['stock_item_quantity']
+        labor_cost_for_batch = form.cleaned_data.get('labor_cost') or Decimal('0.00')
 
-        # Usa update_or_create per una logica più pulita e sicura
+        # Dati dal progetto
+        # Il costo di produzione è il costo totale del progetto (materiali + elettricità + usura)
+        production_cost_for_batch = project.full_total_cost
+
+        # Calcolo del prezzo suggerito per singolo oggetto
+        total_cost_for_batch = production_cost_for_batch + labor_cost_for_batch
+
+        # Prevenzione divisione per zero
+        cost_per_item = total_cost_for_batch / stock_item_quantity if stock_item_quantity > 0 else Decimal('0.00')
+
+        suggested_price_per_item = cost_per_item * Decimal('1.5')
+
+        # Creazione/Aggiornamento dell'oggetto a magazzino
         stock_item, created = StockItem.objects.update_or_create(
-            project=project,  # Cerca uno StockItem collegato a questo progetto
+            project=project,
             defaults={
                 'custom_id': new_custom_id,
                 'name': form.cleaned_data['stock_item_name'],
-                'quantity': form.cleaned_data['stock_item_quantity'],
-                'material_cost': total_cost,
-                'status': StockItem.Status.IN_STOCK,  # Imposta lo stato iniziale
-                'suggested_price': total_cost * Decimal('1.5')  # Esempio di prezzo suggerito
+                'quantity': stock_item_quantity,
+                # Salva i costi totali per l'intero lotto
+                'material_cost': production_cost_for_batch.quantize(Decimal('0.01')),
+                'labor_cost': labor_cost_for_batch.quantize(Decimal('0.01')),
+                'status': StockItem.Status.IN_STOCK,
+                'suggested_price': suggested_price_per_item.quantize(Decimal('0.01'))
             }
         )
 
         return redirect('inventory_dashboard')
 
-    # Se il form non è valido, torna alla pagina di dettaglio
     return redirect('project_detail', project_id=project.id)
+
 @require_POST
 @login_required
 def delete_project(request, project_id):
@@ -746,7 +778,6 @@ def add_print_file(request):
 
             print_file.save()
 
-            # MODIFICA: Aggiunto 'request' alla chiamata della funzione
             _handle_filament_data(
                 request,
                 print_file=print_file,
@@ -888,7 +919,6 @@ def edit_print_file(request, file_id):
 
             wasted_grams_str = request.POST.get('wasted_grams') if new_status == 'FAILED' else None
 
-            # MODIFICA: Aggiunto 'request' alla chiamata della funzione
             _handle_filament_data(
                 request,
                 print_file=print_file,
@@ -1071,7 +1101,6 @@ def add_spool(request):
         filament = form.cleaned_data['filament']
         purchase_date = form.cleaned_data['purchase_date']
 
-        # MODIFICATO: Logica per generare l'identificatore progressivo
         existing_spools_count = Spool.objects.filter(
             filament=filament,
             purchase_date__year=purchase_date.year,
@@ -1080,7 +1109,6 @@ def add_spool(request):
 
         new_identifier = ""
         if existing_spools_count > 0:
-            # Salta la 'A', parte da 'B' per la seconda bobina del mese
             new_identifier = chr(ord('A') + existing_spools_count)
 
         spool = form.save(commit=False)
@@ -1091,7 +1119,6 @@ def add_spool(request):
         cost = form.cleaned_data['cost']
         material_category, created = ExpenseCategory.objects.get_or_create(name='Bobine')
 
-        # MODIFICATO: Descrizione spesa più dettagliata
         expense_description = f"Bobina {spool.filament} {spool}"
 
         Expense.objects.create(
@@ -1232,7 +1259,8 @@ def api_get_filament_spools(request, filament_id):
             print_file__status__in=['DONE', 'FAILED']
         ).aggregate(total=Sum('grams_used'))['total'] or Decimal('0')
 
-        remaining = Decimal(spool.initial_weight_g) - used_on_spool
+        # *** FIX: Calcolo del peso rimanente aggiornato per includere la correzione ***
+        remaining = (Decimal(spool.initial_weight_g) + spool.weight_adjustment) - used_on_spool
 
         spool_data = {
             'id': spool.id,
@@ -1292,21 +1320,18 @@ def accounting_dashboard(request):
     payment_method_filter = request.GET.get('payment_method', '')
     category_filter = request.GET.get('category', '')
 
-    # Query per le entrate
     income_items_query = StockItem.objects.filter(status='SOLD', payment_method__isnull=False)
     if search_query:
         income_items_query = income_items_query.filter(
             Q(name__icontains=search_query) | Q(notes__icontains=search_query)
         )
 
-    # Query per le uscite
     expenses_query = Expense.objects.select_related('category', 'payment_method')
     if search_query:
         expenses_query = expenses_query.filter(
             Q(description__icontains=search_query) | Q(notes__icontains=search_query)
         )
 
-    # Applica filtri comuni
     if year_filter:
         income_items_query = income_items_query.filter(sold_at__year=year_filter)
         expenses_query = expenses_query.filter(expense_date__year=year_filter)
@@ -1443,16 +1468,13 @@ def delete_expense(request, expense_id):
 @login_required
 def settings_dashboard(request):
     printers_query = Printer.objects.prefetch_related('plates', 'maintenance_logs').annotate(
-        # CORREZIONE: Usa distinct=True per contare correttamente i piatti
         plate_count=Count('plates', distinct=True),
         maintenance_count=Count('maintenance_logs', distinct=True),
-        # CORREZIONE: La somma deve essere distinta per evitare moltiplicazioni
         total_print_seconds=Coalesce(Sum(
             'print_files__print_time_seconds',
             filter=Q(print_files__status='DONE'),
             distinct=True
         ), 0),
-        # NUOVO: Calcola le ore di stampa dall'ultimo reset
         seconds_since_maintenance=Coalesce(Sum(
             'print_files__print_time_seconds',
             filter=Q(print_files__status='DONE', print_files__project__completed_at__gte=F('last_maintenance_reset')),
@@ -1462,13 +1484,11 @@ def settings_dashboard(request):
 
     printers = []
     for printer in printers_query:
-        # Formattazione ore totali
         total_seconds = printer.total_print_seconds
         h_total = total_seconds // 3600
         m_total = (total_seconds % 3600) // 60
         printer.total_print_time_formatted = f"{h_total} ore {m_total} min"
 
-        # Formattazione ore parziali
         partial_seconds = printer.seconds_since_maintenance
         h_partial = partial_seconds // 3600
         m_partial = (partial_seconds % 3600) // 60
