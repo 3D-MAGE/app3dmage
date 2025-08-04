@@ -82,21 +82,52 @@ document.addEventListener('DOMContentLoaded', async function() {
     // -----------------------------------------------------------------
     // FUNZIONI HELPER
     // -----------------------------------------------------------------
-    const getContrastYIQ = (hexcolor) => {
-        if (!hexcolor) return 'black';
-        hexcolor = hexcolor.replace("#", "");
-        if (hexcolor.length === 3) {
-            hexcolor = hexcolor.split('').map(char => char + char).join('');
+    /**
+     * MODIFICA: Funzione migliorata per determinare il colore del testo (bianco/nero)
+     * in base alla luminosità dello sfondo per un contrasto ottimale.
+     * @param {string} hexColor - Il colore di sfondo in formato esadecimale (es. "#RRGGBB").
+     * @returns {string} Ritorna '#FFFFFF' per sfondi scuri e '#000000' per sfondi chiari.
+     */
+    function getTextColorForBg(hexColor) {
+        if (!hexColor) return '#000000';
+        try {
+            let cleanHex = hexColor.startsWith('#') ? hexColor.slice(1) : hexColor;
+            if (cleanHex.length === 3) {
+                cleanHex = cleanHex.split('').map(char => char + char).join('');
+            }
+            const rgb = parseInt(cleanHex, 16);
+            const r = (rgb >> 16) & 0xff;
+            const g = (rgb >> 8) & 0xff;
+            const b = (rgb >> 0) & 0xff;
+            const luma = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+            return luma < 140 ? '#FFFFFF' : '#000000';
+        } catch (e) {
+            console.error("Invalid color format:", hexColor, e);
+            return '#000000';
         }
-        if (hexcolor.length !== 6) {
-            return 'black';
-        }
-        const r = parseInt(hexcolor.substr(0, 2), 16);
-        const g = parseInt(hexcolor.substr(2, 2), 16);
-        const b = parseInt(hexcolor.substr(4, 2), 16);
-        const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
-        return (yiq >= 128) ? 'black' : 'white';
-    };
+    }
+
+    /**
+     * MODIFICA: Applica il colore del testo corretto a tutti gli elementi con la classe '.filament-pill'.
+     */
+    function applyPillContrastColor() {
+        document.querySelectorAll('.filament-pill').forEach(pill => {
+            const styleAttr = pill.getAttribute('style');
+            if (styleAttr && styleAttr.includes('background-color')) {
+                const bgColorMatch = styleAttr.match(/#([0-9a-fA-F]{6}|[0-9a-fA-F]{3})/);
+                if (bgColorMatch) {
+                    const hex = bgColorMatch[0];
+                    pill.style.color = getTextColorForBg(hex);
+                    if (pill.style.color === '#000000') {
+                        pill.style.textShadow = 'none';
+                    }
+                }
+            }
+        });
+    }
+
+    // Applica i colori corretti alle pillole già presenti nella pagina al caricamento
+    applyPillContrastColor();
 
     const createFilamentRow = () => {
         const row = document.createElement('div');
@@ -126,11 +157,21 @@ document.addEventListener('DOMContentLoaded', async function() {
             options: allFilaments,
             create: false,
             render: {
+                // MODIFICA: Renderizzazione personalizzata per le opzioni nel dropdown per garantire il contrasto
                 option: function(data, escape) {
-                    return `<div style="background-color:${data.color_hex}; color:${getContrastYIQ(data.color_hex)}; padding: 5px 10px;">${escape(data.name)}</div>`;
+                    const textColor = getTextColorForBg(data.color_hex);
+                    const textShadow = textColor === '#FFFFFF' ? '1px 1px 2px rgba(0,0,0,0.5)' : 'none';
+                    return `<div style="color: ${textColor};">
+                                <span class="filament-pill" style="background-color: ${data.color_hex}; color: ${textColor}; text-shadow: ${textShadow};">${escape(data.name)}</span>
+                            </div>`;
                 },
+                // MODIFICA: Renderizzazione personalizzata per l'elemento selezionato
                 item: function(data, escape) {
-                    return `<div style="background-color:${data.color_hex}; color:${getContrastYIQ(data.color_hex)};">${escape(data.name)}</div>`;
+                     const textColor = getTextColorForBg(data.color_hex);
+                     const textShadow = textColor === '#FFFFFF' ? '1px 1px 2px rgba(0,0,0,0.5)' : 'none';
+                     return `<div class="filament-pill" style="background-color: ${data.color_hex}; color: ${textColor}; text-shadow: ${textShadow};">
+                                ${escape(data.name)}
+                             </div>`;
                 }
             },
             onChange: function(value) {
