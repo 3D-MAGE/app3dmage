@@ -1,4 +1,4 @@
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', async function() {
     const filamentsDataTag = document.getElementById('filaments-data');
     if (!filamentsDataTag) return;
 
@@ -10,11 +10,27 @@ document.addEventListener('DOMContentLoaded', function() {
         base_spool: filamentsDataTag.dataset.baseSpoolUrl,
         api_base_spool: filamentsDataTag.dataset.apiBaseSpoolUrl,
         toggle_spool_status: filamentsDataTag.dataset.toggleSpoolStatusUrl,
+        // MODIFICA: Aggiunta nuova URL per l'API dei filamenti
+        api_filaments: filamentsDataTag.dataset.apiFilamentsUrl,
     };
     const csrftoken = getCookie('csrftoken');
 
+    // MODIFICA: Pre-carica i dati di tutti i filamenti all'avvio
+    let allFilamentsData = [];
+    try {
+        const response = await fetch(URLS.api_filaments);
+        if (response.ok) {
+            allFilamentsData = await response.json();
+        } else {
+            console.error("Failed to load filament data for TomSelect.");
+        }
+    } catch (e) {
+        console.error("Error fetching filament data:", e);
+    }
+
+
     /**
-     * MODIFICA: Funzione migliorata per determinare il colore del testo (bianco/nero)
+     * Funzione migliorata per determinare il colore del testo (bianco/nero)
      * in base alla luminosità dello sfondo per un contrasto ottimale.
      * @param {string} hexColor - Il colore di sfondo in formato esadecimale (es. "#RRGGBB").
      * @returns {string} Ritorna '#FFFFFF' per sfondi scuri e '#000000' per sfondi chiari.
@@ -40,7 +56,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     /**
-     * MODIFICA: Applica il colore del testo corretto a tutti gli elementi con la classe '.filament-pill'.
+     * Applica il colore del testo corretto a tutti gli elementi con la classe '.filament-pill'.
      */
     function applyPillContrastColor() {
         document.querySelectorAll('.filament-pill').forEach(pill => {
@@ -100,6 +116,35 @@ document.addEventListener('DOMContentLoaded', function() {
     const editSpoolModal = new bootstrap.Modal(editSpoolModalEl);
     const editSpoolForm = document.getElementById('editSpoolForm');
     const addSpoolModalEl = document.getElementById('addSpoolModal');
+
+    // MODIFICA: Inizializzazione di TomSelect per il modale "Aggiungi Bobina"
+    let addSpoolTomSelect = null;
+    if (addSpoolModalEl) {
+        addSpoolModalEl.addEventListener('show.bs.modal', function() {
+            const selectEl = document.getElementById('id_spool_form_filament');
+            if (selectEl && !addSpoolTomSelect) { // Inizializza solo una volta
+                addSpoolTomSelect = new TomSelect(selectEl, {
+                    valueField: 'id',
+                    labelField: 'name',
+                    searchField: 'name',
+                    options: allFilamentsData,
+                    create: false,
+                    render: {
+                        option: function(data, escape) {
+                            const textColor = getTextColorForBg(data.color_hex);
+                            const textShadow = textColor === '#FFFFFF' ? '1px 1px 2px rgba(0,0,0,0.5)' : 'none';
+                            return `<div><span class="filament-pill" style="background-color: ${data.color_hex}; color: ${textColor}; text-shadow: ${textShadow};">${escape(data.name)}</span></div>`;
+                        },
+                        item: function(data, escape) {
+                             const textColor = getTextColorForBg(data.color_hex);
+                             const textShadow = textColor === '#FFFFFF' ? '1px 1px 2px rgba(0,0,0,0.5)' : 'none';
+                             return `<div class="filament-pill" style="background-color: ${data.color_hex}; color: ${textColor}; text-shadow: ${textShadow};">${escape(data.name)}</div>`;
+                        }
+                    }
+                });
+            }
+        });
+    }
 
 
     /**
@@ -246,7 +291,9 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         } else if (nextAction === 'addSpool') {
             const filamentId = addSpoolBtnInModal.dataset.filamentId;
-            document.querySelector('#addSpoolModal select[name="filament"]').value = filamentId;
+            if (addSpoolTomSelect) {
+                addSpoolTomSelect.setValue(filamentId);
+            }
             new bootstrap.Modal(document.getElementById('addSpoolModal')).show();
         } else {
             // If no specific action was planned, it's a normal close. Reload the page.

@@ -188,7 +188,8 @@ class SpoolForm(forms.ModelForm):
         model = Spool
         fields = ['filament', 'initial_weight_g', 'cost', 'purchase_date', 'purchase_link', 'payment_method']
         widgets = {
-            'filament': forms.Select(attrs={'class': 'form-select'}),
+            # MODIFICA: Rimosso il widget per 'filament' per gestirlo nel template
+            'filament': forms.Select(),
             'initial_weight_g': forms.NumberInput(attrs={'class': 'form-control'}),
             'cost': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
             'purchase_link': forms.URLInput(attrs={'class': 'form-control', 'placeholder': 'https://...'}),
