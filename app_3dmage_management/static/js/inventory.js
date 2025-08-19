@@ -107,7 +107,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const isSatispayBusiness = selectedOption && selectedOption.text.toLowerCase().includes('satispay business');
 
             if (isSatispayBusiness) {
-                const discountedPrice = parseFloat(originalPrice) * 0.98;
+                const discountedPrice = parseFloat(originalPrice) * 0.99;
                 salePriceInput.value = discountedPrice.toFixed(2);
             }
 
