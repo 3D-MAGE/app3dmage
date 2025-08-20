@@ -58,6 +58,9 @@ urlpatterns = [
     path('ajax/stock_item/<int:item_id>/update/', views.update_stock_item, name='update_stock_item'),
     path('ajax/stock_item/<int:item_id>/delete/', views.delete_stock_item, name='delete_stock_item'),
 
+    # EXPORT CSV
+    path('export/stock-sales-csv/', views.export_stock_sales_csv, name='export_stock_sales_csv'),
+
     # Vendite
     path('sales/', views.sales_dashboard, name='sales_dashboard'),
     path('sales/<int:item_id>/details/', views.get_sale_details, name='get_sale_details'),

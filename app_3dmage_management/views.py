@@ -1,5 +1,5 @@
 from django.shortcuts import render, redirect, get_object_or_404
-from django.http import JsonResponse, HttpResponseBadRequest
+from django.http import JsonResponse, HttpResponseBadRequest, HttpResponse
 from django.views.decorators.http import require_POST
 import math
 from django.db.models import Prefetch, Sum, Case, When, Value, IntegerField, F, Q, Count, Max, ExpressionWrapper, DecimalField, OuterRef, Subquery
@@ -13,6 +13,7 @@ from django.urls import reverse
 import datetime
 import json
 import re
+import csv
 
 
 from .models import (
@@ -513,6 +514,56 @@ def sales_dashboard(request):
         'filters_applied': bool(search_query or sold_to_filter or payment_method_filter or notes_filter or start_date or end_date),
     }
     return render(request, 'app_3dmage_management/sales.html', context)
+
+@login_required
+def export_stock_sales_csv(request):
+    """
+    Esporta tutti i dati dal modello StockItem (magazzino e vendite) in un file CSV.
+    """
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = f'attachment; filename="export_magazzino_vendite_{timezone.now().strftime("%Y-%m-%d")}.csv"'
+    response.write(u'\ufeff'.encode('utf8')) # BOM per Excel
+
+    writer = csv.writer(response, delimiter=';')
+
+    # Scrive l'intestazione del file CSV
+    writer.writerow([
+        'ID Oggetto', 'ID Progetto Origine', 'Categoria Progetto', 'Nome Oggetto', 'Stato', 'Quantita',
+        'Costo Materiali (€)', 'Costo Manodopera (€)', 'Costo Totale Produzione (€)',
+        'Prezzo Vendita Suggerito (Unità) (€)', 'Data Creazione', 'Data Vendita',
+        'Prezzo Vendita Effettivo (Unità) (€)', 'Ricavo Totale (€)', 'Profitto (€)',
+        'Venduto a', 'Metodo Pagamento', 'Note'
+    ])
+
+    # Recupera tutti gli oggetti, ordinandoli per stato e data
+    items = StockItem.objects.all().select_related('project__category', 'payment_method').order_by('status', '-created_at')
+
+    for item in items:
+        total_revenue = (item.sale_price or 0) * item.quantity
+        profit = total_revenue - (item.material_cost + item.labor_cost) if item.status == 'SOLD' else None
+
+        writer.writerow([
+            item.custom_id or item.id,
+            item.project.custom_id if item.project else 'N/A',
+            item.project.category.name if item.project and item.project.category else 'N/A',
+            item.name,
+            item.get_status_display(),
+            item.quantity,
+            f'{item.material_cost:.2f}'.replace('.', ','),
+            f'{item.labor_cost:.2f}'.replace('.', ','),
+            f'{item.total_cost:.2f}'.replace('.', ','),
+            f'{item.suggested_price:.2f}'.replace('.', ','),
+            item.created_at.strftime('%Y-%m-%d'),
+            item.sold_at.strftime('%Y-%m-%d') if item.sold_at else '',
+            f'{item.sale_price:.2f}'.replace('.', ',') if item.sale_price is not None else '',
+            f'{total_revenue:.2f}'.replace('.', ',') if item.status == 'SOLD' else '',
+            f'{profit:.2f}'.replace('.', ',') if profit is not None else '',
+            item.sold_to,
+            item.payment_method.name if item.payment_method else ('DA PAGARE' if item.status == 'SOLD' else ''),
+            item.notes
+        ])
+
+    return response
 
 @login_required
 def get_sale_details(request, item_id):
