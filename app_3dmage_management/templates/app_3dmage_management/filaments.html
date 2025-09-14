@@ -44,6 +44,8 @@
                         <th><a href="?sort=material&order={% if sort_by == 'material' and order == 'asc' %}desc{% else %}asc{% endif %}">Filamento</a></th>
                         <th><a href="?sort=color_name&order={% if sort_by == 'color_name' and order == 'asc' %}desc{% else %}asc{% endif %}">Nome Colore</a></th>
                         <th style="width: 40%;"><a href="?sort=annotated_remaining_weight&order={% if sort_by == 'annotated_remaining_weight' and order == 'asc' %}desc{% else %}asc{% endif %}">Grammi Rimanenti (Attivi)</a></th>
+                        {# NUOVA FUNZIONALITÀ: Aggiunta colonna Bobine con ordinamento #}
+                        <th class="text-center"><a href="?sort=annotated_active_spool_count&order={% if sort_by == 'annotated_active_spool_count' and order == 'asc' %}desc{% else %}asc{% endif %}">Bobine</a></th>
                         <th class="text-end"><a href="?sort=annotated_total_used_weight&order={% if sort_by == 'annotated_total_used_weight' and order == 'asc' %}desc{% else %}asc{% endif %}">Usato (da Attivi)</a></th>
                     </tr>
                 </thead>
@@ -62,11 +64,14 @@
                                     <strong class="justify-content-center align-items-center d-flex position-absolute w-100 h-100 top-0 start-0 text-white" style="text-shadow: 1px 1px 2px black;">{{ filament.annotated_remaining_weight|floatformat:2 }}g</strong>
                                 </div>
                             </td>
+                            {# NUOVA FUNZIONALITÀ: Visualizzazione del conteggio delle bobine attive #}
+                            <td class="text-center">{{ filament.annotated_active_spool_count }}</td>
                             <td class="text-end">{{ filament.annotated_total_used_weight|floatformat:2 }}g</td>
                         </tr>
                     {% endwith %}
                     {% empty %}
-                    <tr><td colspan="4" class="text-center py-5"><p class="lead">Nessun filamento con bobine attive.</p></td></tr>
+                    {# NUOVA FUNZIONALITÀ: Aggiornato colspan per la nuova colonna #}
+                    <tr><td colspan="5" class="text-center py-5"><p class="lead">Nessun filamento con bobine attive.</p></td></tr>
                     {% endfor %}
                 </tbody>
             </table>
@@ -117,10 +122,9 @@
 {# Template per il form di modifica, rimane invariato #}
 <template id="filament-form-template">{{ filament_form.as_p }}</template>
 
-{# Modals per Aggiungere Filamento e Bobina, rimangono invariati #}
-<div class="modal fade" id="addFilamentModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content bg-dark-card text-white"><div class="modal-header border-secondary"><h5 class="modal-title">Aggiungi Nuovo Tipo Filamento</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><form action="{% url 'add_filament' %}" method="post"><div class="modal-body">{% csrf_token %}{{ filament_form.as_p }}</div><div class="modal-footer border-secondary"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button><button type="submit" class="btn btn-primary-custom">Salva</button></div></form></div></div></div>
+{# BUG 1 FIX: Aggiunto un ID al form per gestirlo con AJAX #}
+<div class="modal fade" id="addFilamentModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content bg-dark-card text-white"><div class="modal-header border-secondary"><h5 class="modal-title">Aggiungi Nuovo Tipo Filamento</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><form id="addFilamentForm" action="{% url 'add_filament' %}" method="post"><div class="modal-body">{% csrf_token %}{{ filament_form.as_p }}</div><div class="modal-footer border-secondary"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button><button type="submit" class="btn btn-primary-custom">Salva</button></div></form></div></div></div>
 
-{# MODIFICA: Aggiunto id al campo select del filamento #}
 <div class="modal fade" id="addSpoolModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content bg-dark-card text-white"><div class="modal-header border-secondary"><h5 class="modal-title">Aggiungi Nuova Bobina</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><form action="{% url 'add_spool' %}" method="post"><div class="modal-body">{% csrf_token %}{% for field in spool_form %}<div class="mb-3"> {{ field.label_tag }} {% if field.name == 'filament' %}<select name="{{ field.name }}" id="id_spool_form_filament" class="form-select">{{ field.content }}</select>{% else %}{{ field }}{% endif %}</div>{% endfor %}</div><div class="modal-footer border-secondary"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button><button type="submit" class="btn btn-primary-custom">Salva</button></div></form></div></div></div>
 
 {# MODAL PRINCIPALE RISTRUTTURATO #}
@@ -238,7 +242,6 @@
 
 
 {% block scripts %}
-{# MODIFICA: Aggiunto script di Tom Select #}
 <script src="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/js/tom-select.complete.min.js"></script>
 
 <script id="filaments-data"

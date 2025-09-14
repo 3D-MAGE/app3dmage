@@ -185,33 +185,36 @@ def filament_dashboard(request):
     order = request.GET.get('order', 'asc')
     order_prefix = '-' if order == 'desc' else ''
 
+    # Sottoquery per contare le bobine attive per ciascun filamento
     active_spool_count_subquery = Spool.objects.filter(
         filament=OuterRef('pk'),
         is_active=True
     ).values('filament').annotate(c=Count('id')).values('c')
 
+    # Annotiamo il conteggio su TUTTI i filamenti
     all_filaments = Filament.objects.annotate(
-        active_spool_count=Coalesce(Subquery(active_spool_count_subquery, output_field=IntegerField()), 0)
+        annotated_active_spool_count=Coalesce(Subquery(active_spool_count_subquery, output_field=IntegerField()), 0)
     )
 
-    active_filaments_query = all_filaments.filter(active_spool_count__gt=0)
+    # Filtriamo i filamenti che hanno almeno una bobina attiva
+    active_filaments_query = all_filaments.filter(annotated_active_spool_count__gt=0)
 
-    # Subquery per il peso iniziale delle bobine attive
+    # Sottoquery per il peso iniziale delle bobine attive
     active_initial_weight_subquery = Spool.objects.filter(
         filament=OuterRef('pk'), is_active=True
     ).values('filament').annotate(s=Sum('initial_weight_g')).values('s')
 
-    # Subquery per il peso usato dalle bobine attive
+    # Sottoquery per il peso usato dalle bobine attive
     active_used_weight_subquery = FilamentUsage.objects.filter(
         spool__filament=OuterRef('pk'), spool__is_active=True, print_file__status__in=['DONE', 'FAILED']
     ).values('spool__filament').annotate(s=Sum('grams_used')).values('s')
 
-    # *** FIX: Subquery per la correzione manuale del peso ***
+    # Sottoquery per la correzione manuale del peso
     active_adjustment_subquery = Spool.objects.filter(
         filament=OuterRef('pk'), is_active=True
     ).values('filament').annotate(s=Sum('weight_adjustment')).values('s')
 
-    # *** FIX: Annotazioni aggiornate per includere la correzione ***
+    # Annotazioni aggiornate per calcolare il peso rimanente
     active_filaments_query = active_filaments_query.annotate(
         annotated_total_initial_weight=Coalesce(Subquery(active_initial_weight_subquery, output_field=DecimalField()), Decimal('0.00')),
         annotated_total_used_weight=Coalesce(Subquery(active_used_weight_subquery, output_field=DecimalField()), Decimal('0.00')),
@@ -223,7 +226,8 @@ def filament_dashboard(request):
         )
     )
 
-    valid_sort_fields = ['material', 'brand', 'color_name', 'annotated_remaining_weight', 'annotated_total_used_weight']
+    # NUOVA FUNZIONALITÀ: Aggiunto `annotated_active_spool_count` ai campi validi per l'ordinamento
+    valid_sort_fields = ['material', 'brand', 'color_name', 'annotated_remaining_weight', 'annotated_total_used_weight', 'annotated_active_spool_count']
     if sort_by not in valid_sort_fields:
         sort_by = 'material'
 
@@ -234,7 +238,8 @@ def filament_dashboard(request):
 
     active_filaments = active_filaments_query.order_by(*order_fields)
 
-    exhausted_filaments_query = all_filaments.filter(active_spool_count=0, spools__isnull=False).distinct()
+    # Filamenti esauriti (quelli con 0 bobine attive ma che hanno avuto bobine in passato)
+    exhausted_filaments_query = all_filaments.filter(annotated_active_spool_count=0, spools__isnull=False).distinct()
 
     total_used_weight_subquery = FilamentUsage.objects.filter(
         spool__filament=OuterRef('pk'), print_file__status__in=['DONE', 'FAILED']
@@ -1218,7 +1223,9 @@ def add_filament(request):
     form = FilamentForm(request.POST)
     if form.is_valid():
         form.save()
-    return redirect('filament_dashboard')
+        # BUG 1 FIX: Risponde con JSON per la gestione AJAX, invece di un redirect
+        return JsonResponse({'status': 'ok'})
+    return JsonResponse({'status': 'error', 'errors': form.errors.as_json()}, status=400)
 
 @require_POST
 @login_required
@@ -1292,10 +1299,11 @@ def _handle_filament_data(request, print_file, filament_data_json, wasted_grams_
 
 @login_required
 def api_get_all_filaments(request):
-    filaments = Filament.objects.annotate(
-        num_active_spools=Count('spools', filter=Q(spools__is_active=True))
-    ).filter(num_active_spools__gt=0).order_by('material', 'brand', 'color_name')
-
+    # BUG 1 FIX: Questa API ora fornisce sempre l'elenco più aggiornato dei filamenti,
+    # che verrà richiamata dopo l'aggiunta di un nuovo tipo.
+    # Ho rimosso il filtro sulle bobine attive per popolare correttamente il dropdown
+    # anche con filamenti a cui non è ancora stata associata una bobina.
+    filaments = Filament.objects.all().order_by('material', 'brand', 'color_name')
     data = [{'id': f.id, 'name': str(f), 'color_hex': f.color_hex} for f in filaments]
     return JsonResponse(data, safe=False)
 
@@ -1310,7 +1318,6 @@ def api_get_filament_spools(request, filament_id):
             print_file__status__in=['DONE', 'FAILED']
         ).aggregate(total=Sum('grams_used'))['total'] or Decimal('0')
 
-        # *** FIX: Calcolo del peso rimanente aggiornato per includere la correzione ***
         remaining = (Decimal(spool.initial_weight_g) + spool.weight_adjustment) - used_on_spool
 
         spool_data = {
@@ -1518,6 +1525,25 @@ def delete_expense(request, expense_id):
 
 @login_required
 def settings_dashboard(request):
+    year_filter = request.GET.get('year', '')
+    electricity_cost_obj, _ = GlobalSetting.objects.get_or_create(
+        key='electricity_cost_kwh',
+        defaults={'value': Decimal('0.25')}
+    )
+    electricity_cost_kwh = electricity_cost_obj.value
+
+    # BUG FIX: La riga seguente causava un FieldError.
+    # Il metodo corretto è estrarre gli oggetti 'date' e poi ottenere l'attributo 'year' da ciascuno.
+    available_years_dates = Project.objects.filter(
+        status='DONE',
+        completed_at__isnull=False
+    ).dates('completed_at', 'year', order='DESC')
+    available_years = [d.year for d in available_years_dates]
+
+    annotation_filter = Q(print_files__status='DONE')
+    if year_filter and year_filter.isdigit():
+        annotation_filter &= Q(print_files__project__completed_at__year=int(year_filter))
+
     printers_query = Printer.objects.prefetch_related('plates', 'maintenance_logs').annotate(
         plate_count=Count('plates', distinct=True),
         maintenance_count=Count('maintenance_logs', distinct=True),
@@ -1530,7 +1556,16 @@ def settings_dashboard(request):
             'print_files__print_time_seconds',
             filter=Q(print_files__status='DONE', print_files__project__completed_at__gte=F('last_maintenance_reset')),
             distinct=True
-        ), 0)
+        ), 0),
+        annotated_electricity_cost=Coalesce(Sum(
+            ExpressionWrapper(
+                (F('print_files__print_time_seconds') / Decimal(3600.0)) *
+                (F('power_consumption') / Decimal(1000.0)) *
+                electricity_cost_kwh,
+                output_field=DecimalField()
+            ),
+            filter=annotation_filter
+        ), Decimal('0.00'))
     ).order_by('name')
 
     printers = []
@@ -1551,15 +1586,10 @@ def settings_dashboard(request):
     payment_methods = PaymentMethod.objects.annotate(expense_count=Count('expense'), sale_count=Count('stockitem')).order_by('name')
     expense_categories = ExpenseCategory.objects.annotate(expense_count=Count('expense')).order_by('name')
 
-    electricity_cost_obj, _ = GlobalSetting.objects.get_or_create(
-        key='electricity_cost_kwh',
-        defaults={'value': Decimal('0.25')}
-    )
     wear_tear_obj, _ = GlobalSetting.objects.get_or_create(
         key='wear_tear_coefficient',
         defaults={'value': Decimal('0.10')}
     )
-
     initial_data = {
         'electricity_cost': electricity_cost_obj.value,
         'wear_tear_coefficient': wear_tear_obj.value
@@ -1577,7 +1607,9 @@ def settings_dashboard(request):
         'expense_category_form': ExpenseCategoryForm(),
         'maintenance_form': MaintenanceLogForm(),
         'general_settings_form': GeneralSettingsForm(initial=initial_data),
-        'page_title': 'Impostazioni'
+        'page_title': 'Impostazioni',
+        'available_years': available_years,
+        'selected_year': int(year_filter) if year_filter.isdigit() else None,
     }
     return render(request, 'app_3dmage_management/settings.html', context)
 

@@ -99,7 +99,7 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     });
 
-    // NUOVO: Logica per il reset del contatore di manutenzione
+    // Logica per il reset del contatore di manutenzione
     document.querySelectorAll('.reset-maintenance-btn').forEach(button => {
         button.addEventListener('click', function() {
             const printerId = this.dataset.printerId;
@@ -135,41 +135,33 @@ document.addEventListener('DOMContentLoaded', function () {
                 const newTheme = e.target.value;
                 localStorage.setItem('theme', newTheme);
                 if (newTheme === 'light') {
-                    document.body.classList.add('light-theme');
+                    document.documentElement.classList.add('light-theme');
                 } else {
-                    document.body.classList.remove('light-theme');
+                    document.documentElement.classList.remove('light-theme');
                 }
             }
+        });
+    }
+
+    // NUOVO: Logica per l'auto-submit del filtro per anno
+    const yearFilterForm = document.getElementById('yearFilterForm');
+    if (yearFilterForm) {
+        const yearSelect = yearFilterForm.querySelector('select');
+        yearSelect.addEventListener('change', function() {
+            yearFilterForm.submit();
         });
     }
 });
 
 // Funzione helper per ottenere il cookie CSRF (se non già globale)
 function getCookie(name) {
-    let cookieValue = null;
-    if (document.cookie && document.cookie !== '') {
-        const cookies = document.cookie.split(';');
-        for (let i = 0; i < cookies.length; i++) {
-            const cookie = cookies[i].trim();
-            if (cookie.substring(0, name.length + 1) === (name + '=')) {
-                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                break;
-            }
-        }
-    }
+// ... existing code ...
     return cookieValue;
 }
 
 // Funzione helper per mostrare toast (se non già globale)
 function showToast(message, type = 'success') {
-    const toastEl = document.getElementById('appToast');
-    if (toastEl) {
-        const toastBody = toastEl.querySelector('.toast-body');
-        toastEl.classList.remove('bg-success', 'bg-danger', 'bg-warning', 'bg-info');
-        const bgColor = type === 'error' ? 'danger' : type;
-        toastEl.classList.add(`bg-${bgColor}`);
-        toastBody.textContent = message;
-        new bootstrap.Toast(toastEl).show();
+// ... existing code ...
     } else {
         console.log(`Toast (${type}): ${message}`);
     }

@@ -2,7 +2,6 @@ document.addEventListener('DOMContentLoaded', async function() {
     const filamentsDataTag = document.getElementById('filaments-data');
     if (!filamentsDataTag) return;
 
-    // URLs used in the script
     const URLS = {
         add_filament: filamentsDataTag.dataset.addFilamentUrl,
         add_spool: filamentsDataTag.dataset.addSpoolUrl,
@@ -10,31 +9,26 @@ document.addEventListener('DOMContentLoaded', async function() {
         base_spool: filamentsDataTag.dataset.baseSpoolUrl,
         api_base_spool: filamentsDataTag.dataset.apiBaseSpoolUrl,
         toggle_spool_status: filamentsDataTag.dataset.toggleSpoolStatusUrl,
-        // MODIFICA: Aggiunta nuova URL per l'API dei filamenti
         api_filaments: filamentsDataTag.dataset.apiFilamentsUrl,
     };
     const csrftoken = getCookie('csrftoken');
 
-    // MODIFICA: Pre-carica i dati di tutti i filamenti all'avvio
     let allFilamentsData = [];
-    try {
-        const response = await fetch(URLS.api_filaments);
-        if (response.ok) {
-            allFilamentsData = await response.json();
-        } else {
-            console.error("Failed to load filament data for TomSelect.");
+    async function loadFilamentsData() {
+        try {
+            const response = await fetch(URLS.api_filaments);
+            if (response.ok) {
+                allFilamentsData = await response.json();
+            } else {
+                console.error("Failed to load filament data for TomSelect.");
+            }
+        } catch (e) {
+            console.error("Error fetching filament data:", e);
         }
-    } catch (e) {
-        console.error("Error fetching filament data:", e);
     }
+    await loadFilamentsData();
 
 
-    /**
-     * Funzione migliorata per determinare il colore del testo (bianco/nero)
-     * in base alla luminosità dello sfondo per un contrasto ottimale.
-     * @param {string} hexColor - Il colore di sfondo in formato esadecimale (es. "#RRGGBB").
-     * @returns {string} Ritorna '#FFFFFF' per sfondi scuri e '#000000' per sfondi chiari.
-     */
     function getTextColorForBg(hexColor) {
         if (!hexColor) return '#000000';
         try {
@@ -46,7 +40,6 @@ document.addEventListener('DOMContentLoaded', async function() {
             const r = (rgb >> 16) & 0xff;
             const g = (rgb >> 8) & 0xff;
             const b = (rgb >> 0) & 0xff;
-            // Formula per la luminosità percepita
             const luma = 0.2126 * r + 0.7152 * g + 0.0722 * b;
             return luma < 140 ? '#FFFFFF' : '#000000';
         } catch (e) {
@@ -55,9 +48,6 @@ document.addEventListener('DOMContentLoaded', async function() {
         }
     }
 
-    /**
-     * Applica il colore del testo corretto a tutti gli elementi con la classe '.filament-pill'.
-     */
     function applyPillContrastColor() {
         document.querySelectorAll('.filament-pill').forEach(pill => {
             const styleAttr = pill.getAttribute('style');
@@ -66,7 +56,6 @@ document.addEventListener('DOMContentLoaded', async function() {
                 if (bgColorMatch) {
                     const hex = bgColorMatch[0];
                     pill.style.color = getTextColorForBg(hex);
-                    // Rimuove l'ombra del testo se lo sfondo è chiaro per una migliore leggibilità
                     if (pill.style.color === '#000000') {
                         pill.style.textShadow = 'none';
                     }
@@ -74,30 +63,23 @@ document.addEventListener('DOMContentLoaded', async function() {
             }
         });
     }
-
-    // Esegui la funzione al caricamento della pagina
     applyPillContrastColor();
 
-
-    // Main modal and its components
     const detailModalEl = document.getElementById('filamentDetailModal');
     if (!detailModalEl) return;
     const detailModal = new bootstrap.Modal(detailModalEl);
 
-    // Modal containers for view/edit modes
     const viewContainer = document.getElementById('filament-view-container');
     const editContainer = document.getElementById('filament-edit-container');
     const viewFooter = document.getElementById('footer-view-mode');
     const editFooter = document.getElementById('footer-edit-mode');
 
-    // Buttons
     const switchToEditBtn = document.getElementById('switchToEditModeBtn');
     const switchToViewBtn = document.getElementById('switchToViewModeBtn');
     const saveChangesBtn = document.getElementById('saveFilamentChangesBtn');
     const deleteBtnTrigger = document.getElementById('deleteFilamentBtnTrigger');
     const addSpoolBtnInModal = detailModalEl.querySelector('.add-spool-from-modal-btn');
 
-    // Forms and dynamic content areas
     const editForm = document.getElementById('editFilamentForm');
     const title = document.getElementById('filamentDetailModalTitle');
     const editFormContainer = document.getElementById('editFilamentFormContainer');
@@ -105,30 +87,26 @@ document.addEventListener('DOMContentLoaded', async function() {
     const activeSpoolListContainer = document.getElementById('active-spool-list-container');
     const inactiveSpoolListContainer = document.getElementById('inactive-spool-list-container');
 
-    // Confirmation Modals
     const confirmDeleteFilamentModal = new bootstrap.Modal(document.getElementById('deleteFilamentConfirmModal'));
     const confirmDeleteFilamentBtn = document.getElementById('confirmDeleteFilamentBtn');
     const confirmDeleteSpoolModal = new bootstrap.Modal(document.getElementById('deleteSpoolConfirmModal'));
     const confirmDeleteSpoolBtn = document.getElementById('confirmDeleteSpoolBtn');
 
-    // Edit Spool Modal
     const editSpoolModalEl = document.getElementById('editSpoolModal');
     const editSpoolModal = new bootstrap.Modal(editSpoolModalEl);
     const editSpoolForm = document.getElementById('editSpoolForm');
     const addSpoolModalEl = document.getElementById('addSpoolModal');
+    const addFilamentModalEl = document.getElementById('addFilamentModal');
+    const addFilamentModal = new bootstrap.Modal(addFilamentModalEl);
 
-    // MODIFICA: Inizializzazione di TomSelect per il modale "Aggiungi Bobina"
     let addSpoolTomSelect = null;
     if (addSpoolModalEl) {
         addSpoolModalEl.addEventListener('show.bs.modal', function() {
             const selectEl = document.getElementById('id_spool_form_filament');
-            if (selectEl && !addSpoolTomSelect) { // Inizializza solo una volta
+            if (selectEl && !addSpoolTomSelect) {
                 addSpoolTomSelect = new TomSelect(selectEl, {
-                    valueField: 'id',
-                    labelField: 'name',
-                    searchField: 'name',
-                    options: allFilamentsData,
-                    create: false,
+                    valueField: 'id', labelField: 'name', searchField: 'name',
+                    options: allFilamentsData, create: false,
                     render: {
                         option: function(data, escape) {
                             const textColor = getTextColorForBg(data.color_hex);
@@ -143,15 +121,18 @@ document.addEventListener('DOMContentLoaded', async function() {
                     }
                 });
             }
+            // BUG 3 FIX: Pre-seleziona il filamento se il modale è stato aperto dal dettaglio.
+            const preselectId = addSpoolModalEl.dataset.preselectFilament;
+            if (preselectId && addSpoolTomSelect) {
+                addSpoolTomSelect.setValue(preselectId, true); // true = silent
+                delete addSpoolModalEl.dataset.preselectFilament; // Pulisce per la prossima apertura
+            } else if (addSpoolTomSelect) {
+                // Se non c'è preselezione, pulisce il campo da valori precedenti
+                addSpoolTomSelect.clear();
+            }
         });
     }
 
-
-    /**
-     * Renders a single spool item as an HTML string.
-     * @param {object} spool - The spool data object.
-     * @returns {string} - The HTML string for the list item.
-     */
     const renderSpool = (spool) => {
         const remainingGrams = parseFloat(spool.remaining);
         const checked = spool.is_active ? 'checked' : '';
@@ -172,14 +153,9 @@ document.addEventListener('DOMContentLoaded', async function() {
             </li>`;
     };
 
-    /**
-     * Fetches and renders both active and inactive spools for a given filament.
-     * @param {string} filamentId - The ID of the filament.
-     */
     const fetchAndRenderSpools = (filamentId) => {
         activeSpoolListContainer.innerHTML = '<p class="text-white-50 small fst-italic p-3">Caricamento bobine...</p>';
         inactiveSpoolListContainer.innerHTML = '';
-
         fetch(`${URLS.api_base_spool}${filamentId}/spools/`)
             .then(res => res.json())
             .then(data => {
@@ -191,10 +167,6 @@ document.addEventListener('DOMContentLoaded', async function() {
             });
     };
 
-    /**
-     * Renders the read-only details of the filament.
-     * @param {object} data - The filament data object.
-     */
     const renderFilamentDetails = (data) => {
         readonlyDetailsContainer.innerHTML = `
             <div class="col-md-6 col-lg-4">
@@ -223,7 +195,6 @@ document.addEventListener('DOMContentLoaded', async function() {
         `;
     };
 
-    // Event listener for when the modal is about to be shown
     detailModalEl.addEventListener('show.bs.modal', function(event) {
         const row = event.relatedTarget;
         if (!row || !row.dataset.filamentId) return;
@@ -255,53 +226,44 @@ document.addEventListener('DOMContentLoaded', async function() {
         fetchAndRenderSpools(filamentId);
     });
 
-    // --- REVISED AND CENTRALIZED MODAL HIDING LOGIC ---
     detailModalEl.addEventListener('hidden.bs.modal', function () {
         const nextAction = detailModalEl.dataset.nextAction;
-
-        // Clean up the action attribute for the next time.
         delete detailModalEl.dataset.nextAction;
 
         if (nextAction === 'editSpool') {
             const spoolId = detailModalEl.dataset.spoolIdToEdit;
-            delete detailModalEl.dataset.spoolIdToEdit; // Clean up
+            delete detailModalEl.dataset.spoolIdToEdit;
             if (spoolId) {
-                // Prepare and show the edit spool modal
                 editSpoolForm.action = `${URLS.base_spool}${spoolId}/edit/`;
                 fetch(`${URLS.base_spool}${spoolId}/details/`)
                     .then(res => res.json())
                     .then(data => {
                         const modalBody = document.getElementById('editSpoolModalBody');
                         const template = document.getElementById('spool-edit-form-template');
-                        modalBody.innerHTML = ''; // Clear previous content
+                        modalBody.innerHTML = '';
                         modalBody.appendChild(template.content.cloneNode(true));
-
-                        // Populate the form fields
                         modalBody.querySelector('[name="cost"]').value = data.cost;
                         modalBody.querySelector('[name="purchase_link"]').value = data.purchase_link || '';
                         modalBody.querySelector('[name="is_active"]').checked = data.is_active;
                         modalBody.querySelector('[name="correction"]').value = '';
-
                         editSpoolModal.show();
                     }).catch(err => {
                         console.error("Failed to fetch spool details:", err);
                         showToast('Errore nel caricare i dati della bobina.', 'error');
-                        window.location.reload(); // Reload to be safe
+                        window.location.reload();
                     });
             }
         } else if (nextAction === 'addSpool') {
-            const filamentId = addSpoolBtnInModal.dataset.filamentId;
-            if (addSpoolTomSelect) {
-                addSpoolTomSelect.setValue(filamentId);
-            }
+             // BUG 3 FIX: Il filamento corretto viene ora impostato nell'evento 'show.bs.modal'
+             // del modale 'addSpoolModal', usando l'attributo 'data-preselect-filament'.
             new bootstrap.Modal(document.getElementById('addSpoolModal')).show();
         } else {
-            // If no specific action was planned, it's a normal close. Reload the page.
+            // Se non c'è azione pianificata, ricarica la pagina.
+            // Il reload è stato spostato qui dall'evento 'hidden' dei modali secondari.
             window.location.reload();
         }
     });
 
-    // Switch to edit mode
     switchToEditBtn.addEventListener('click', function() {
         viewContainer.style.display = 'none';
         editContainer.style.display = 'block';
@@ -310,7 +272,6 @@ document.addEventListener('DOMContentLoaded', async function() {
         title.textContent = title.textContent.replace('Dettaglio:', 'Modifica:');
     });
 
-    // Switch back to view mode
     switchToViewBtn.addEventListener('click', function() {
         viewContainer.style.display = 'block';
         editContainer.style.display = 'none';
@@ -319,12 +280,10 @@ document.addEventListener('DOMContentLoaded', async function() {
         title.textContent = title.textContent.replace('Modifica:', 'Dettaglio:');
     });
 
-    // Save changes from edit form
     saveChangesBtn.addEventListener('click', function() {
         showLoader();
         fetch(editForm.action, {
-                method: 'POST',
-                body: new FormData(editForm),
+                method: 'POST', body: new FormData(editForm),
                 headers: { 'X-CSRFToken': csrftoken }
             })
             .then(res => res.json())
@@ -340,24 +299,25 @@ document.addEventListener('DOMContentLoaded', async function() {
             }).finally(() => hideLoader());
     });
 
-    // Open "Add Spool" modal from within the detail modal
     addSpoolBtnInModal.addEventListener('click', function() {
         detailModalEl.dataset.nextAction = 'addSpool';
+        // BUG 3 FIX: Passa l'ID del filamento al modale Aggiungi Bobina
+        const filamentId = this.dataset.filamentId;
+        addSpoolModalEl.dataset.preselectFilament = filamentId;
+        // BUG 2 FIX: Aggiunge un flag per indicare che è stato aperto dal modale dettaglio
+        addSpoolModalEl.dataset.openedFromDetail = 'true';
         detailModal.hide();
     });
 
-    // Trigger filament delete confirmation
     deleteBtnTrigger.addEventListener('click', function() {
         document.getElementById('deleteFilamentConfirmBody').textContent = `Sei sicuro di voler eliminare questo tipo di filamento? L'azione è irreversibile.`;
         confirmDeleteFilamentModal.show();
     });
 
-    // Confirm and execute filament deletion
     confirmDeleteFilamentBtn.addEventListener('click', function() {
         showLoader();
         fetch(this.dataset.deleteUrl, {
-                method: 'POST',
-                headers: { 'X-CSRFToken': csrftoken }
+                method: 'POST', headers: { 'X-CSRFToken': csrftoken }
             })
             .then(res => res.json())
             .then(data => {
@@ -371,7 +331,31 @@ document.addEventListener('DOMContentLoaded', async function() {
             }).catch(() => hideLoader());
     });
 
-    // Event delegation for dynamically created spool buttons
+    // BUG 1 FIX: Gestione AJAX per l'aggiunta di un nuovo tipo di filamento
+    const addFilamentForm = document.getElementById('addFilamentForm');
+    addFilamentForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        showLoader();
+        fetch(this.action, {
+            method: 'POST', body: new FormData(this),
+            headers: { 'X-CSRFToken': csrftoken }
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.status === 'ok') {
+                showToast('Tipo filamento aggiunto!', 'success');
+                // Ricarica la pagina per aggiornare l'elenco e la tabella
+                window.location.reload();
+            } else {
+                showToast('Errore: controlla i dati inseriti.', 'error');
+            }
+        }).catch(err => {
+            console.error(err);
+            showToast('Errore di comunicazione col server.', 'error');
+        }).finally(() => hideLoader());
+    });
+
+
     detailModalEl.addEventListener('click', function(e) {
         const deleteButton = e.target.closest('.delete-spool-btn');
         const editButton = e.target.closest('.edit-spool-btn');
@@ -387,21 +371,18 @@ document.addEventListener('DOMContentLoaded', async function() {
         if (editButton) {
             e.stopPropagation();
             const spoolId = editButton.dataset.spoolId;
-            // Set data attributes to trigger the correct action when the modal hides
             detailModalEl.dataset.nextAction = 'editSpool';
             detailModalEl.dataset.spoolIdToEdit = spoolId;
-            // Now, hide the current modal. The 'hidden.bs.modal' event will take over.
             detailModal.hide();
         }
 
         if (toggleSwitch) {
             const spoolId = toggleSwitch.dataset.spoolId;
             fetch(`${URLS.toggle_spool_status}${spoolId}/toggle_status/`, {
-                method: 'POST',
-                headers: { 'X-CSRFToken': csrftoken }
+                method: 'POST', headers: { 'X-CSRFToken': csrftoken }
             }).then(res => res.json()).then(data => {
                 if (data.status === 'ok') {
-                    fetchAndRenderSpools(addSpoolBtnInModal.dataset.filamentId); // Refresh lists
+                    fetchAndRenderSpools(addSpoolBtnInModal.dataset.filamentId);
                     showToast(`Bobina ${data.is_active ? 'riattivata' : 'disattivata'}.`, 'info');
                 } else {
                     showToast('Errore durante l\'aggiornamento dello stato.', 'error');
@@ -411,20 +392,18 @@ document.addEventListener('DOMContentLoaded', async function() {
         }
     });
 
-    // Confirm and execute spool deletion
     confirmDeleteSpoolBtn.addEventListener('click', function() {
         const spoolId = this.dataset.spoolId;
         if (!spoolId) return;
         showLoader();
         fetch(`${URLS.base_spool}${spoolId}/delete/`, {
-            method: 'POST',
-            headers: { 'X-CSRFToken': csrftoken }
+            method: 'POST', headers: { 'X-CSRFToken': csrftoken }
         })
         .then(res => res.json())
         .then(data => {
             if (data.status === 'ok') {
                 showToast(data.message, 'success');
-                fetchAndRenderSpools(addSpoolBtnInModal.dataset.filamentId); // Refresh lists
+                fetchAndRenderSpools(addSpoolBtnInModal.dataset.filamentId);
             } else {
                 showToast(data.message, 'error');
             }
@@ -434,31 +413,25 @@ document.addEventListener('DOMContentLoaded', async function() {
         });
     });
 
-    // Handle edit spool form submission
     editSpoolForm.addEventListener('submit', function(e) {
         e.preventDefault();
         showLoader();
         fetch(this.action, {
-            method: 'POST',
-            body: new FormData(this),
+            method: 'POST', body: new FormData(this),
             headers: { 'X-CSRFToken': csrftoken }
         })
         .then(res => res.json())
         .then(data => {
             if (data.status === 'ok') {
                 showToast('Bobina aggiornata con successo.', 'success');
-                editSpoolModal.hide(); // This will trigger the 'hidden' event below
-                // The list will be refreshed automatically when the detail modal is re-shown
+                editSpoolModal.hide();
             } else {
                 showToast('Errore durante la modifica.', 'error');
             }
         }).finally(() => hideLoader());
     });
 
-    // When the edit/add modals are closed, show the main detail modal again.
-    // This handles both successful saves and manual closes ("Annulla").
-    const reShowDetailModal = function() {
-        // Check if the detail modal is already open to prevent loops.
+    function reShowDetailModal() {
         if (!detailModalEl.classList.contains('show')) {
             detailModal.show();
         }
@@ -467,6 +440,14 @@ document.addEventListener('DOMContentLoaded', async function() {
     editSpoolModalEl.addEventListener('hidden.bs.modal', reShowDetailModal);
 
     if (addSpoolModalEl) {
-        addSpoolModalEl.addEventListener('hidden.bs.modal', reShowDetailModal);
+        // BUG 2 FIX: Chiudendo il modale Aggiungi Bobina, riapre il dettaglio SOLO se
+        // era stato aperto da lì. Altrimenti non fa nulla.
+        addSpoolModalEl.addEventListener('hidden.bs.modal', function() {
+            if (addSpoolModalEl.dataset.openedFromDetail === 'true') {
+                reShowDetailModal();
+            }
+            // Pulisce il flag per la prossima apertura
+            delete addSpoolModalEl.dataset.openedFromDetail;
+        });
     }
 });
