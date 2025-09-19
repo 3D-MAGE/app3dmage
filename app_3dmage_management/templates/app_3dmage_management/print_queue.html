@@ -39,6 +39,14 @@
                             </div>
                         </div>
                         {% endfor %}
+
+                        {% if print_file.plate %}
+                        <div class="d-flex align-items-center text-white mt-2">
+                            <i class="bi bi-stack me-2"></i>
+                            <small>Piatto: {{ print_file.plate.name }}</small>
+                        </div>
+                        {% endif %}
+
                         <div class="d-flex align-items-center text-white mt-2">
                             <i class="bi bi-clock-history me-2"></i>
                             <small>{{ print_file.print_time_formatted }}</small>
@@ -71,6 +79,14 @@
                         </div>
                     </div>
                      {% endfor %}
+
+                    {% if print_file.plate %}
+                    <div class="d-flex align-items-center text-white mt-2">
+                        <i class="bi bi-stack me-2"></i>
+                        <small>Piatto: {{ print_file.plate.name }}</small>
+                    </div>
+                    {% endif %}
+
                     <div class="d-flex align-items-center text-white mt-2">
                         <i class="bi bi-clock-history me-2"></i>
                         <small>{{ print_file.print_time_formatted }}</small>

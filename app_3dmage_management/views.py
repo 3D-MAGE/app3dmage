@@ -1532,48 +1532,51 @@ def settings_dashboard(request):
     )
     electricity_cost_kwh = electricity_cost_obj.value
 
-    # BUG FIX: La riga seguente causava un FieldError.
-    # Il metodo corretto è estrarre gli oggetti 'date' e poi ottenere l'attributo 'year' da ciascuno.
     available_years_dates = Project.objects.filter(
         status='DONE',
         completed_at__isnull=False
     ).dates('completed_at', 'year', order='DESC')
     available_years = [d.year for d in available_years_dates]
 
-    annotation_filter = Q(print_files__status='DONE')
+    # BUG FIX 2 & 3: Il filtro ora si applica a un'unica annotazione per tempo e costi.
+    # Se non è selezionato un anno, il filtro include tutti i file completati.
+    time_cost_filter = Q(print_files__status='DONE')
     if year_filter and year_filter.isdigit():
-        annotation_filter &= Q(print_files__project__completed_at__year=int(year_filter))
+        time_cost_filter &= Q(print_files__project__completed_at__year=int(year_filter))
 
     printers_query = Printer.objects.prefetch_related('plates', 'maintenance_logs').annotate(
         plate_count=Count('plates', distinct=True),
         maintenance_count=Count('maintenance_logs', distinct=True),
-        total_print_seconds=Coalesce(Sum(
+
+        # BUG FIX 2 & 3: Questa annotazione ora calcola i secondi di stampa per il periodo rilevante (filtrato o totale).
+        relevant_print_seconds=Coalesce(Sum(
             'print_files__print_time_seconds',
-            filter=Q(print_files__status='DONE'),
+            filter=time_cost_filter,
             distinct=True
         ), 0),
+
         seconds_since_maintenance=Coalesce(Sum(
             'print_files__print_time_seconds',
             filter=Q(print_files__status='DONE', print_files__project__completed_at__gte=F('last_maintenance_reset')),
             distinct=True
-        ), 0),
-        annotated_electricity_cost=Coalesce(Sum(
-            ExpressionWrapper(
-                (F('print_files__print_time_seconds') / Decimal(3600.0)) *
-                (F('power_consumption') / Decimal(1000.0)) *
-                electricity_cost_kwh,
-                output_field=DecimalField()
-            ),
-            filter=annotation_filter
-        ), Decimal('0.00'))
+        ), 0)
+    ).annotate(
+        # BUG FIX 2 & 3: Il costo viene calcolato sulla base dei secondi già aggregati, rendendo il calcolo più affidabile.
+        annotated_electricity_cost=ExpressionWrapper(
+            (F('relevant_print_seconds') / Decimal(3600.0)) *
+            (F('power_consumption') / Decimal(1000.0)) *
+            electricity_cost_kwh,
+            output_field=DecimalField()
+        )
     ).order_by('name')
 
     printers = []
     for printer in printers_query:
-        total_seconds = printer.total_print_seconds
-        h_total = total_seconds // 3600
-        m_total = (total_seconds % 3600) // 60
-        printer.total_print_time_formatted = f"{h_total} ore {m_total} min"
+        # BUG FIX 2 & 3: Si formatta il tempo rilevante (filtrato o totale) da mostrare nel template.
+        relevant_seconds = printer.relevant_print_seconds
+        h_relevant = relevant_seconds // 3600
+        m_relevant = (relevant_seconds % 3600) // 60
+        printer.relevant_print_time_formatted = f"{h_relevant} ore {m_relevant} min"
 
         partial_seconds = printer.seconds_since_maintenance
         h_partial = partial_seconds // 3600
@@ -1674,22 +1677,27 @@ def add_expense_category(request):
     return redirect('settings_dashboard')
 
 # --- Viste per PRENDERE DETTAGLI (AJAX) ---
+@require_POST
 @login_required
 def get_printer_details(request, pk):
     return JsonResponse(model_to_dict(get_object_or_404(Printer, pk=pk)))
 
+@require_POST
 @login_required
 def get_plate_details(request, pk):
     return JsonResponse(model_to_dict(get_object_or_404(Plate, pk=pk)))
 
+@require_POST
 @login_required
 def get_category_details(request, pk):
     return JsonResponse(model_to_dict(get_object_or_404(Category, pk=pk)))
 
+@require_POST
 @login_required
 def get_payment_method_details(request, pk):
     return JsonResponse(model_to_dict(get_object_or_404(PaymentMethod, pk=pk)))
 
+@require_POST
 @login_required
 def get_expense_category_details(request, pk):
     return JsonResponse(model_to_dict(get_object_or_404(ExpenseCategory, pk=pk)))
