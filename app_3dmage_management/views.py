@@ -29,6 +29,11 @@ from .forms import (
 
 @login_required
 def project_dashboard(request):
+    # Determina la vista corrente (active o completed)
+    view_mode = request.GET.get('view', 'active')
+    # CALCOLO CONTATORI (Totale In Corso e Da Stampare)
+    active_count = Project.objects.exclude(status='DONE').count()
+    todo_count = Project.objects.filter(status='TODO').count()
     # Filtri per Progetti Attivi
     search_query = request.GET.get('q', '')
     status_filter = request.GET.get('status', '')
@@ -52,6 +57,10 @@ def project_dashboard(request):
 
     all_projects = Project.objects.select_related('category').all()
 
+    # Inizializzo le liste vuote
+    active_projects = []
+    completed_projects = []
+
     cost_annotation = Sum(
         ExpressionWrapper(
             F('print_files__filament_usages__grams_used') *
@@ -65,85 +74,96 @@ def project_dashboard(request):
         )
     )
 
-    # --- Gestione Progetti Attivi ---
-    sort_active = request.GET.get('sort_active', 'name')
-    order_active = request.GET.get('order_active', 'asc')
-    order_prefix_active = '-' if order_active == 'desc' else ''
+    # --- Gestione Progetti Attivi (Solo se view_mode è active) ---
+    if view_mode == 'active':
+        sort_active = request.GET.get('sort_active', 'name')
+        order_active = request.GET.get('order_active', 'asc')
+        order_prefix_active = '-' if order_active == 'desc' else ''
 
-    active_projects_query = all_projects.exclude(status='DONE').annotate(
-        total_print_time_seconds=Sum('print_files__print_time_seconds', default=0),
-        remaining_print_time_seconds=Sum(Case(When(print_files__status='TODO', then='print_files__print_time_seconds'), default=Value(0)), output_field=IntegerField()),
-        annotated_material_cost=Coalesce(cost_annotation, Decimal('0.00'), output_field=DecimalField())
-    )
-
-    if search_query:
-        # CORREZIONE: Migliorata la logica di ricerca per coerenza
-        q_filter = Q(name__icontains=search_query) | Q(custom_id__icontains=search_query)
-        if search_query.isdigit():
-            q_filter |= Q(id=search_query)
-        active_projects_query = active_projects_query.filter(q_filter)
-    if status_filter:
-        active_projects_query = active_projects_query.filter(status=status_filter)
-    if category_filter:
-        active_projects_query = active_projects_query.filter(category_id=category_filter)
-
-    valid_sort_fields_active = ['name', 'priority', 'status', 'remaining_print_time_seconds', 'total_print_time_seconds', 'category__name']
-    if sort_active not in valid_sort_fields_active:
-        sort_active = 'name'
-    active_projects = active_projects_query.order_by(f'{order_prefix_active}{sort_active}')
-
-    # --- Gestione Progetti Completati ---
-    sort_completed = request.GET.get('sort_completed', 'completed_at')
-    order_completed = request.GET.get('order_completed', 'desc')
-    order_prefix_completed = '-' if order_completed == 'desc' else ''
-
-    completed_projects_query = all_projects.filter(status='DONE').prefetch_related(
-        Prefetch(
-            'print_files__filament_usages',
-            queryset=FilamentUsage.objects.select_related('spool__filament'),
-            to_attr='detailed_filament_usages'
+        active_projects_query = all_projects.exclude(status='DONE').annotate(
+            total_print_time_seconds=Sum('print_files__print_time_seconds', default=0),
+            remaining_print_time_seconds=Sum(Case(When(print_files__status='TODO', then='print_files__print_time_seconds'), default=Value(0)), output_field=IntegerField()),
+            annotated_material_cost=Coalesce(cost_annotation, Decimal('0.00'), output_field=DecimalField())
         )
-    ).annotate(
-        total_print_time_seconds=Sum('print_files__print_time_seconds', default=0),
-        annotated_material_cost=Coalesce(cost_annotation, Decimal('0.00'), output_field=DecimalField()),
-        total_grams_used=Coalesce(Sum('print_files__filament_usages__grams_used'), Decimal('0.00'))
-    )
 
-    if completed_search_query:
-        # CORREZIONE: Aggiunta la ricerca per ID numerico anche ai progetti completati
-        q_filter_completed = Q(name__icontains=completed_search_query) | Q(custom_id__icontains=completed_search_query)
-        if completed_search_query.isdigit():
-            q_filter_completed |= Q(id=completed_search_query)
-        completed_projects_query = completed_projects_query.filter(q_filter_completed)
+        if search_query:
+            q_filter = Q(name__icontains=search_query) | Q(custom_id__icontains=search_query)
+            if search_query.isdigit():
+                q_filter |= Q(id=search_query)
+            active_projects_query = active_projects_query.filter(q_filter)
+        if status_filter:
+            active_projects_query = active_projects_query.filter(status=status_filter)
+        if category_filter:
+            active_projects_query = active_projects_query.filter(category_id=category_filter)
 
-    if completed_year_filter and completed_year_filter.isdigit():
-        completed_projects_query = completed_projects_query.filter(completed_at__year=int(completed_year_filter))
-    if completed_category_filter:
-        completed_projects_query = completed_projects_query.filter(category_id=completed_category_filter)
-    if completed_filament_filter:
-        completed_projects_query = completed_projects_query.filter(print_files__filament_usages__spool__filament_id=completed_filament_filter).distinct()
+        valid_sort_fields_active = ['name', 'priority', 'status', 'remaining_print_time_seconds', 'total_print_time_seconds', 'category__name']
+        if sort_active not in valid_sort_fields_active:
+            sort_active = 'name'
+        active_projects = active_projects_query.order_by(f'{order_prefix_active}{sort_active}')
 
-    valid_sort_fields_completed = ['name', 'completed_at', 'total_print_time_seconds', 'annotated_material_cost', 'category__name', 'total_grams_used']
-    if sort_completed not in valid_sort_fields_completed:
+    # Variabili per il template (default vuoti per evitare errori)
+    else:
+        sort_active = 'name'
+        order_active = 'asc'
+
+    # --- Gestione Progetti Completati (Solo se view_mode è completed) ---
+    if view_mode == 'completed':
+        sort_completed = request.GET.get('sort_completed', 'completed_at')
+        order_completed = request.GET.get('order_completed', 'desc')
+        order_prefix_completed = '-' if order_completed == 'desc' else ''
+
+        completed_projects_query = all_projects.filter(status='DONE').prefetch_related(
+            Prefetch(
+                'print_files__filament_usages',
+                queryset=FilamentUsage.objects.select_related('spool__filament'),
+                to_attr='detailed_filament_usages'
+            )
+        ).annotate(
+            total_print_time_seconds=Sum('print_files__print_time_seconds', default=0),
+            annotated_material_cost=Coalesce(cost_annotation, Decimal('0.00'), output_field=DecimalField()),
+            total_grams_used=Coalesce(Sum('print_files__filament_usages__grams_used'), Decimal('0.00'))
+        )
+
+        if completed_search_query:
+            q_filter_completed = Q(name__icontains=completed_search_query) | Q(custom_id__icontains=completed_search_query)
+            if completed_search_query.isdigit():
+                q_filter_completed |= Q(id=completed_search_query)
+            completed_projects_query = completed_projects_query.filter(q_filter_completed)
+
+        if completed_year_filter and completed_year_filter.isdigit():
+            completed_projects_query = completed_projects_query.filter(completed_at__year=int(completed_year_filter))
+        if completed_category_filter:
+            completed_projects_query = completed_projects_query.filter(category_id=completed_category_filter)
+        if completed_filament_filter:
+            completed_projects_query = completed_projects_query.filter(print_files__filament_usages__spool__filament_id=completed_filament_filter).distinct()
+
+        valid_sort_fields_completed = ['name', 'completed_at', 'total_print_time_seconds', 'annotated_material_cost', 'category__name', 'total_grams_used']
+        if sort_completed not in valid_sort_fields_completed:
+            sort_completed = 'completed_at'
+        completed_projects = completed_projects_query.order_by(f'{order_prefix_completed}{sort_completed}')
+
+        for project in completed_projects:
+            usages = {}
+            for pf in project.print_files.all():
+                for usage in getattr(pf, 'detailed_filament_usages', []):
+                    filament = usage.spool.filament
+                    if filament.id not in usages:
+                        usages[filament.id] = {
+                            'name': str(filament),
+                            'color_hex': filament.color_hex,
+                        }
+            project.filament_summary_details = list(usages.values())
+
+    else:
         sort_completed = 'completed_at'
-    completed_projects = completed_projects_query.order_by(f'{order_prefix_completed}{sort_completed}')
-
-    for project in completed_projects:
-        usages = {}
-        for pf in project.print_files.all():
-            for usage in getattr(pf, 'detailed_filament_usages', []):
-                filament = usage.spool.filament
-                if filament.id not in usages:
-                    usages[filament.id] = {
-                        'name': str(filament),
-                        'color_hex': filament.color_hex,
-                    }
-        project.filament_summary_details = list(usages.values())
-
+        order_completed = 'desc'
 
     context = {
+        'view_mode': view_mode, # Passiamo la modalità corrente al template
         'active_projects': active_projects,
         'completed_projects': completed_projects,
+        'active_count': active_count,
+        'todo_count': todo_count,
         'all_categories': Category.objects.all(),
         'all_filaments': Filament.objects.all().order_by('material', 'brand', 'color_name'),
         'all_statuses': Project.Status.choices,
@@ -185,36 +205,29 @@ def filament_dashboard(request):
     order = request.GET.get('order', 'asc')
     order_prefix = '-' if order == 'desc' else ''
 
-    # Sottoquery per contare le bobine attive per ciascun filamento
     active_spool_count_subquery = Spool.objects.filter(
         filament=OuterRef('pk'),
         is_active=True
     ).values('filament').annotate(c=Count('id')).values('c')
 
-    # Annotiamo il conteggio su TUTTI i filamenti
     all_filaments = Filament.objects.annotate(
         annotated_active_spool_count=Coalesce(Subquery(active_spool_count_subquery, output_field=IntegerField()), 0)
     )
 
-    # Filtriamo i filamenti che hanno almeno una bobina attiva
     active_filaments_query = all_filaments.filter(annotated_active_spool_count__gt=0)
 
-    # Sottoquery per il peso iniziale delle bobine attive
     active_initial_weight_subquery = Spool.objects.filter(
         filament=OuterRef('pk'), is_active=True
     ).values('filament').annotate(s=Sum('initial_weight_g')).values('s')
 
-    # Sottoquery per il peso usato dalle bobine attive
     active_used_weight_subquery = FilamentUsage.objects.filter(
         spool__filament=OuterRef('pk'), spool__is_active=True, print_file__status__in=['DONE', 'FAILED']
     ).values('spool__filament').annotate(s=Sum('grams_used')).values('s')
 
-    # Sottoquery per la correzione manuale del peso
     active_adjustment_subquery = Spool.objects.filter(
         filament=OuterRef('pk'), is_active=True
     ).values('filament').annotate(s=Sum('weight_adjustment')).values('s')
 
-    # Annotazioni aggiornate per calcolare il peso rimanente
     active_filaments_query = active_filaments_query.annotate(
         annotated_total_initial_weight=Coalesce(Subquery(active_initial_weight_subquery, output_field=DecimalField()), Decimal('0.00')),
         annotated_total_used_weight=Coalesce(Subquery(active_used_weight_subquery, output_field=DecimalField()), Decimal('0.00')),
@@ -226,7 +239,6 @@ def filament_dashboard(request):
         )
     )
 
-    # NUOVA FUNZIONALITÀ: Aggiunto `annotated_active_spool_count` ai campi validi per l'ordinamento
     valid_sort_fields = ['material', 'brand', 'color_name', 'annotated_remaining_weight', 'annotated_total_used_weight', 'annotated_active_spool_count']
     if sort_by not in valid_sort_fields:
         sort_by = 'material'
@@ -238,7 +250,6 @@ def filament_dashboard(request):
 
     active_filaments = active_filaments_query.order_by(*order_fields)
 
-    # Filamenti esauriti (quelli con 0 bobine attive ma che hanno avuto bobine in passato)
     exhausted_filaments_query = all_filaments.filter(annotated_active_spool_count=0, spools__isnull=False).distinct()
 
     total_used_weight_subquery = FilamentUsage.objects.filter(
@@ -339,7 +350,6 @@ def get_stock_item_details(request, item_id):
     item = get_object_or_404(StockItem.objects.select_related('project'), id=item_id)
     data = model_to_dict(item)
     data['project_name'] = item.project.name if item.project else None
-    # CORREZIONE BUG 1: Invia l'ID primario del progetto, non il custom_id che viene sovrascritto.
     data['project_id'] = item.project.id if item.project else None
     data['project_notes'] = item.project.notes if item.project else ''
 
@@ -383,12 +393,10 @@ def update_stock_item(request, item_id):
     if not quantity_to_sell or not (0 < quantity_to_sell <= item_to_process.quantity):
         return JsonResponse({'status': 'error', 'message': 'Quantità da vendere non valida.'}, status=400)
 
-    # Calcola i costi unitari per una ripartizione corretta
     production_cost_per_unit = item_to_process.material_cost / item_to_process.quantity if item_to_process.quantity > 0 else Decimal('0')
     labor_cost_per_unit = item_to_process.labor_cost / item_to_process.quantity if item_to_process.quantity > 0 else Decimal('0')
 
     if quantity_to_sell == item_to_process.quantity:
-        # Caso 1: Vendi l'intero lotto
         item_to_process.status = 'SOLD'
         item_to_process.sold_at = form.cleaned_data.get('sold_at') or timezone.now().date()
         item_to_process.sale_price = form.cleaned_data.get('sale_price')
@@ -402,7 +410,6 @@ def update_stock_item(request, item_id):
             item_to_process.payment_method.balance += total_sale_price
             item_to_process.payment_method.save()
     else:
-        # Caso 2: Vendi una parte del lotto (split)
         newly_sold_item = StockItem.objects.create(
             project=item_to_process.project,
             custom_id=item_to_process.custom_id,
@@ -418,7 +425,6 @@ def update_stock_item(request, item_id):
             sold_to=form.cleaned_data.get('sold_to'),
             notes=form.cleaned_data.get('notes'),
         )
-        # Aggiorna il lotto rimanente in magazzino
         item_to_process.quantity -= quantity_to_sell
         item_to_process.material_cost -= (production_cost_per_unit * quantity_to_sell)
         item_to_process.labor_cost -= (labor_cost_per_unit * quantity_to_sell)
@@ -522,16 +528,12 @@ def sales_dashboard(request):
 
 @login_required
 def export_stock_sales_csv(request):
-    """
-    Esporta tutti i dati dal modello StockItem (magazzino e vendite) in un file CSV.
-    """
     response = HttpResponse(content_type='text/csv')
     response['Content-Disposition'] = f'attachment; filename="export_magazzino_vendite_{timezone.now().strftime("%Y-%m-%d")}.csv"'
-    response.write(u'\ufeff'.encode('utf8')) # BOM per Excel
+    response.write(u'\ufeff'.encode('utf8'))
 
     writer = csv.writer(response, delimiter=';')
 
-    # Scrive l'intestazione del file CSV
     writer.writerow([
         'ID Oggetto', 'ID Progetto Origine', 'Categoria Progetto', 'Nome Oggetto', 'Stato', 'Quantita',
         'Costo Materiali (€)', 'Costo Manodopera (€)', 'Costo Totale Produzione (€)',
@@ -540,7 +542,6 @@ def export_stock_sales_csv(request):
         'Venduto a', 'Metodo Pagamento', 'Note'
     ])
 
-    # Recupera tutti gli oggetti, ordinandoli per stato e data
     items = StockItem.objects.all().select_related('project__category', 'payment_method').order_by('status', '-created_at')
 
     for item in items:
@@ -573,18 +574,17 @@ def export_stock_sales_csv(request):
 @login_required
 def get_sale_details(request, item_id):
     sale = get_object_or_404(StockItem.objects.select_related('project'), id=item_id, status='SOLD')
-    # CORREZIONE BUG 2 e 3: Invia i dati corretti al frontend
     data = {
-        'id': sale.id, # Manteniamo l'ID primario per l'URL del form
-        'item_custom_id': sale.custom_id, # ID da mostrare per l'oggetto
-        'project_id': sale.project.id if sale.project else None, # ID da mostrare per il progetto
+        'id': sale.id,
+        'item_custom_id': sale.custom_id,
+        'project_id': sale.project.id if sale.project else None,
         'name': sale.name,
         'sold_at': sale.sold_at.strftime('%Y-%m-%d') if sale.sold_at else '',
         'sale_price': sale.sale_price,
         'payment_method': sale.payment_method.id if sale.payment_method else None,
         'sold_to': sale.sold_to,
         'notes': sale.notes,
-        'total_cost': sale.material_cost + sale.labor_cost, # Invia il costo totale
+        'total_cost': sale.material_cost + sale.labor_cost,
     }
     return JsonResponse(data)
 
@@ -593,23 +593,33 @@ def get_sale_details(request, item_id):
 @login_required
 def edit_sale(request, item_id):
     sale = get_object_or_404(StockItem, id=item_id, status='SOLD')
-    old_total_price = (sale.sale_price or Decimal('0.00')) * sale.quantity
-    old_payment_method = sale.payment_method
+
+    # Utilizziamo refresh_from_db() per assicurarci di lavorare su dati aggiornati
+    # specialmente per i saldi dei metodi di pagamento.
 
     form = SaleEditForm(request.POST, instance=sale)
     if form.is_valid():
-        if old_payment_method:
-            old_payment_method.balance -= old_total_price
-            old_payment_method.save()
+        # 1. STORNA L'IMPORTO DAL VECCHIO METODO (Se esisteva)
+        if sale.payment_method:
+            method = sale.payment_method
+            method.refresh_from_db() # Cruciale per evitare dati vecchi
 
+            amount_to_reverse = (sale.sale_price or Decimal('0.00')) * sale.quantity
+            method.balance -= amount_to_reverse
+            method.save()
+
+        # 2. SALVA LE MODIFICHE ALLA VENDITA
         updated_sale = form.save()
 
-        new_payment_method = updated_sale.payment_method
-        new_total_price = (updated_sale.sale_price or Decimal('0.00')) * updated_sale.quantity
+        # 3. AGGIUNGI IL NUOVO IMPORTO AL NUOVO METODO (Se presente)
+        if updated_sale.payment_method:
+            new_method = updated_sale.payment_method
+            # Anche se è lo stesso ID, ricarichiamo perché il saldo è cambiato al punto 1
+            new_method.refresh_from_db()
 
-        if new_payment_method:
-            new_payment_method.balance += new_total_price
-            new_payment_method.save()
+            new_amount = (updated_sale.sale_price or Decimal('0.00')) * updated_sale.quantity
+            new_method.balance += new_amount
+            new_method.save()
 
         return JsonResponse({'status': 'ok'})
     return JsonResponse({'status': 'error', 'errors': form.errors.as_json()}, status=400)
@@ -762,30 +772,23 @@ def complete_project(request, project_id):
         project.custom_id = new_custom_id
         project.save()
 
-        # Dati dal form
         stock_item_quantity = form.cleaned_data['stock_item_quantity']
         labor_cost_for_batch = form.cleaned_data.get('labor_cost') or Decimal('0.00')
 
-        # Dati dal progetto
-        # Il costo di produzione è il costo totale del progetto (materiali + elettricità + usura)
         production_cost_for_batch = project.full_total_cost
 
-        # Calcolo del prezzo suggerito per singolo oggetto
         total_cost_for_batch = production_cost_for_batch + labor_cost_for_batch
 
-        # Prevenzione divisione per zero
         cost_per_item = total_cost_for_batch / stock_item_quantity if stock_item_quantity > 0 else Decimal('0.00')
 
         suggested_price_per_item = cost_per_item * Decimal('1.5')
 
-        # Creazione/Aggiornamento dell'oggetto a magazzino
         stock_item, created = StockItem.objects.update_or_create(
             project=project,
             defaults={
                 'custom_id': new_custom_id,
                 'name': form.cleaned_data['stock_item_name'],
                 'quantity': stock_item_quantity,
-                # Salva i costi totali per l'intero lotto
                 'material_cost': production_cost_for_batch.quantize(Decimal('0.01')),
                 'labor_cost': labor_cost_for_batch.quantize(Decimal('0.01')),
                 'status': StockItem.Status.IN_STOCK,
@@ -1223,7 +1226,6 @@ def add_filament(request):
     form = FilamentForm(request.POST)
     if form.is_valid():
         form.save()
-        # BUG 1 FIX: Risponde con JSON per la gestione AJAX, invece di un redirect
         return JsonResponse({'status': 'ok'})
     return JsonResponse({'status': 'error', 'errors': form.errors.as_json()}, status=400)
 
@@ -1264,7 +1266,6 @@ def get_spools_for_filament(request):
     return JsonResponse(spools_data, safe=False)
 
 def _handle_filament_data(request, print_file, filament_data_json, wasted_grams_str=None):
-    """Funzione helper per gestire i dati dei filamenti."""
     print_file.filament_usages.all().delete()
     filament_data = json.loads(filament_data_json)
 
@@ -1299,10 +1300,6 @@ def _handle_filament_data(request, print_file, filament_data_json, wasted_grams_
 
 @login_required
 def api_get_all_filaments(request):
-    # BUG 1 FIX: Questa API ora fornisce sempre l'elenco più aggiornato dei filamenti,
-    # che verrà richiamata dopo l'aggiunta di un nuovo tipo.
-    # Ho rimosso il filtro sulle bobine attive per popolare correttamente il dropdown
-    # anche con filamenti a cui non è ancora stata associata una bobina.
     filaments = Filament.objects.all().order_by('material', 'brand', 'color_name')
     data = [{'id': f.id, 'name': str(f), 'color_hex': f.color_hex} for f in filaments]
     return JsonResponse(data, safe=False)
@@ -1477,19 +1474,42 @@ def transfer_funds(request):
 @login_required
 def correct_balance(request, method_id):
     payment_method = get_object_or_404(PaymentMethod, id=method_id)
-    form = CorrectBalanceForm(request.POST)
+
+    # Gestione virgola nel backend se non gestita dal frontend o in fallback
+    data = request.POST.copy()
+    if 'new_balance' in data and ',' in str(data['new_balance']):
+        data['new_balance'] = str(data['new_balance']).replace(',', '.')
+
+    form = CorrectBalanceForm(data)
     if form.is_valid():
         payment_method.balance = form.cleaned_data['new_balance']
         payment_method.save()
-    return redirect('accounting_dashboard')
+        return JsonResponse({'status': 'ok'})
+
+    # Restituisce JSON con errori per la gestione AJAX
+    return JsonResponse({'status': 'error', 'errors': form.errors.as_json()}, status=400)
 
 @login_required
 def get_expense_details(request, expense_id):
-    expense = get_object_or_404(Expense, id=expense_id)
-    data = model_to_dict(expense)
-    if data.get('expense_date'):
-        data['expense_date'] = data['expense_date'].strftime('%Y-%m-%d')
-    return JsonResponse(data)
+    method.balance -= amount_to_reverse
+    method.save()
+
+    # 2. SALVA LE MODIFICHE ALLA VENDITA
+    updated_sale = form.save()
+
+    # 3. AGGIUNGI IL NUOVO IMPORTO AL NUOVO METODO (Se presente)
+    if updated_sale.payment_method:
+        new_method = updated_sale.payment_method
+        # Ricarichiamo il metodo dal DB. Questo è CRUCIALE se il metodo è lo stesso di prima.
+        # Se new_method.id == old_method.id, refresh_from_db() caricherà il saldo CHE ABBIAMO APPENA RIDOTTO al punto 1.
+        new_method.refresh_from_db()
+
+        new_amount = (updated_sale.sale_price or Decimal('0.00')) * updated_sale.quantity
+        new_method.balance += new_amount
+        new_method.save()
+
+        return JsonResponse({'status': 'ok'})
+    return JsonResponse({'status': 'error', 'errors': form.errors.as_json()}, status=400)
 
 @require_POST
 @login_required
@@ -1525,65 +1545,94 @@ def delete_expense(request, expense_id):
 
 @login_required
 def settings_dashboard(request):
+    # Get the year from the request, default to empty string if not present
     year_filter = request.GET.get('year', '')
+
+    # Retrieve global setting for electricity cost, with a default value
     electricity_cost_obj, _ = GlobalSetting.objects.get_or_create(
         key='electricity_cost_kwh',
         defaults={'value': Decimal('0.25')}
     )
     electricity_cost_kwh = electricity_cost_obj.value
 
+    # Get available years for the filter dropdown from completed projects
     available_years_dates = Project.objects.filter(
         status='DONE',
         completed_at__isnull=False
     ).dates('completed_at', 'year', order='DESC')
     available_years = [d.year for d in available_years_dates]
 
-    # BUG FIX 2 & 3: Il filtro ora si applica a un'unica annotazione per tempo e costi.
-    # Se non è selezionato un anno, il filtro include tutti i file completati.
-    time_cost_filter = Q(print_files__status='DONE')
-    if year_filter and year_filter.isdigit():
-        time_cost_filter &= Q(print_files__project__completed_at__year=int(year_filter))
+    # --- BUG FIX: Use Subqueries for accurate aggregation ---
 
-    printers_query = Printer.objects.prefetch_related('plates', 'maintenance_logs').annotate(
+    # Subquery for calculating total print seconds, filtered by year if provided.
+    # This avoids multiplication issues from other JOINs in the main query.
+    relevant_seconds_subquery = PrintFile.objects.filter(
+        printer=OuterRef('pk'),
+        status='DONE'
+    )
+    if year_filter and year_filter.isdigit():
+        relevant_seconds_subquery = relevant_seconds_subquery.filter(
+            project__completed_at__year=int(year_filter)
+        )
+    # Define the annotation within the subquery
+    relevant_seconds_subquery = relevant_seconds_subquery.values('printer').annotate(
+        total=Sum('print_time_seconds')
+    ).values('total')
+
+    # Subquery for calculating print seconds since the last maintenance reset.
+    # This also prevents incorrect sums due to JOINs.
+    maintenance_seconds_subquery = PrintFile.objects.filter(
+        printer=OuterRef('pk'),
+        status='DONE',
+        # Compare completion date with the printer's specific reset date
+        project__completed_at__gte=OuterRef('last_maintenance_reset')
+    ).values('printer').annotate(
+        total=Sum('print_time_seconds')
+    ).values('total')
+
+
+    # Main query for printers, now using the robust subqueries for aggregations
+    printers_query = Printer.objects.prefetch_related(
+        'plates', 'maintenance_logs'
+    ).annotate(
+        # Standard counts
         plate_count=Count('plates', distinct=True),
         maintenance_count=Count('maintenance_logs', distinct=True),
 
-        # BUG FIX 2 & 3: Questa annotazione ora calcola i secondi di stampa per il periodo rilevante (filtrato o totale).
-        relevant_print_seconds=Coalesce(Sum(
-            'print_files__print_time_seconds',
-            filter=time_cost_filter,
-            distinct=True
-        ), 0),
-
-        seconds_since_maintenance=Coalesce(Sum(
-            'print_files__print_time_seconds',
-            filter=Q(print_files__status='DONE', print_files__project__completed_at__gte=F('last_maintenance_reset')),
-            distinct=True
-        ), 0)
+        # Use subqueries for time calculations
+        relevant_print_seconds=Coalesce(
+            Subquery(relevant_seconds_subquery, output_field=IntegerField()), 0
+        ),
+        seconds_since_maintenance=Coalesce(
+            Subquery(maintenance_seconds_subquery, output_field=IntegerField()), 0
+        )
     ).annotate(
-        # BUG FIX 2 & 3: Il costo viene calcolato sulla base dei secondi già aggregati, rendendo il calcolo più affidabile.
+        # Calculate electricity cost based on the now-correct 'relevant_print_seconds'
         annotated_electricity_cost=ExpressionWrapper(
-            (F('relevant_print_seconds') / Decimal(3600.0)) *
-            (F('power_consumption') / Decimal(1000.0)) *
+            (F('relevant_print_seconds') / Decimal('3600.0')) *
+            (F('power_consumption') / Decimal('1000.0')) *
             electricity_cost_kwh,
             output_field=DecimalField()
         )
     ).order_by('name')
 
+    # Process printers to format the time values for display
     printers = []
     for printer in printers_query:
-        # BUG FIX 2 & 3: Si formatta il tempo rilevante (filtrato o totale) da mostrare nel template.
+        # Format the total/filtered print time
         relevant_seconds = printer.relevant_print_seconds
         h_relevant = relevant_seconds // 3600
         m_relevant = (relevant_seconds % 3600) // 60
         printer.relevant_print_time_formatted = f"{h_relevant} ore {m_relevant} min"
 
+        # Format the time since last maintenance reset
         partial_seconds = printer.seconds_since_maintenance
         h_partial = partial_seconds // 3600
         m_partial = (partial_seconds % 3600) // 60
         printer.partial_print_time_formatted = f"{h_partial} ore {m_partial} min"
 
         printers.append(printer)
+
 
     categories = Category.objects.annotate(project_count=Count('project')).order_by('name')
     payment_methods = PaymentMethod.objects.annotate(expense_count=Count('expense'), sale_count=Count('stockitem')).order_by('name')
@@ -1615,6 +1664,7 @@ def settings_dashboard(request):
         'selected_year': int(year_filter) if year_filter.isdigit() else None,
     }
     return render(request, 'app_3dmage_management/settings.html', context)
+
 
 @require_POST
 @login_required
@@ -1677,27 +1727,22 @@ def add_expense_category(request):
     return redirect('settings_dashboard')
 
 # --- Viste per PRENDERE DETTAGLI (AJAX) ---
-@require_POST
 @login_required
 def get_printer_details(request, pk):
     return JsonResponse(model_to_dict(get_object_or_404(Printer, pk=pk)))
 
-@require_POST
 @login_required
 def get_plate_details(request, pk):
     return JsonResponse(model_to_dict(get_object_or_404(Plate, pk=pk)))
 
-@require_POST
 @login_required
 def get_category_details(request, pk):
     return JsonResponse(model_to_dict(get_object_or_404(Category, pk=pk)))
 
-@require_POST
 @login_required
 def get_payment_method_details(request, pk):
     return JsonResponse(model_to_dict(get_object_or_404(PaymentMethod, pk=pk)))
 
-@require_POST
 @login_required
 def get_expense_category_details(request, pk):
     return JsonResponse(model_to_dict(get_object_or_404(ExpenseCategory, pk=pk)))
@@ -1925,10 +1970,6 @@ def set_print_file_status(request, file_id):
 @transaction.atomic
 @login_required
 def create_project_from_quote(request):
-    """
-    Crea un nuovo progetto e un file di stampa associato
-    partendo dai dati di un preventivo.
-    """
     try:
         data = json.loads(request.body)
 

@@ -16,14 +16,13 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     const csrftoken = getCookie('csrftoken');
-    let currentItemId = null; // Variabile per l'ID dell'oggetto corrente, accessibile globalmente
+    let currentItemId = null;
 
     // --- Gestione Modale per MODIFICARE/VENDERE un oggetto ---
     const editModalEl = document.getElementById('editStockItemModal');
     if (editModalEl) {
         const editModal = new bootstrap.Modal(editModalEl);
         const form = editModalEl.querySelector('#editStockItemForm');
-        const modalTitle = editModalEl.querySelector('#editStockItemModalLabel');
         const statusSelect = form.querySelector('[name="status"]');
         const saleDetailsSection = form.querySelector('#sale-details-section');
         const salePriceInput = form.querySelector('[name="sale_price"]');
@@ -51,14 +50,12 @@ document.addEventListener('DOMContentLoaded', function() {
         editModalEl.addEventListener('show.bs.modal', function(event) {
             const triggerRow = event.relatedTarget;
             currentItemId = triggerRow.dataset.itemId;
-            const form = editModalEl.querySelector('#editStockItemForm');
             form.action = `/ajax/stock_item/${currentItemId}/update/`;
 
             fetch(`/ajax/stock_item/${currentItemId}/details/`)
                 .then(res => res.json())
                 .then(data => {
                     const modalTitle = editModalEl.querySelector('#editStockItemModalLabel');
-                    // CORREZIONE BUG 1: Mostra il custom_id dell'oggetto nel titolo
                     modalTitle.textContent = `Gestisci: ${data.name} (#${data.custom_id})`;
                     form.querySelector('[name="name"]').value = data.name;
                     form.querySelector('[name="quantity"]').value = data.quantity;
@@ -76,7 +73,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
 
                     document.getElementById('itemProjectName').textContent = data.project_name || 'N/A';
-                    // Questo ora riceve e mostra l'ID corretto del progetto dalla view
                     document.getElementById('itemProjectID').textContent = data.project_id ? `(#${data.project_id})` : '';
 
                     const notesWrapper = document.getElementById('project-notes-wrapper');
@@ -95,24 +91,44 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
         });
 
-        // Aggiunge l'event listener per il cambio di stato
         statusSelect.addEventListener('change', toggleSaleSection);
 
         // Gestisce l'invio del form di modifica/vendita
         form.addEventListener('submit', function(e) {
             e.preventDefault();
 
-            const originalPrice = salePriceInput.value;
-            const selectedOption = paymentMethodSelect.options[paymentMethodSelect.selectedIndex];
-            const isSatispayBusiness = selectedOption && selectedOption.text.toLowerCase().includes('satispay business');
+            const originalPriceStr = salePriceInput.value;
+            // Gestione virgola -> punto per i calcoli JS
+            const originalPrice = parseFloat(originalPriceStr.replace(',', '.'));
 
-            if (isSatispayBusiness) {
-                const discountedPrice = parseFloat(originalPrice) * 0.99;
-                salePriceInput.value = discountedPrice.toFixed(2);
+            const selectedOption = paymentMethodSelect.options[paymentMethodSelect.selectedIndex];
+            // Ottimizzazione: trim() per rimuovere spazi extra e toLowerCase() per sicurezza
+            const methodName = selectedOption ? selectedOption.text.trim().toLowerCase() : '';
+
+            let finalPrice = originalPrice;
+
+            // LOGICA COMMISSIONI
+            if (!isNaN(originalPrice) && statusSelect.value === 'SOLD') {
+                // Controllo Satispay (2%)
+                if (methodName.indexOf('satispay business') !== -1) {
+                    finalPrice = originalPrice * 0.98;
+                }
+                // Controllo SumUp (1.95%) - reso più robusto controllando anche "sum up" o presenza parziale
+                else if (methodName.indexOf('sumup') !== -1 || methodName.indexOf('sum up') !== -1) {
+                    finalPrice = originalPrice * 0.9805;
+                }
+            }
+
+            // AGGIORNA L'INPUT PRIMA DI CREARE IL FORMDATA
+            // Questo è fondamentale affinché il server riceva il valore scontato
+            if (!isNaN(finalPrice) && finalPrice !== originalPrice) {
+                 salePriceInput.value = finalPrice.toFixed(2);
             }
 
             const formData = new FormData(form);
-            salePriceInput.value = originalPrice;
+
+            // Ripristina il valore originale nell'input per l'utente (UX)
+            salePriceInput.value = originalPriceStr;
 
             fetch(form.action, {
                 method: 'POST',
@@ -129,18 +145,18 @@ document.addEventListener('DOMContentLoaded', function() {
                     showToast(data.message, 'success');
                     setTimeout(() => window.location.reload(), 1200);
                 } else {
-                    const errorMsg = data.message || Object.values(JSON.parse(data.errors)).join(' ');
+                    const errorMsg = data.message || (data.errors ? Object.values(JSON.parse(data.errors)).join(' ') : 'Errore sconosciuto');
                     showToast(errorMsg, 'error');
                 }
             })
             .catch(error => {
                 console.error('Fetch Error:', error);
-                const errorMsg = error.message || (error.errors ? Object.values(JSON.parse(error.errors)).join(' ') : 'Si è verificato un errore di comunicazione con il server.');
+                const errorMsg = error.message || 'Si è verificato un errore di comunicazione con il server.';
                 showToast(errorMsg, 'error');
             });
         });
 
-        // --- Gestione Eliminazione Oggetto ---
+        // Gestione eliminazione
         const deleteModalEl = document.getElementById('confirmDeleteModal');
         const deleteModal = new bootstrap.Modal(deleteModalEl);
         const deleteBtn = editModalEl.querySelector('#deleteStockItemBtn');
@@ -175,7 +191,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // --- Gestione Modale per AGGIUNGERE un oggetto manualmente ---
+    // Aggiunta manuale oggetto
     const addModalEl = document.getElementById('addStockItemModal');
     if (addModalEl) {
         const addForm = addModalEl.querySelector('#addStockItemForm');
@@ -197,14 +213,13 @@ document.addEventListener('DOMContentLoaded', function() {
                     showToast('Oggetto aggiunto manualmente con successo!', 'success');
                     setTimeout(() => window.location.reload(), 1200);
                 } else {
-                     const errorMsg = data.message || Object.values(JSON.parse(data.errors)).join(' ');
+                     const errorMsg = data.message || (data.errors ? Object.values(JSON.parse(data.errors)).join(' ') : 'Errore');
                      showToast(errorMsg, 'error');
                 }
             })
             .catch(error => {
                 console.error('Fetch Error:', error);
-                const errorMsg = error.message || (error.errors ? Object.values(JSON.parse(error.errors)).join(' ') : 'Si è verificato un errore di comunicazione con il server.');
-                showToast(errorMsg, 'error');
+                showToast(error.message || 'Errore comunicazione server', 'error');
             });
         });
     }

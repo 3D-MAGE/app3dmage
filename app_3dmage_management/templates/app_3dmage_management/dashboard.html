@@ -4,24 +4,43 @@
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h2 class="text-white">Dashboard Progetti</h2>
+    <h2 class="text-white">
+        {% if view_mode == 'completed' %}Archivio Progetti Completati{% else %}Progetti in Corso{% endif %}
+    </h2>
     <div>
-        <a href="{% url 'project_kanban_board' %}" class="btn btn-sm btn-outline-light"><i class="bi bi-kanban-fill me-1"></i>Vista Kanban</a>
-        <button class="btn btn-sm btn-primary-custom" data-bs-toggle="modal" data-bs-target="#addProjectModal"><i class="bi bi-plus-circle me-1"></i> Aggiungi Progetto</button>
+        {% if view_mode == 'active' %}
+            <a href="{% url 'project_dashboard' %}?view=completed" class="btn btn-sm btn-secondary me-2"><i class="bi bi-archive-fill me-1"></i>Archivio Completati</a>
+            <a href="{% url 'project_kanban_board' %}" class="btn btn-sm btn-outline-light"><i class="bi bi-kanban-fill me-1"></i>Vista Kanban</a>
+            <button class="btn btn-sm btn-primary-custom ms-2" data-bs-toggle="modal" data-bs-target="#addProjectModal"><i class="bi bi-plus-circle me-1"></i> Aggiungi Progetto</button>
+        {% else %}
+            <a href="{% url 'project_dashboard' %}" class="btn btn-sm btn-outline-light"><i class="bi bi-arrow-left me-1"></i>Torna ai Progetti in Corso</a>
+        {% endif %}
     </div>
 </div>
 
-<!-- Sezione Progetti Attivi (invariata) -->
-<div class="d-flex justify-content-between align-items-center mt-4">
-    <h3 class="text-white">Progetti In Corso</h3>
-    <a class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse" href="#activeFiltersCollapse" role="button" aria-expanded="false" aria-controls="activeFiltersCollapse">
-        <i class="bi bi-funnel-fill me-1"></i> Filtra Progetti Attivi
-    </a>
+<!-- Sezione Progetti Attivi -->
+{% if view_mode == 'active' %}
+<!-- MODIFICA: Rimosso h3, aggiunto justify-content-end per allineare a destra i contatori -->
+<div class="d-flex justify-content-end align-items-center mt-3 mb-3">
+    <!-- MODIFICA: Sostituiti badge con classi btn per uniformità colori -->
+    <div class="d-flex align-items-center gap-2">
+        <span class="btn btn-sm btn-secondary" style="cursor: default; pointer-events: none;" data-bs-toggle="tooltip" title="Totale Progetti In Corso">
+            Totale: <strong>{{ active_count }}</strong>
+        </span>
+        <span class="btn btn-sm btn-primary-custom" style="cursor: default; pointer-events: none;" data-bs-toggle="tooltip" title="Progetti con stato 'Da Stampare'">
+            Da Stampare: <strong>{{ todo_count }}</strong>
+        </span>
+        <a class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse" href="#activeFiltersCollapse" role="button" aria-expanded="false" aria-controls="activeFiltersCollapse">
+            <i class="bi bi-funnel-fill me-1"></i> Filtra
+        </a>
+    </div>
 </div>
+
 <div class="collapse {% if active_filters_applied %}show{% endif %}" id="activeFiltersCollapse">
     <div class="card bg-dark-card mt-3 mb-4">
         <div class="card-body">
             <form method="get" action="{% url 'project_dashboard' %}" class="row g-3 align-items-end">
+                <input type="hidden" name="view" value="active">
                 <div class="col-md-4">
                     <label for="q" class="form-label">Cerca per Nome o ID</label>
                     <input type="text" class="form-control form-control-sm" name="q" id="q" value="{{ search_query }}">
@@ -56,18 +75,18 @@
             <table class="table table-dark table-hover align-middle">
                 <thead>
                     <tr>
-                        <th><a href="?sort_active=name&order_active={% if sort_active == 'name' and order_active == 'asc' %}desc{% else %}asc{% endif %}&q={{ search_query }}&status={{ status_filter }}&category={{ category_filter }}">Nome Progetto {% if sort_active == 'name' %}<i class="bi bi-caret-{% if order_active == 'asc' %}up{% else %}down{% endif %}-fill"></i>{% endif %}</a></th>
-                        <th class="text-center"><a href="?sort_active=priority&order_active={% if sort_active == 'priority' and order_active == 'asc' %}desc{% else %}asc{% endif %}&q={{ search_query }}&status={{ status_filter }}&category={{ category_filter }}">Priorità {% if sort_active == 'priority' %}<i class="bi bi-caret-{% if order_active == 'asc' %}up{% else %}down{% endif %}-fill"></i>{% endif %}</a></th>
-                        <th class="text-center"><a href="?sort_active=status&order_active={% if sort_active == 'status' and order_active == 'asc' %}desc{% else %}asc{% endif %}&q={{ search_query }}&status={{ status_filter }}&category={{ category_filter }}">Status {% if sort_active == 'status' %}<i class="bi bi-caret-{% if order_active == 'asc' %}up{% else %}down{% endif %}-fill"></i>{% endif %}</a></th>
-                        <th class="text-center"><a href="?sort_active=remaining_print_time_seconds&order_active={% if sort_active == 'remaining_print_time_seconds' and order_active == 'asc' %}desc{% else %}asc{% endif %}&q={{ search_query }}&status={{ status_filter }}&category={{ category_filter }}">Tempo Rimanente</a></th>
+                        <th><a href="?view=active&sort_active=name&order_active={% if sort_active == 'name' and order_active == 'asc' %}desc{% else %}asc{% endif %}&q={{ search_query }}&status={{ status_filter }}&category={{ category_filter }}">Nome Progetto {% if sort_active == 'name' %}<i class="bi bi-caret-{% if order_active == 'asc' %}up{% else %}down{% endif %}-fill"></i>{% endif %}</a></th>
+                        <th class="text-center"><a href="?view=active&sort_active=priority&order_active={% if sort_active == 'priority' and order_active == 'asc' %}desc{% else %}asc{% endif %}&q={{ search_query }}&status={{ status_filter }}&category={{ category_filter }}">Priorità {% if sort_active == 'priority' %}<i class="bi bi-caret-{% if order_active == 'asc' %}up{% else %}down{% endif %}-fill"></i>{% endif %}</a></th>
+                        <th class="text-center"><a href="?view=active&sort_active=status&order_active={% if sort_active == 'status' and order_active == 'asc' %}desc{% else %}asc{% endif %}&q={{ search_query }}&status={{ status_filter }}&category={{ category_filter }}">Status {% if sort_active == 'status' %}<i class="bi bi-caret-{% if order_active == 'asc' %}up{% else %}down{% endif %}-fill"></i>{% endif %}</a></th>
+                        <th class="text-center"><a href="?view=active&sort_active=remaining_print_time_seconds&order_active={% if sort_active == 'remaining_print_time_seconds' and order_active == 'asc' %}desc{% else %}asc{% endif %}&q={{ search_query }}&status={{ status_filter }}&category={{ category_filter }}">Tempo Rimanente</a></th>
                         <th class="text-center" style="color: var(--primary-color);">Progresso</th>
-                        <th class="text-center"><a href="?sort_active=total_print_time_seconds&order_active={% if sort_active == 'total_print_time_seconds' and order_active == 'asc' %}desc{% else %}asc{% endif %}&q={{ search_query }}&status={{ status_filter }}&category={{ category_filter }}">Tempo Totale</a></th>
-                        <th class="text-center"><a href="?sort_active=category__name&order_active={% if sort_active == 'category__name' and order_active == 'asc' %}desc{% else %}asc{% endif %}&q={{ search_query }}&status={{ status_filter }}&category={{ category_filter }}">Categoria</a></th>
+                        <th class="text-center"><a href="?view=active&sort_active=total_print_time_seconds&order_active={% if sort_active == 'total_print_time_seconds' and order_active == 'asc' %}desc{% else %}asc{% endif %}&q={{ search_query }}&status={{ status_filter }}&category={{ category_filter }}">Tempo Totale</a></th>
+                        <th class="text-center"><a href="?view=active&sort_active=category__name&order_active={% if sort_active == 'category__name' and order_active == 'asc' %}desc{% else %}asc{% endif %}&q={{ search_query }}&status={{ status_filter }}&category={{ category_filter }}">Categoria</a></th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for project in active_projects %}
-                    <tr class="clickable-row" data-url="{% url 'project_detail' project.id %}?from=table" style="cursor: pointer;">
+                    <tr class="clickable-row" data-url="{% url 'project_detail' project.id %}?from=active" style="cursor: pointer;">
                         <td class="fw-bold">{{ project.name }}</td>
                         <td class="text-center"><span class="badge bg-priority-{{ project.priority|lower }}">{{ project.get_priority_display }}</span></td>
                         <td class="text-center"><span class="badge bg-status-{{ project.status|lower }}">{{ project.get_status_display }}</span></td>
@@ -84,20 +103,19 @@
         </div>
     </div>
 </div>
+{% endif %}
 
 <!-- Sezione Progetti Completati -->
-<div class="d-flex justify-content-between align-items-center mt-5">
-    <h3 class="text-white">Progetti Completati</h3>
-    <a class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse" href="#completedFiltersCollapse" role="button" aria-expanded="false" aria-controls="completedFiltersCollapse">
-        <i class="bi bi-funnel-fill me-1"></i> Filtra Completati
-    </a>
-</div>
-
-<!-- MODIFICA: Aggiunti nuovi filtri per categoria e filamento -->
-<div class="collapse {% if completed_filters_applied %}show{% endif %}" id="completedFiltersCollapse">
+{% if view_mode == 'completed' %}
+<div class="mt-4">
+    <!-- Header rimosso perché la pagina è dedicata -->
     <div class="card bg-dark-card mt-3 mb-4">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="bi bi-funnel-fill me-2"></i>Filtra Archivio</h5>
+        </div>
         <div class="card-body">
             <form method="get" action="{% url 'project_dashboard' %}" class="row g-3 align-items-end">
+                <input type="hidden" name="view" value="completed">
                 <div class="col-md-3">
                     <label for="q_completed" class="form-label">Cerca per Nome o ID</label>
                     <input type="text" class="form-control form-control-sm" name="q_completed" id="q_completed" value="{{ completed_search_query }}">
@@ -133,7 +151,7 @@
                     <button type="submit" class="btn btn-sm btn-primary-custom">Filtra</button>
                 </div>
                 <div class="col-md-1 d-grid">
-                    <a href="{% url 'project_dashboard' %}" class="btn btn-sm btn-outline-secondary">Azzera</a>
+                    <a href="{% url 'project_dashboard' %}?view=completed" class="btn btn-sm btn-outline-secondary">Azzera</a>
                 </div>
             </form>
         </div>
@@ -147,18 +165,18 @@
                 <!-- MODIFICA: Aggiunti link e icone per l'ordinamento -->
                 <thead>
                     <tr>
-                        <th><a href="?sort_completed=name&order_completed={% if sort_completed == 'name' and order_completed == 'asc' %}desc{% else %}asc{% endif %}">Nome {% if sort_completed == 'name' %}<i class="bi bi-caret-{% if order_completed == 'asc' %}up{% else %}down{% endif %}-fill"></i>{% endif %}</a></th>
-                        <th class="text-center"><a href="?sort_completed=completed_at&order_completed={% if sort_completed == 'completed_at' and order_completed == 'asc' %}desc{% else %}asc{% endif %}">Data Compl. {% if sort_completed == 'completed_at' %}<i class="bi bi-caret-{% if order_completed == 'asc' %}up{% else %}down{% endif %}-fill"></i>{% endif %}</a></th>
-                        <th class="text-center"><a href="?sort_completed=total_print_time_seconds&order_completed={% if sort_completed == 'total_print_time_seconds' and order_completed == 'asc' %}desc{% else %}asc{% endif %}">Tempo Totale {% if sort_completed == 'total_print_time_seconds' %}<i class="bi bi-caret-{% if order_completed == 'asc' %}up{% else %}down{% endif %}-fill"></i>{% endif %}</a></th>
-                        <th class="text-center"><a href="?sort_completed=annotated_material_cost&order_completed={% if sort_completed == 'annotated_material_cost' and order_completed == 'asc' %}desc{% else %}asc{% endif %}">Costo Materiali {% if sort_completed == 'annotated_material_cost' %}<i class="bi bi-caret-{% if order_completed == 'asc' %}up{% else %}down{% endif %}-fill"></i>{% endif %}</a></th>
-                        <th class="text-center"><a href="?sort_completed=category__name&order_completed={% if sort_completed == 'category__name' and order_completed == 'asc' %}desc{% else %}asc{% endif %}">Categoria {% if sort_completed == 'category__name' %}<i class="bi bi-caret-{% if order_completed == 'asc' %}up{% else %}down{% endif %}-fill"></i>{% endif %}</a></th>
+                        <th><a href="?view=completed&sort_completed=name&order_completed={% if sort_completed == 'name' and order_completed == 'asc' %}desc{% else %}asc{% endif %}">Nome {% if sort_completed == 'name' %}<i class="bi bi-caret-{% if order_completed == 'asc' %}up{% else %}down{% endif %}-fill"></i>{% endif %}</a></th>
+                        <th class="text-center"><a href="?view=completed&sort_completed=completed_at&order_completed={% if sort_completed == 'completed_at' and order_completed == 'asc' %}desc{% else %}asc{% endif %}">Data Compl. {% if sort_completed == 'completed_at' %}<i class="bi bi-caret-{% if order_completed == 'asc' %}up{% else %}down{% endif %}-fill"></i>{% endif %}</a></th>
+                        <th class="text-center"><a href="?view=completed&sort_completed=total_print_time_seconds&order_completed={% if sort_completed == 'total_print_time_seconds' and order_completed == 'asc' %}desc{% else %}asc{% endif %}">Tempo Totale {% if sort_completed == 'total_print_time_seconds' %}<i class="bi bi-caret-{% if order_completed == 'asc' %}up{% else %}down{% endif %}-fill"></i>{% endif %}</a></th>
+                        <th class="text-center"><a href="?view=completed&sort_completed=annotated_material_cost&order_completed={% if sort_completed == 'annotated_material_cost' and order_completed == 'asc' %}desc{% else %}asc{% endif %}">Costo Materiali {% if sort_completed == 'annotated_material_cost' %}<i class="bi bi-caret-{% if order_completed == 'asc' %}up{% else %}down{% endif %}-fill"></i>{% endif %}</a></th>
+                        <th class="text-center"><a href="?view=completed&sort_completed=category__name&order_completed={% if sort_completed == 'category__name' and order_completed == 'asc' %}desc{% else %}asc{% endif %}">Categoria {% if sort_completed == 'category__name' %}<i class="bi bi-caret-{% if order_completed == 'asc' %}up{% else %}down{% endif %}-fill"></i>{% endif %}</a></th>
                         <th class="text-center">Filamenti Usati</th>
-                        <th class="text-center"><a href="?sort_completed=total_grams_used&order_completed={% if sort_completed == 'total_grams_used' and order_completed == 'asc' %}desc{% else %}asc{% endif %}">Peso totale {% if sort_completed == 'total_grams_used' %}<i class="bi bi-caret-{% if order_completed == 'asc' %}up{% else %}down{% endif %}-fill"></i>{% endif %}</a></th>
+                        <th class="text-center"><a href="?view=completed&sort_completed=total_grams_used&order_completed={% if sort_completed == 'total_grams_used' and order_completed == 'asc' %}desc{% else %}asc{% endif %}">Peso totale {% if sort_completed == 'total_grams_used' %}<i class="bi bi-caret-{% if order_completed == 'asc' %}up{% else %}down{% endif %}-fill"></i>{% endif %}</a></th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for project in completed_projects %}
-                    <tr class="clickable-row" data-url="{% url 'project_detail' project.id %}?from=table" style="cursor: pointer;">
+                    <tr class="clickable-row" data-url="{% url 'project_detail' project.id %}?from=completed" style="cursor: pointer;">
                         <td class="fw-bold">{{ project.name }}</td>
                         <td class="text-center">{{ project.completed_at|date:"d/m/y" }}</td>
                         <td class="text-center">{{ project.total_print_time }}</td>
@@ -182,6 +200,7 @@
         </div>
     </div>
 </div>
+{% endif %}
 
 {% include 'app_3dmage_management/partials/add_project_modal.html' %}
 {% include 'app_3dmage_management/partials/add_edit_print_file_modal.html' %}

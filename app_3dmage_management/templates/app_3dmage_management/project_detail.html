@@ -27,7 +27,8 @@
 </style>
 
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <a href="{% if referer == 'table' %}{% url 'project_dashboard' %}{% elif referer == 'queue' %}{% url 'print_queue_board' %}{% else %}{% url 'project_kanban_board' %}{% endif %}" class="btn btn-outline-secondary"><i class="bi bi-arrow-left me-2"></i>Indietro</a>
+    <!-- MODIFICA: Logica HREF aggiornata per gestire active/completed. Il JS sotto farà l'override per i filtri specifici -->
+    <a href="{% if referer == 'active' %}{% url 'project_dashboard' %}?view=active{% elif referer == 'completed' %}{% url 'project_dashboard' %}?view=completed{% elif referer == 'queue' %}{% url 'print_queue_board' %}{% else %}{% url 'project_kanban_board' %}{% endif %}" id="back-dashboard-btn" class="btn btn-outline-secondary"><i class="bi bi-arrow-left me-2"></i>Indietro</a>
     <div>
         {% if project.status == 'DONE' %}
             <form action="{% url 'reprint_project' project.id %}" method="post" class="d-inline">
@@ -226,6 +227,27 @@
     data-api-spools-url-base="{% url 'api_get_filament_spools' 0 %}"
     data-referer="{{ referer }}"
     defer>
+</script>
+
+<script>
+    // Gestione intelligente del tasto indietro per preservare i filtri
+    document.addEventListener('DOMContentLoaded', function() {
+        const backBtn = document.getElementById('back-dashboard-btn');
+        if (backBtn) {
+            const lastUrl = localStorage.getItem('last_dashboard_url');
+            const referer = "{{ referer }}";
+
+            // MODIFICA: Rimosso il check .includes('dashboard') perché l'URL è sulla root (/)
+            // Ora controlliamo solo che esista una URL salvata valida
+            if ((referer === 'active' || referer === 'completed') && lastUrl && lastUrl.startsWith('http')) {
+                backBtn.href = lastUrl;
+            } else if (referer === 'queue') {
+                backBtn.href = "{% url 'print_queue_board' %}";
+            } else if (referer === 'kanban') {
+                backBtn.href = "{% url 'project_kanban_board' %}";
+            }
+        }
+    });
 </script>
 
 <script src="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/js/tom-select.complete.min.js"></script>

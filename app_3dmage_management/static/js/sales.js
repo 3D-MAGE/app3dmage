@@ -25,11 +25,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 .then(data => {
                     modalTitle.textContent = `Modifica Vendita: ${data.name}`;
 
-                    // CORREZIONE BUG 2: Popola gli ID con i dati corretti dalla view
                     document.getElementById('saleItemId').textContent = data.item_custom_id ? `#${data.item_custom_id}` : 'N/D';
                     document.getElementById('saleProjectId').textContent = data.project_id ? `#${data.project_id}` : 'N/D';
 
-                    // CORREZIONE BUG 3: Popola il costo totale con il dato corretto dalla view
                     const totalCostEl = document.getElementById('saleTotalCost');
                     if (totalCostEl) {
                         const cost = parseFloat(data.total_cost);
@@ -47,17 +45,11 @@ document.addEventListener('DOMContentLoaded', function () {
         form.addEventListener('submit', function (e) {
             e.preventDefault();
 
-            const originalPrice = salePriceInput.value;
-            const selectedOption = paymentMethodSelect.options[paymentMethodSelect.selectedIndex];
-            const isSatispayBusiness = selectedOption && selectedOption.text.toLowerCase().includes('satispay business');
-
-            if (isSatispayBusiness) {
-                const discountedPrice = parseFloat(originalPrice) * 0.98;
-                salePriceInput.value = discountedPrice.toFixed(2);
-            }
+            // MODIFICA: Rimosso il calcolo automatico della commissione qui.
+            // In fase di modifica si presume che il prezzo sia già corretto o venga corretto manualmente.
+            // Questo evita che il prezzo diminuisca ogni volta che si salva.
 
             const formData = new FormData(form);
-            salePriceInput.value = originalPrice;
 
             fetch(form.action, {
                 method: 'POST',
@@ -69,8 +61,12 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (data.status === 'ok') {
                     window.location.reload();
                 } else {
-                    alert('Errore durante il salvataggio');
+                    alert('Errore durante il salvataggio: ' + (data.message || 'Errore sconosciuto'));
                 }
+            })
+            .catch(err => {
+                console.error(err);
+                alert('Errore di comunicazione con il server.');
             });
         });
 
