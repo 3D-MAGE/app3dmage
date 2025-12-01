@@ -592,38 +592,44 @@ def get_sale_details(request, item_id):
 @transaction.atomic
 @login_required
 def edit_sale(request, item_id):
+    # Recupera l'oggetto dal DB
     sale = get_object_or_404(StockItem, id=item_id, status='SOLD')
 
-    # Utilizziamo refresh_from_db() per assicurarci di lavorare su dati aggiornati
-    # specialmente per i saldi dei metodi di pagamento.
+    # 1. CATTURA LO STATO PRECEDENTE (IMPORTANTE: Prima di validare il form)
+    # Salviamo i valori attuali del DB in variabili separate per non perderli
+    old_payment_method = sale.payment_method
+    old_sale_price = sale.sale_price or Decimal('0.00')
+    old_quantity = sale.quantity
+    old_total = old_sale_price * old_quantity
 
+    # 2. Inizializza e valida il form (questo aggiorna l'istanza 'sale' in memoria)
     form = SaleEditForm(request.POST, instance=sale)
+
     if form.is_valid():
-        # 1. STORNA L'IMPORTO DAL VECCHIO METODO (Se esisteva)
-        if sale.payment_method:
-            method = sale.payment_method
-            method.refresh_from_db() # Cruciale per evitare dati vecchi
+        # 3. STORNA IL VECCHIO IMPORTO (usando le variabili salvate al punto 1)
+        if old_payment_method:
+            old_payment_method.refresh_from_db() # Ricarica per avere il saldo aggiornato
+            old_payment_method.balance -= old_total
+            old_payment_method.save()
 
-            amount_to_reverse = (sale.sale_price or Decimal('0.00')) * sale.quantity
-            method.balance -= amount_to_reverse
-            method.save()
-
-        # 2. SALVA LE MODIFICHE ALLA VENDITA
+        # 4. SALVA LE MODIFICHE DELLA VENDITA
         updated_sale = form.save()
 
-        # 3. AGGIUNGI IL NUOVO IMPORTO AL NUOVO METODO (Se presente)
+        # 5. APPLICA IL NUOVO IMPORTO (usando i nuovi dati salvati)
         if updated_sale.payment_method:
             new_method = updated_sale.payment_method
-            # Anche se è lo stesso ID, ricarichiamo perché il saldo è cambiato al punto 1
+
+            # Se il metodo è lo stesso di prima, dobbiamo ricaricarlo perché
+            # il suo saldo è stato modificato al punto 3.
             new_method.refresh_from_db()
 
-            new_amount = (updated_sale.sale_price or Decimal('0.00')) * updated_sale.quantity
-            new_method.balance += new_amount
+            new_total = (updated_sale.sale_price or Decimal('0.00')) * updated_sale.quantity
+            new_method.balance += new_total
             new_method.save()
 
         return JsonResponse({'status': 'ok'})
-    return JsonResponse({'status': 'error', 'errors': form.errors.as_json()}, status=400)
 
+    return JsonResponse({'status': 'error', 'errors': form.errors.as_json()}, status=400)
 
 @require_POST
 @transaction.atomic

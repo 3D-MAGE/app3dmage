@@ -11,6 +11,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const form = editSaleModalEl.querySelector('#editSaleForm');
         const modalTitle = editSaleModalEl.querySelector('#editSaleModalLabel');
         let currentItemId = null;
+        let initialPaymentMethod = null; // Variabile per tracciare lo stato iniziale
 
         const salePriceInput = form.querySelector('[name="sale_price"]');
         const paymentMethodSelect = form.querySelector('[name="payment_method"]');
@@ -36,7 +37,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
                     form.querySelector('[name="sold_at"]').value = data.sold_at;
                     salePriceInput.value = data.sale_price;
+
+                    // Salviamo il metodo iniziale per capire se era "DA PAGARE" (null o vuoto)
+                    initialPaymentMethod = data.payment_method;
                     paymentMethodSelect.value = data.payment_method || '';
+
                     form.querySelector('[name="sold_to"]').value = data.sold_to;
                     form.querySelector('[name="notes"]').value = data.notes;
                 });
@@ -45,11 +50,33 @@ document.addEventListener('DOMContentLoaded', function () {
         form.addEventListener('submit', function (e) {
             e.preventDefault();
 
-            // MODIFICA: Rimosso il calcolo automatico della commissione qui.
-            // In fase di modifica si presume che il prezzo sia già corretto o venga corretto manualmente.
-            // Questo evita che il prezzo diminuisca ogni volta che si salva.
+            const originalPriceStr = salePriceInput.value;
+            const originalPrice = parseFloat(originalPriceStr.replace(',', '.'));
+
+            const selectedOption = paymentMethodSelect.options[paymentMethodSelect.selectedIndex];
+            const methodName = selectedOption ? selectedOption.text.trim().toLowerCase() : '';
+
+            let finalPrice = originalPrice;
+
+            // LOGICA INTELLIGENTE: Applica la commissione SOLO se stiamo passando da "DA PAGARE" a un metodo con commissione.
+            // Questo evita di applicare la commissione più volte se si modifica la vendita in futuro.
+            const wasUnpaid = !initialPaymentMethod;
+
+            if (!isNaN(originalPrice) && wasUnpaid) {
+                if (methodName.indexOf('satispay business') !== -1) {
+                    finalPrice = originalPrice * 0.99; // 1%
+                } else if (methodName.indexOf('sumup') !== -1 || methodName.indexOf('sum up') !== -1) {
+                    finalPrice = originalPrice * 0.9805; // 1.95%
+                }
+            }
+
+            if (!isNaN(finalPrice) && finalPrice !== originalPrice) {
+                 salePriceInput.value = finalPrice.toFixed(2);
+            }
 
             const formData = new FormData(form);
+            // Ripristina valore visibile (opzionale, dato che la pagina ricaricherà)
+            salePriceInput.value = originalPriceStr;
 
             fetch(form.action, {
                 method: 'POST',

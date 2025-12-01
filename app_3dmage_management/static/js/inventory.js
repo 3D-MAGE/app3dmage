@@ -102,25 +102,23 @@ document.addEventListener('DOMContentLoaded', function() {
             const originalPrice = parseFloat(originalPriceStr.replace(',', '.'));
 
             const selectedOption = paymentMethodSelect.options[paymentMethodSelect.selectedIndex];
-            // Ottimizzazione: trim() per rimuovere spazi extra e toLowerCase() per sicurezza
             const methodName = selectedOption ? selectedOption.text.trim().toLowerCase() : '';
 
             let finalPrice = originalPrice;
 
             // LOGICA COMMISSIONI
             if (!isNaN(originalPrice) && statusSelect.value === 'SOLD') {
-                // Controllo Satispay (2%)
+                // Satispay Business: ora 1% (era 2%)
                 if (methodName.indexOf('satispay business') !== -1) {
-                    finalPrice = originalPrice * 0.98;
+                    finalPrice = originalPrice * 0.99;
                 }
-                // Controllo SumUp (1.95%) - reso più robusto controllando anche "sum up" o presenza parziale
+                // SumUp: 1.95%
                 else if (methodName.indexOf('sumup') !== -1 || methodName.indexOf('sum up') !== -1) {
                     finalPrice = originalPrice * 0.9805;
                 }
             }
 
             // AGGIORNA L'INPUT PRIMA DI CREARE IL FORMDATA
-            // Questo è fondamentale affinché il server riceva il valore scontato
             if (!isNaN(finalPrice) && finalPrice !== originalPrice) {
                  salePriceInput.value = finalPrice.toFixed(2);
             }
