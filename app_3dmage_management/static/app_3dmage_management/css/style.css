@@ -108,20 +108,57 @@ select.select-status-done { background-color: #198754 !important; }
 
 input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); }
 
-/* --- Kanban / Coda di Stampa --- */
+/* --- Kanban / Coda di Stampa (FULL WIDTH FIX) --- */
+.kanban-board-container {
+    display: flex;
+    overflow-x: auto; /* Scroll orizzontale se necessario */
+    padding-bottom: 20px;
+    align-items: flex-start;
+    height: auto !important;
+    gap: 1.5rem;
+    flex-wrap: nowrap; /* Mantiene tutto su una riga */
+    width: 100%;
+}
+
+.kanban-column {
+    /* MODIFICA: flex-grow: 1 permette alle colonne di allargarsi */
+    flex: 1 0 320px;
+    min-width: 320px;
+    /* Rimosso max-width fisso per permettere l'espansione */
+    background-color: var(--dark-card);
+    border-radius: 0.5rem;
+    padding: 0.75rem;
+    display: flex;
+    flex-direction: column;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible;
+}
+
+.kanban-cards-container {
+    flex-grow: 1;
+    overflow-y: visible !important;
+    min-height: 100px;
+    height: auto !important;
+    padding-bottom: 0.5rem;
+}
+
+main.container-fluid {
+    overflow-y: visible !important;
+    height: auto !important;
+    overflow-x: hidden;
+}
+
 .dropzone-printing { border: 2px dashed #4a4e53; border-radius: 8px; padding: 10px; background-color: rgba(0, 0, 0, 0.15); display: flex; align-items: center; justify-content: center; transition: background-color 0.2s ease-in-out, border-color 0.2s ease-in-out; }
 .dropzone-printing > .kanban-card { width: 100%; }
 .dropzone-printing .empty-slot { color: #6c757d; font-style: italic; min-height: 200px; display: flex; align-items: center; justify-content: center; }
 .dropzone-printing.sortable-drag-over { background-color: rgba(0, 123, 255, 0.1); border-color: #0d6efd; }
 .queue-separator { text-align: center; color: #6c757d; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; margin: 15px 0 10px 0; border-top: 1px solid #6c757d; padding-top: 10px; margin-top: 20px; }
-.kanban-board-container { display: flex; flex-wrap: wrap; gap: 1rem; padding-bottom: 1rem; width: 100%; }
-.kanban-column { flex: 1 1 0; min-width: 280px; background-color: var(--dark-bg); border-radius: 0.5rem; padding: 0.75rem; max-height: 80vh; display: flex; flex-direction: column; overflow: visible; }
 .kanban-card-header em.text-muted { color: #adb5bd !important; }
 .kanban-card-body strong { overflow-wrap: break-word; word-wrap: break-word; word-break: break-word; }
-.kanban-column-title { padding-bottom: 0.5rem; margin-bottom: 0.75rem; border-bottom: 2px solid var(--dark-card); }
+.kanban-column-title { padding-bottom: 0.5rem; margin-bottom: 0.75rem; border-bottom: 2px solid #3a3a3a; }
 .kanban-column-title .text-muted.small { color: #adb5bd !important; font-weight: 600; }
-.kanban-cards-container { flex-grow: 1; overflow-y: auto; min-height: 150px; }
-.kanban-card { background-color: var(--dark-card); border-radius: 0.375rem; padding: 0.75rem; margin-bottom: 0.75rem; cursor: grab; border-left: 4px solid var(--primary-color); box-shadow: 0 2px 4px rgba(0,0,0,0.2); word-wrap: break-word; }
+.kanban-card { background-color: #383838; border-radius: 0.375rem; padding: 0.75rem; margin-bottom: 0.75rem; cursor: grab; border-left: 4px solid var(--primary-color); box-shadow: 0 2px 4px rgba(0,0,0,0.2); word-wrap: break-word; }
 .kanban-card:active { cursor: grabbing; }
 .kanban-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
 .kanban-card-body { margin-bottom: 0.5rem; }
@@ -172,6 +209,32 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); }
 .bg-dark-card h4#total-cost { color: #f8f9fa !important; }
 .bg-dark-card .form-control::placeholder { color: #a0a0a0; opacity: 1; }
 .text-primary-custom { color: var(--primary-color) !important; }
+
+/* --- TOM SELECT DARK MODE OVERRIDES --- */
+.ts-control {
+    background-color: var(--dark-bg) !important;
+    border-color: #555 !important;
+    color: var(--text-light) !important;
+    border-radius: 0.375rem;
+}
+.ts-control input {
+    color: var(--text-light) !important;
+}
+.ts-dropdown {
+    background-color: var(--dark-card) !important;
+    border-color: #555 !important;
+    z-index: 9999;
+}
+.ts-dropdown .option {
+    color: var(--text-light) !important;
+}
+.ts-dropdown .option:hover, .ts-dropdown .active {
+    background-color: rgba(255, 255, 255, 0.15) !important;
+    color: inherit !important;
+}
+.ts-control .item {
+    color: inherit !important; /* Preserva il colore calcolato della pillola */
+}
 
 /* --- Stili per il dropdown delle notifiche --- */
 #notification-list .dropdown-header { color: var(--primary-color); font-weight: 600; border-bottom: 1px solid #444; margin-bottom: 0.25rem; padding-top: 0.75rem; padding-bottom: 0.75rem; }
@@ -270,7 +333,11 @@ html.light-theme .settings-nav .nav-link:hover { background-color: #6c757d; colo
 html.light-theme .text-muted { color: #6c757d !important; }
 html.light-theme .maintenance-card { border-color: #dee2e6; }
 html.light-theme .maintenance-log-list .list-group-item, html.light-theme .maintenance-counters .border-end { border-color: #dee2e6 !important; }
-
+html.light-theme .ts-control { background-color: #fff !important; color: #333 !important; border-color: #ced4da !important; }
+html.light-theme .ts-control input { color: #333 !important; }
+html.light-theme .ts-dropdown { background-color: #fff !important; border-color: #ced4da !important; }
+html.light-theme .ts-dropdown .option { color: #333 !important; }
+html.light-theme .ts-dropdown .option:hover, html.light-theme .ts-dropdown .active { background-color: #f8f9fa !important; }
 
 
 /* =================================================================== */

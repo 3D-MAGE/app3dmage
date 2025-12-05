@@ -1,13 +1,8 @@
-/**
- * Gestisce la logica per la pagina del calcolatore di preventivi.
- * Include il calcolo dei costi, il salvataggio dei preventivi e la creazione di progetti.
- */
 document.addEventListener('DOMContentLoaded', function() {
     let costs = { electricity_cost_kwh: 0.25, filaments: [] };
     const AVG_PRINTER_WATTAGE = 150;
     const csrftoken = getCookie('csrftoken');
 
-    // Elementi del DOM
     const materialsContainer = document.getElementById('materials-container');
     const addMaterialBtn = document.getElementById('add-material-btn');
     const rowTemplate = document.getElementById('material-row-template');
@@ -21,13 +16,11 @@ document.addEventListener('DOMContentLoaded', function() {
     const createProjectBtn = document.getElementById('create-project-btn');
     const savedQuotesTable = document.getElementById('saved-quotes-table');
 
-    // Modale di conferma
     const createProjectConfirmModalEl = document.getElementById('createProjectConfirmModal');
     const createProjectConfirmModal = new bootstrap.Modal(createProjectConfirmModalEl);
     const confirmCreateProjectBtn = document.getElementById('confirmCreateProjectBtn');
     const projectNameInModal = document.getElementById('projectNameInModal');
 
-    // Funzione helper per il contrasto del colore
     const getContrastYIQ = (hex) => {
         if (!hex) return 'white';
         const c = hex.substring(1);
@@ -51,8 +44,10 @@ document.addEventListener('DOMContentLoaded', function() {
         let breakdownHtml = `<p class="d-flex justify-content-between mb-1"><span>Costo Elettricità <small class="text-muted">(${electricityKwh.toFixed(2)} kWh)</small></span> <span>${electricityCost.toFixed(2)}€</span></p>`;
 
         materialsContainer.querySelectorAll('.material-row').forEach(row => {
-            const filamentId = row.querySelector('.filament-select').value;
+            const selectElement = row.querySelector('select'); // Prende il select standard (ora gestito da TomSelect)
+            const filamentId = selectElement.value;
             const grams = parseFloat(row.querySelector('.grams-input').value) || 0;
+
             if (filamentId && grams > 0) {
                 const filament = costs.filaments.find(f => f.id == filamentId);
                 if (filament) {
@@ -72,53 +67,65 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function addMaterialRow(usage = {}) {
         const newRow = rowTemplate.content.cloneNode(true).firstElementChild;
-        const filamentSelect = newRow.querySelector('.filament-select');
+        const selectContainer = newRow.querySelector('.select-container');
         const gramsInput = newRow.querySelector('.grams-input');
 
-        // Funzione interna per applicare il colore al select
-        const applySelectColor = (selectElement) => {
-            const selectedOption = selectElement.options[selectElement.selectedIndex];
-            if (selectedOption && selectedOption.value) {
-                selectElement.style.backgroundColor = selectedOption.dataset.color || '';
-                selectElement.style.color = selectedOption.dataset.contrastColor || '';
-            } else {
-                selectElement.style.backgroundColor = '';
-                selectElement.style.color = '';
-            }
-        };
+        // Crea dinamicamente l'elemento SELECT
+        const selectEl = document.createElement('select');
+        selectEl.classList.add('form-select');
+        selectEl.setAttribute('placeholder', 'Seleziona materiale...');
+        selectContainer.appendChild(selectEl);
 
-        filamentSelect.innerHTML = '<option value="">Seleziona Materiale...</option>';
-        costs.filaments.forEach(f => {
-            if(f.cost_per_gram > 0) {
-                const option = document.createElement('option');
-                option.value = f.id;
-                option.textContent = `${f.name} (~${f.cost_per_gram.toFixed(3)}€/g)`;
-                // Salva i dati del colore negli attributi data-* invece che nello stile
-                option.dataset.color = f.color_hex;
-                option.dataset.contrastColor = getContrastYIQ(f.color_hex);
-                filamentSelect.appendChild(option);
+        // Prepara le opzioni per Tom Select
+        const options = costs.filaments.map(f => ({
+            id: f.id,
+            title: f.name,
+            cost: f.cost_per_gram,
+            color: f.color_hex,
+            contrast: getContrastYIQ(f.color_hex)
+        }));
+
+        // Inizializza Tom Select
+        const ts = new TomSelect(selectEl, {
+            options: options,
+            valueField: 'id',
+            labelField: 'title',
+            searchField: 'title',
+            placeholder: 'Cerca materiale...',
+            render: {
+                option: function(data, escape) {
+                    return `<div>
+                        <span style="display:inline-block; width:10px; height:10px; border-radius:50%; background-color:${escape(data.color)}; margin-right:5px;"></span>
+                        ${escape(data.title)} (~${parseFloat(data.cost).toFixed(3)}€/g)
+                    </div>`;
+                },
+                item: function(data, escape) {
+                    return `<div style="background-color: ${escape(data.color)}; color: ${escape(data.contrast)}; border-radius: 99px; padding: 2px 10px; font-weight: 500;">
+                        ${escape(data.title)}
+                    </div>`;
+                }
+            },
+            onChange: function(value) {
+                calculateAndDisplay();
             }
         });
 
+        // Imposta valore iniziale se presente
         if (usage.filament_id) {
-            filamentSelect.value = usage.filament_id;
-            // Applica il colore subito dopo aver impostato il valore
-            applySelectColor(filamentSelect);
+            ts.setValue(usage.filament_id);
         }
         if (usage.grams) {
             gramsInput.value = usage.grams;
         }
 
-        filamentSelect.addEventListener('change', () => {
-            applySelectColor(filamentSelect);
-            calculateAndDisplay();
-        });
-
         gramsInput.addEventListener('input', calculateAndDisplay);
+
         newRow.querySelector('.remove-row-btn').addEventListener('click', () => {
+            ts.destroy(); // Pulisci l'istanza Tom Select
             newRow.remove();
             calculateAndDisplay();
         });
+
         materialsContainer.appendChild(newRow);
     }
 
@@ -139,8 +146,12 @@ document.addEventListener('DOMContentLoaded', function() {
         const materials = [];
         let hasInvalidMaterial = false;
         materialsContainer.querySelectorAll('.material-row').forEach(row => {
-            const filamentId = row.querySelector('.filament-select').value;
+            // Con Tom Select, il valore è sull'elemento select originale (che è nascosto ma aggiornato)
+            // O meglio, cerchiamo il select dentro .select-container
+            const selectEl = row.querySelector('select');
+            const filamentId = selectEl.value;
             const grams = row.querySelector('.grams-input').value;
+
             if (filamentId && grams && parseFloat(grams) > 0) {
                 materials.push({
                     filament_id: filamentId,
