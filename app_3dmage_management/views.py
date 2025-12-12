@@ -592,44 +592,38 @@ def get_sale_details(request, item_id):
 @transaction.atomic
 @login_required
 def edit_sale(request, item_id):
-    # Recupera l'oggetto dal DB
     sale = get_object_or_404(StockItem, id=item_id, status='SOLD')
 
-    # 1. CATTURA LO STATO PRECEDENTE (IMPORTANTE: Prima di validare il form)
-    # Salviamo i valori attuali del DB in variabili separate per non perderli
-    old_payment_method = sale.payment_method
-    old_sale_price = sale.sale_price or Decimal('0.00')
-    old_quantity = sale.quantity
-    old_total = old_sale_price * old_quantity
+    # Utilizziamo refresh_from_db() per assicurarci di lavorare su dati aggiornati
+    # specialmente per i saldi dei metodi di pagamento.
 
-    # 2. Inizializza e valida il form (questo aggiorna l'istanza 'sale' in memoria)
     form = SaleEditForm(request.POST, instance=sale)
-
     if form.is_valid():
-        # 3. STORNA IL VECCHIO IMPORTO (usando le variabili salvate al punto 1)
-        if old_payment_method:
-            old_payment_method.refresh_from_db() # Ricarica per avere il saldo aggiornato
-            old_payment_method.balance -= old_total
-            old_payment_method.save()
+        # 1. STORNA L'IMPORTO DAL VECCHIO METODO (Se esisteva)
+        if sale.payment_method:
+            method = sale.payment_method
+            method.refresh_from_db() # Cruciale per evitare dati vecchi
 
-        # 4. SALVA LE MODIFICHE DELLA VENDITA
+            amount_to_reverse = (sale.sale_price or Decimal('0.00')) * sale.quantity
+            method.balance -= amount_to_reverse
+            method.save()
+
+        # 2. SALVA LE MODIFICHE ALLA VENDITA
         updated_sale = form.save()
 
-        # 5. APPLICA IL NUOVO IMPORTO (usando i nuovi dati salvati)
+        # 3. AGGIUNGI IL NUOVO IMPORTO AL NUOVO METODO (Se presente)
         if updated_sale.payment_method:
             new_method = updated_sale.payment_method
-
-            # Se il metodo è lo stesso di prima, dobbiamo ricaricarlo perché
-            # il suo saldo è stato modificato al punto 3.
+            # Anche se è lo stesso ID, ricarichiamo perché il saldo è cambiato al punto 1
             new_method.refresh_from_db()
 
-            new_total = (updated_sale.sale_price or Decimal('0.00')) * updated_sale.quantity
-            new_method.balance += new_total
+            new_amount = (updated_sale.sale_price or Decimal('0.00')) * updated_sale.quantity
+            new_method.balance += new_amount
             new_method.save()
 
         return JsonResponse({'status': 'ok'})
-
     return JsonResponse({'status': 'error', 'errors': form.errors.as_json()}, status=400)
+
 
 @require_POST
 @transaction.atomic
@@ -1551,68 +1545,94 @@ def delete_expense(request, expense_id):
 
 @login_required
 def settings_dashboard(request):
-    # Recupera l'anno dal filtro
+    # Get the year from the request, default to empty string if not present
     year_filter = request.GET.get('year', '')
 
-    # Impostazioni globali
+    # Retrieve global setting for electricity cost, with a default value
     electricity_cost_obj, _ = GlobalSetting.objects.get_or_create(
         key='electricity_cost_kwh',
         defaults={'value': Decimal('0.25')}
     )
     electricity_cost_kwh = electricity_cost_obj.value
 
-    # Anni disponibili per il filtro
+    # Get available years for the filter dropdown from completed projects
     available_years_dates = Project.objects.filter(
         status='DONE',
         completed_at__isnull=False
     ).dates('completed_at', 'year', order='DESC')
     available_years = [d.year for d in available_years_dates]
 
-    # Recupera tutte le stampanti
-    printers = Printer.objects.prefetch_related('plates', 'maintenance_logs').all().order_by('name')
+    # --- BUG FIX: Use Subqueries for accurate aggregation ---
 
-    # CORREZIONE BUG CALCOLO: Calcolo in Python invece che query complesse che falliscono
-    for printer in printers:
-        printer.plate_count = printer.plates.count()
-        printer.maintenance_count = printer.maintenance_logs.count()
-
-        # 1. Filtra i file stampati (DONE)
-        files_qs = PrintFile.objects.filter(printer=printer, status='DONE')
-
-        # 2. Applica filtro anno se presente
-        if year_filter and year_filter.isdigit():
-            files_qs = files_qs.filter(project__completed_at__year=int(year_filter))
-
-        # 3. Calcola secondi totali (rilevanti per il filtro)
-        total_seconds = files_qs.aggregate(total=Sum('print_time_seconds'))['total'] or 0
-        printer.relevant_print_seconds = total_seconds
-
-        # 4. Calcola secondi parziali (dall'ultimo reset manutenzione)
-        # Nota: Questo contatore ignora il filtro anno per mostrare sempre lo stato usura attuale
-        maint_qs = PrintFile.objects.filter(
-            printer=printer,
-            status='DONE',
-            project__completed_at__gte=printer.last_maintenance_reset
+    # Subquery for calculating total print seconds, filtered by year if provided.
+    # This avoids multiplication issues from other JOINs in the main query.
+    relevant_seconds_subquery = PrintFile.objects.filter(
+        printer=OuterRef('pk'),
+        status='DONE'
+    )
+    if year_filter and year_filter.isdigit():
+        relevant_seconds_subquery = relevant_seconds_subquery.filter(
+            project__completed_at__year=int(year_filter)
         )
-        partial_seconds = maint_qs.aggregate(total=Sum('print_time_seconds'))['total'] or 0
-        printer.seconds_since_maintenance = partial_seconds
+    # Define the annotation within the subquery
+    relevant_seconds_subquery = relevant_seconds_subquery.values('printer').annotate(
+        total=Sum('print_time_seconds')
+    ).values('total')
 
-        # Formattazione Ore:Minuti per Rilevanti (filtrati)
-        h_rel = total_seconds // 3600
-        m_rel = (total_seconds % 3600) // 60
-        printer.relevant_print_time_formatted = f"{h_rel} ore {m_rel} min"
+    # Subquery for calculating print seconds since the last maintenance reset.
+    # This also prevents incorrect sums due to JOINs.
+    maintenance_seconds_subquery = PrintFile.objects.filter(
+        printer=OuterRef('pk'),
+        status='DONE',
+        # Compare completion date with the printer's specific reset date
+        project__completed_at__gte=OuterRef('last_maintenance_reset')
+    ).values('printer').annotate(
+        total=Sum('print_time_seconds')
+    ).values('total')
 
-        # Formattazione Ore:Minuti per Parziali (manutenzione)
-        h_par = partial_seconds // 3600
-        m_par = (partial_seconds % 3600) // 60
-        printer.partial_print_time_formatted = f"{h_par} ore {m_par} min"
 
-        # 5. Calcolo Costo Elettricità (sui secondi filtrati)
-        # Formula: (secondi / 3600) * (watt / 1000) * costo_kwh
-        hours = Decimal(total_seconds) / Decimal(3600)
-        kwh_used = hours * (Decimal(printer.power_consumption) / Decimal(1000))
-        cost = kwh_used * electricity_cost_kwh
-        printer.annotated_electricity_cost = cost
+    # Main query for printers, now using the robust subqueries for aggregations
+    printers_query = Printer.objects.prefetch_related(
+        'plates', 'maintenance_logs'
+    ).annotate(
+        # Standard counts
+        plate_count=Count('plates', distinct=True),
+        maintenance_count=Count('maintenance_logs', distinct=True),
+
+        # Use subqueries for time calculations
+        relevant_print_seconds=Coalesce(
+            Subquery(relevant_seconds_subquery, output_field=IntegerField()), 0
+        ),
+        seconds_since_maintenance=Coalesce(
+            Subquery(maintenance_seconds_subquery, output_field=IntegerField()), 0
+        )
+    ).annotate(
+        # Calculate electricity cost based on the now-correct 'relevant_print_seconds'
+        annotated_electricity_cost=ExpressionWrapper(
+            (F('relevant_print_seconds') / Decimal('3600.0')) *
+            (F('power_consumption') / Decimal('1000.0')) *
+            electricity_cost_kwh,
+            output_field=DecimalField()
+        )
+    ).order_by('name')
+
+    # Process printers to format the time values for display
+    printers = []
+    for printer in printers_query:
+        # Format the total/filtered print time
+        relevant_seconds = printer.relevant_print_seconds
+        h_relevant = relevant_seconds // 3600
+        m_relevant = (relevant_seconds % 3600) // 60
+        printer.relevant_print_time_formatted = f"{h_relevant} ore {m_relevant} min"
+
+        # Format the time since last maintenance reset
+        partial_seconds = printer.seconds_since_maintenance
+        h_partial = partial_seconds // 3600
+        m_partial = (partial_seconds % 3600) // 60
+        printer.partial_print_time_formatted = f"{h_partial} ore {m_partial} min"
+
+        printers.append(printer)
+
 
     categories = Category.objects.annotate(project_count=Count('project')).order_by('name')
     payment_methods = PaymentMethod.objects.annotate(expense_count=Count('expense'), sale_count=Count('stockitem')).order_by('name')
