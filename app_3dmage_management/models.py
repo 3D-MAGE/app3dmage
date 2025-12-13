@@ -120,15 +120,26 @@ class Spool(models.Model):
     purchase_link = models.URLField(max_length=512, blank=True, null=True, verbose_name="Link Acquisto")
     is_active = models.BooleanField(default=True, verbose_name="Attiva")
 
-    # MODIFICATO: Metodo __str__ per il nuovo formato del nome
+    # MODIFICA: Logica di assegnazione automatica lettera (A, B, C...)
+    def save(self, *args, **kwargs):
+        if not self.identifier:
+            # Conta quante bobine esistono già per questo filamento
+            existing_count = Spool.objects.filter(filament=self.filament).count()
+            # Genera la lettera: 0->A, 1->B, 2->C, etc. (65 è il codice ASCII per 'A')
+            # Nota: questo sistema semplice funziona fino alla Z.
+            self.identifier = chr(65 + existing_count)
+        super().save(*args, **kwargs)
+
     def __str__(self):
         weight_kg = self.initial_weight_g / 1000
         weight_str = f"{int(weight_kg) if weight_kg.is_integer() else weight_kg}Kg"
 
-        # Aggiunge l'identificatore (es. " B") solo se non è vuoto
-        identifier_str = f" {self.identifier}" if self.identifier else ""
+        # Usa l'identificatore salvato, oppure "A" di default se per qualche motivo è vuoto
+        id_display = self.identifier if self.identifier else "A"
 
-        return f"{self.filament.color_name}{identifier_str} - {self.purchase_date.strftime('%m/%y')} - {weight_str}"
+        # NUOVO FORMATO: Colore - Data Identificatore - Peso
+        # Es: Nero - 05/25 B - 1Kg
+        return f"{self.filament.color_name} - {self.purchase_date.strftime('%m/%y')} {id_display} - {weight_str}"
 
     class Meta:
         verbose_name = "Bobina"
