@@ -10,11 +10,18 @@
 <div class="kanban-board-container">
     {% for printer in printers %}
     <div class="kanban-column" id="printer-{{ printer.id }}">
-        <h5 class="kanban-column-title">
+        <h5 class="kanban-column-title d-flex justify-content-between align-items-center">
+          <div>
             <span><i class="bi bi-printer-fill me-2"></i>{{ printer.name }}</span>
             <span class="text-muted small ms-2" title="File in coda / Tempo totale">
                 {{ printer.todo_files|length }} / {{ printer.total_queued_time_formatted }}
             </span>
+          </div>
+          <button class="btn btn-sm btn-outline-secondary border-0"
+                    onclick="sortQueue('{{ printer.id }}')"
+                    title="Ordina per Priorità > Materiale">
+                <i class="bi bi-sort-down"></i>
+          </button>
         </h5>
 
         <div class="printing-now-container dropzone-printing" data-printer-id="{{ printer.id }}">
@@ -32,10 +39,14 @@
                         <strong class="text-white d-block mb-2">{{ print_file.name }}</strong>
                         {% for usage in print_file.filament_usages.all %}
                         <div class="filament-info-block mb-2">
-                            <strong class="d-block filament-name-summary">{{ usage.spool.filament }}</strong>
+                            <strong class="filament-label">{{ usage.spool.filament }}</strong>
                             <div class="d-flex align-items-center text-white-50">
                                 <i class="bi bi-palette me-2" style="color: {{ usage.spool.filament.color_hex }};"></i>
-                                <small>{{ usage.spool }} -> {{ usage.grams_used|floatformat:1 }}g</small>
+                                <small>
+                                    {{ usage.spool.filament.color_name }} - {{ usage.spool.purchase_date|date:"m/y" }} {{ usage.spool.identifier|default:"A" }}
+
+                                    -> {{ usage.grams_used|floatformat:1 }}g
+                                </small>
                             </div>
                         </div>
                         {% endfor %}
@@ -63,22 +74,40 @@
 
         <div class="kanban-cards-container print-queue-container" data-printer-id="{{ printer.id }}">
             {% for print_file in printer.todo_files %}
-            <div class="kanban-card" data-print-file-id="{{ print_file.id }}" data-url="{% url 'project_detail' print_file.project.id %}?from=queue&open_file_modal={{ print_file.id }}" style="cursor: pointer;">
+            <div class="kanban-card"
+                 data-print-file-id="{{ print_file.id }}" 
+                 data-url="{% url 'project_detail' print_file.project.id %}?from=queue&open_file_modal={{ print_file.id }}"
+                 style="cursor: pointer;"
+
+                 {# --- INIZIO MODIFICA: Dati per l'ordinamento --- #}
+                 {# Assegniamo un numero: 1 è il più importante, 4 il meno importante #}
+                 data-sort-priority="{% if 'URGENTE' in print_file.project.get_priority_display|upper %}1{% elif 'ALTA' in print_file.project.get_priority_display|upper %}2{% elif 'MEDIA' in print_file.project.get_priority_display|upper %}3{% else %}4{% endif %}"
+
+                 {# Prendiamo il nome del primo filamento usato per raggruppare i materiali #}
+                 data-sort-material="{{ print_file.filament_usages.first.spool.filament.name|default:'z'|lower }}"
+                 {# --- FINE MODIFICA --- #}
+                 >
+
                 <div class="kanban-card-header">
                     <em class="text-muted" title="{{ print_file.project.name }}">{{ print_file.project.name|truncatechars:30 }}</em>
                     <span class="badge bg-priority-{{ print_file.project.priority|lower }}">{{ print_file.project.get_priority_display }}</span>
                 </div>
+
                 <div class="kanban-card-body">
                     <strong class="text-white d-block mb-2">{{ print_file.name }}</strong>
-                     {% for usage in print_file.filament_usages.all %}
-                     <div class="filament-info-block mb-2">
-                        <strong class="d-block filament-name-summary">{{ usage.spool.filament }}</strong>
+
+                    {% for usage in print_file.filament_usages.all %}
+                    <div class="filament-info-block mb-2">
+                        <strong class="filament-label">{{ usage.spool.filament }}</strong>
                         <div class="d-flex align-items-center text-white-50">
                             <i class="bi bi-palette me-2" style="color: {{ usage.spool.filament.color_hex }};"></i>
-                            <small>{{ usage.spool }} -> {{ usage.grams_used|floatformat:1 }}g</small>
+                            <small>
+                                {{ usage.spool.filament.color_name }} - {{ usage.spool.purchase_date|date:"m/y" }} {{ usage.spool.identifier|default:"A" }}
+                                -> {{ usage.grams_used|floatformat:1 }}g
+                            </small>
                         </div>
                     </div>
-                     {% endfor %}
+                    {% endfor %}
 
                     {% if print_file.plate %}
                     <div class="d-flex align-items-center text-white mt-2">

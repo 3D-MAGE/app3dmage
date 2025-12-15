@@ -24,15 +24,6 @@ header {
     z-index: 1030;
 }
 
-/* Sticky per il blocco 'In stampa' */
-.printing-now-container {
-  position: sticky;
-  top: 70px; /* Adattato per considerare il padding-top del body */
-  z-index: 10;
-  background-color: var(--dark-bg);
-}
-
-
 /* --- Navbar --- */
 .bg-dark-custom { background-color: var(--dark-nav) !important; border-bottom: 1px solid var(--dark-card); }
 .navbar-brand .fw-bold { margin-left:20px; font-weight: 600 !important; font-size: 1.5rem; vertical-align: middle; letter-spacing: 1px; }
@@ -109,8 +100,29 @@ select.select-status-done { background-color: #198754 !important; }
 input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); }
 
 /* --- Kanban / Coda di Stampa --- */
-.dropzone-printing { border: 2px dashed #4a4e53; border-radius: 8px; padding: 10px; background-color: rgba(0, 0, 0, 0.15); display: flex; align-items: center; justify-content: center; transition: background-color 0.2s ease-in-out, border-color 0.2s ease-in-out; }
-.dropzone-printing > .kanban-card { width: 100%; }
+.dropzone-printing {
+    /* Altezza fissa minima (circa l'altezza di una card) per evitare saltelli */
+    min-height: 160px;
+
+    /* Layout */
+    display: flex;
+    flex-direction: column;
+    justify-content: center; /* Centra verticalmente la scritta "Slot Vuoto" */
+
+    /* Stile esistente */
+    position: relative;
+    border: 2px dashed #4a4e53;
+    border-radius: 8px;
+    padding: 10px;
+    background-color: rgba(0, 0, 0, 0.15);
+    transition: background-color 0.2s ease-in-out, border-color 0.2s ease-in-out;
+}
+
+/* Assicura che la card quando presente occupi tutto lo spazio e nasconda il flex center */
+.dropzone-printing .kanban-card {
+    flex-grow: 1;
+    margin-bottom: 0;
+}
 .dropzone-printing .empty-slot { color: #6c757d; font-style: italic; min-height: 200px; display: flex; align-items: center; justify-content: center; }
 .dropzone-printing.sortable-drag-over { background-color: rgba(0, 123, 255, 0.1); border-color: #0d6efd; }
 .queue-separator { text-align: center; color: #6c757d; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; margin: 15px 0 10px 0; border-top: 1px solid #6c757d; padding-top: 10px; margin-top: 20px; }
@@ -127,6 +139,38 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); }
 .kanban-card-body { margin-bottom: 0.5rem; }
 .kanban-card-ghost { opacity: 0.4; background: #333; border: 2px dashed var(--primary-color); }
 .print-queue-container .kanban-card-body .text-muted { color: #d1d1d1 !important; font-style: italic; }
+.filament-label {
+    font-weight: 700; /* Grassetto */
+    font-style: italic; /* Corsivo */
+    /* Colore ereditato dal genitore o forzalo se vuoi, es: color: white; */
+}
+/* --- Fix Grafico Drag & Drop --- */
+
+/* Assicuriamo che il contenitore possa gestire elementi assoluti */
+.dropzone-printing {
+    position: relative;
+    overflow: hidden; /* Mantiene tutto dentro i bordi arrotondati */
+}
+
+/* Quando trascini dentro l'area IN STAMPA, il "fantasma" si sovrappone invece di dividere */
+.dropzone-printing .kanban-card-ghost {
+    position: absolute !important;
+    top: 0;
+    left: 0;
+    width: 100% !important;
+    height: 100% !important;
+    margin: 0 !important;
+    z-index: 5;
+    opacity: 0.6; /* Leggermente trasparente */
+    background-color: var(--dark-card-lighter);
+    border: 2px dashed var(--primary-color);
+    box-shadow: 0 0 10px rgba(0,0,0,0.5);
+
+    /* Centra contenuto se necessario */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
 
 /* --- Contabilità --- */
 .cassa-total { font-size: 1.1rem; font-weight: 500; color: var(--primary-color) !important; }

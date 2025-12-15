@@ -1090,6 +1090,7 @@ def update_print_queue(request):
     except Exception as e:
         return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
 
+
 @login_required
 def load_plates(request):
     printer_id = request.GET.get('printer_id')
@@ -1966,6 +1967,7 @@ def set_print_file_status(request, file_id):
 
     except Exception as e:
         return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+        
 @require_POST
 @transaction.atomic
 @login_required
