@@ -15,6 +15,7 @@ urlpatterns = [
     path('project/<int:project_id>/reprint/', views.reprint_project, name='reprint_project'),
     path('project/<int:project_id>/delete/', views.delete_project, name='delete_project'),
     path('project/<int:project_id>/update_inline/', views.update_project_inline, name='update_project_inline'),
+    path('project/<int:pk>/reopen/', views.reopen_project, name='reopen_project'),
 
     # API
     path('api/filaments/', views.api_get_all_filaments, name='api_get_all_filaments'),

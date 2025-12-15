@@ -5,6 +5,7 @@ import math
 from django.db.models import Prefetch, Sum, Case, When, Value, IntegerField, F, Q, Count, Max, ExpressionWrapper, DecimalField, OuterRef, Subquery
 from django.db.models.functions import Coalesce
 from django.contrib.auth.decorators import login_required
+from django.contrib import messages
 from django.forms.models import model_to_dict
 from django.utils import timezone
 from django.db import transaction
@@ -1967,7 +1968,7 @@ def set_print_file_status(request, file_id):
 
     except Exception as e:
         return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
-        
+
 @require_POST
 @transaction.atomic
 @login_required
@@ -2024,3 +2025,47 @@ def create_project_from_quote(request):
         return JsonResponse({'status': 'error', 'message': f'Dati non validi: {str(e)}'}, status=400)
     except Exception as e:
         return JsonResponse({'status': 'error', 'message': f'Errore del server: {str(e)}'}, status=500)
+
+@require_POST
+@transaction.atomic
+@login_required
+def reopen_project(request, pk):
+    project = get_object_or_404(Project, pk=pk)
+
+    # 1. Check stato progetto
+    if project.status != Project.Status.DONE:
+        return JsonResponse({'status': 'error', 'message': 'Il progetto non è completato.'})
+
+    # 2. Recupera tutti gli stock item di questo progetto
+    related_stock_items = StockItem.objects.filter(project=project)
+
+    # 3. VERIFICA VENDITE (Nuova Logica basata sul tuo Modello)
+    # Controlliamo se esiste almeno un oggetto con stato 'SOLD'
+    # (Opzionale: puoi aggiungere anche StockItem.Status.CONSIGNMENT se vuoi bloccare anche quelli)
+    items_sold = related_stock_items.filter(
+        status=StockItem.Status.SOLD
+    ).exists()
+
+    # --- BIVIO ---
+    if items_sold:
+        return JsonResponse({
+            'status': 'sold',
+            'message': 'Impossibile riaprire: oggetti già venduti.'
+        })
+
+    # 4. Esecuzione Riapertura (Se nessuno è stato venduto)
+    try:
+        with transaction.atomic():
+            # Cancella gli oggetti a magazzino (che saranno IN_STOCK o POST_PROD)
+            count, _ = related_stock_items.delete()
+
+            # Ripristina progetto
+            project.status = Project.Status.TODO
+            project.completed_at = None
+            project.save()
+
+        target_url = reverse('project_dashboard')
+        return JsonResponse({'status': 'ok', 'redirect_url': target_url})
+
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)})

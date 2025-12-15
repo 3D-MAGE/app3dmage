@@ -613,4 +613,75 @@ document.addEventListener('DOMContentLoaded', async function() {
     printFileModalEl.querySelector('select[name="printer"]')?.addEventListener('change', function() {
         loadAndSelectPlate(this.value);
     });
+
+    function reopenProject(projectId) {
+      if (!confirm('Sei sicuro di voler riaprire il progetto? Gli oggetti a magazzino invenduti verranno rimossi.')) {
+          return;
+      }
+
+      // Costruisci l'URL dinamicamente o usa un data-attribute se preferisci
+      const url = `/project/${projectId}/reopen/`;
+
+      fetch(url, {
+          method: 'POST',
+          headers: {
+              'X-CSRFToken': getCookie('csrftoken'),
+              'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({})
+      })
+      .then(response => response.json())
+      .then(data => {
+          if (data.status === 'ok') {
+              // Ricarica la pagina per mostrare il nuovo stato
+              window.location.reload();
+          } else {
+              alert('Errore: ' + data.message);
+          }
+      })
+      .catch(error => {
+          console.error('Errore:', error);
+          alert('Si è verificato un errore di connessione.');
+      });
+    }
+
 });
+function handleReopenCheck(projectId) {
+// URL per riaprire (assicurati che corrisponda al tuo urls.py)
+const url = `/project/${projectId}/reopen/`;
+
+// Chiamata al server
+fetch(url, {
+    method: 'POST',
+    headers: {
+        'X-CSRFToken': getCookie('csrftoken'),
+        'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({})
+})
+.then(response => response.json())
+.then(data => {
+    if (data.status === 'ok') {
+        // SUCCESSO: Riaperto -> Vai alla dashboard o ricarica
+        // Se nel backend hai messo 'redirect_url', usalo, altrimenti reload
+        if (data.redirect_url) {
+            window.location.href = data.redirect_url;
+        } else {
+            window.location.href = "{% url 'project_dashboard' %}"; // O il nome della tua home
+        }
+    }
+    else if (data.status === 'sold') {
+        // CASO VENDITE: Apri il Modal che propone la Ristampa
+        const reprintModal = new bootstrap.Modal(document.getElementById('soldItemsModal'));
+        reprintModal.show();
+    }
+    else {
+        // ERRORE GENERICO
+        alert('Errore: ' + data.message);
+    }
+})
+.catch(error => {
+    console.error('Errore:', error);
+    alert('Errore di comunicazione con il server.');
+});
+}
