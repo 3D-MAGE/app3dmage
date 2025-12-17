@@ -95,10 +95,20 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 # --- Locale ---
-LANGUAGE_CODE = 'en-us'
-TIME_ZONE = 'UTC'
+# --- Locale ---
+LANGUAGE_CODE = 'it'
+TIME_ZONE = 'Europe/Rome'
 USE_I18N = True
+USE_L10N = False  # Disabilitato per forzare i formati qui sotto
 USE_TZ = True
+
+# Formati Data
+DATE_FORMAT = 'd/m/Y' 
+DATETIME_FORMAT = 'd/m/Y H:i'
+SHORT_DATE_FORMAT = 'd/m/Y'
+SHORT_DATETIME_FORMAT = 'd/m/Y H:i'
+DATE_INPUT_FORMATS = ['%d/%m/%Y', '%Y-%m-%d']
+DATETIME_INPUT_FORMATS = ['%d/%m/%Y %H:%M', '%Y-%m-%d %H:%M']
 
 # --- Chiavi primarie e autenticazione ---
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'

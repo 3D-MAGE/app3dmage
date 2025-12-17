@@ -4,6 +4,8 @@ from django.db.models import Sum, F, Case, When, IntegerField, Value
 from django.utils import timezone
 from django.conf import settings
 from decimal import Decimal
+from .managers import ProjectManager
+
 
 # Modello per le Categorie dei progetti
 class Category(models.Model):
@@ -159,6 +161,8 @@ class Project(models.Model):
         TODO = 'TODO', 'Da Stampare'
         POST = 'POST', 'Post-Produzione'
         DONE = 'DONE', 'Completato'
+
+    objects = ProjectManager()
 
     custom_id = models.CharField(max_length=10, null=True, blank=True, unique=True, verbose_name="ID Personalizzato")
     name = models.CharField(max_length=200, verbose_name="Nome Progetto")

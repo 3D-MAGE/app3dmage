@@ -10,17 +10,22 @@
         background-color: var(--dark-bg) !important;
         border-color: #555 !important;
     }
+
     .ts-control input {
         color: var(--text-light) !important;
     }
+
     .ts-dropdown {
         background-color: var(--dark-card) !important;
         border-color: #555 !important;
     }
+
     .ts-dropdown .option {
         color: var(--text-light) !important;
     }
-    .ts-dropdown .option:hover, .ts-dropdown .active {
+
+    .ts-dropdown .option:hover,
+    .ts-dropdown .active {
         background-color: rgba(255, 255, 255, 0.15) !important;
         color: inherit !important;
     }
@@ -28,92 +33,111 @@
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <!-- MODIFICA: Logica HREF aggiornata per gestire active/completed. Il JS sotto farà l'override per i filtri specifici -->
-    <a href="{% if referer == 'active' %}{% url 'project_dashboard' %}?view=active{% elif referer == 'completed' %}{% url 'project_dashboard' %}?view=completed{% elif referer == 'queue' %}{% url 'print_queue_board' %}{% else %}{% url 'project_kanban_board' %}{% endif %}" id="back-dashboard-btn" class="btn btn-outline-secondary"><i class="bi bi-arrow-left me-2"></i>Indietro</a>
+    <a href="{% if referer == 'active' %}{% url 'project_dashboard' %}?view=active{% elif referer == 'completed' %}{% url 'project_dashboard' %}?view=completed{% elif referer == 'queue' %}{% url 'print_queue_board' %}{% else %}{% url 'project_kanban_board' %}{% endif %}"
+        id="back-dashboard-btn" class="btn btn-outline-secondary"><i class="bi bi-arrow-left me-2"></i>Indietro</a>
     <div>
         {% if project.status == 'DONE' %}
-            <button type="button" class="btn btn-danger" onclick="handleReopenCheck({{ project.id }})">
-                <i class="bi bi-arrow-counterclockwise me-1"></i> Riapri Progetto
-            </button>
-            <form action="{% url 'reprint_project' project.id %}" method="post" class="d-inline">
-                {% csrf_token %}
-                <button type="submit" class="btn btn-primary-custom"><i class="bi bi-printer-fill me-2"></i>Ristampa Progetto</button>
-            </form>
+        <button type="button" class="btn btn-danger" onclick="handleReopenCheck({{ project.id }})">
+            <i class="bi bi-arrow-counterclockwise me-1"></i> Riapri Progetto
+        </button>
+        <form action="{% url 'reprint_project' project.id %}" method="post" class="d-inline">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-primary-custom"><i class="bi bi-printer-fill me-2"></i>Ristampa
+                Progetto</button>
+        </form>
         {% else %}
-            {% if can_be_completed %}
-                <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#completeProjectModal"><i class="bi bi-check-circle-fill me-2"></i>Completa</button>
-            {% else %}
-                <span class="d-inline-block" data-bs-toggle="tooltip" title="Tutti i file devono essere 'Stampato' o 'Fallito' per completare."><button class="btn btn-success" type="button" disabled style="pointer-events: none;"><i class="bi bi-check-circle-fill me-2"></i>Completa</button></span>
-            {% endif %}
-            <button class="btn btn-primary-custom" data-bs-toggle="modal" data-bs-target="#editProjectModal"><i class="bi bi-pencil-fill me-2"></i>Modifica</button>
-            <button class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#deleteProjectModal"><i class="bi bi-trash-fill me-2"></i>Elimina</button>
+        {% if can_be_completed %}
+        <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#completeProjectModal"><i
+                class="bi bi-check-circle-fill me-2"></i>Completa</button>
+        {% else %}
+        <span class="d-inline-block" data-bs-toggle="tooltip"
+            title="Tutti i file devono essere 'Stampato' o 'Fallito' per completare."><button class="btn btn-success"
+                type="button" disabled style="pointer-events: none;"><i
+                    class="bi bi-check-circle-fill me-2"></i>Completa</button></span>
+        {% endif %}
+        <button class="btn btn-primary-custom" data-bs-toggle="modal" data-bs-target="#editProjectModal"><i
+                class="bi bi-pencil-fill me-2"></i>Modifica</button>
+        <button class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#deleteProjectModal"><i
+                class="bi bi-trash-fill me-2"></i>Elimina</button>
         {% endif %}
     </div>
 </div>
 <div class="modal fade" id="soldItemsModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog">
-    <div class="modal-content bg-dark text-white">
-      <div class="modal-header border-danger">
-        <h5 class="modal-title text-danger">
-            <i class="bi bi-exclamation-triangle-fill me-2"></i>Impossibile Riaprire
-        </h5>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-      <div class="modal-body">
-        <p>Non è possibile riaprire questo progetto perché <strong>alcuni oggetti sono già stati venduti</strong>.</p>
-        <p>Vuoi creare una <strong>Ristampa</strong> (copia del progetto) da mettere in coda?</p>
-      </div>
-      <div class="modal-footer border-secondary">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">No, annulla</button>
+    <div class="modal-dialog">
+        <div class="modal-content bg-dark text-white">
+            <div class="modal-header border-danger">
+                <h5 class="modal-title text-danger">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>Impossibile Riaprire
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                    aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Non è possibile riaprire questo progetto perché <strong>alcuni oggetti sono già stati
+                        venduti</strong>.</p>
+                <p>Vuoi creare una <strong>Ristampa</strong> (copia del progetto) da mettere in coda?</p>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">No, annulla</button>
 
-        <form action="{% url 'reprint_project' project.id %}" method="post">
-            {% csrf_token %}
-            <button type="submit" class="btn btn-primary">
-                <i class="bi bi-files me-1"></i> Sì, Ristampa Progetto
-            </button>
-        </form>
-      </div>
+                <form action="{% url 'reprint_project' project.id %}" method="post">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-files me-1"></i> Sì, Ristampa Progetto
+                    </button>
+                </form>
+            </div>
+        </div>
     </div>
-  </div>
 </div>
 <!-- Info Progetto -->
 <div class="card bg-dark-card text-white mb-4">
     <div class="card-header d-flex justify-content-between align-items-center">
-        <div><i class="bi bi-folder-fill me-2"></i><h5 class="mb-0 d-inline-block">Info Progetto - {{ project.name }} (ID #{{ project.id }})</h5></div>
+        <div><i class="bi bi-folder-fill me-2"></i>
+            <h5 class="mb-0 d-inline-block">Info Progetto - {{ project.name }} (ID #{{ project.id }})</h5>
+        </div>
     </div>
     <div class="card-body">
         <div class="row">
             <div class="col-md-4">
                 <p class="mb-2 d-flex align-items-center"><strong class="text-muted me-2">Status:</strong>
                     {% if project.status == 'DONE' %}
-                        <span class="badge bg-status-done">{{ project.get_status_display }}</span>
+                    <span class="badge bg-status-done">{{ project.get_status_display }}</span>
                     {% else %}
-                        <select class="form-select-inline" data-field="status" data-project-id="{{ project.id }}">
-                            {% for value, display in project.Status.choices %}{% if value != 'DONE' %}<option value="{{ value }}" {% if project.status == value %}selected{% endif %}>{{ display }}</option>{% endif %}{% endfor %}
-                        </select>
+                    <select class="form-select-inline" data-field="status" data-project-id="{{ project.id }}">
+                        {% for value, display in project.Status.choices %}{% if value != 'DONE' %}<option
+                            value="{{ value }}" {% if project.status == value %}selected{% endif %}>{{ display }}</option>
+                        {% endif %}{% endfor %}
+                    </select>
                     {% endif %}
                 </p>
                 <p class="mb-1 d-flex align-items-center"><strong class="text-muted me-2">Priorità:</strong>
                     {% if project.status == 'DONE' %}
-                         <span class="badge bg-priority-{{ project.priority|lower }}">{{ project.get_priority_display }}</span>
+                    <span class="badge bg-priority-{{ project.priority|lower }}">{{ project.get_priority_display
+                        }}</span>
                     {% else %}
-                        <select class="form-select-inline" data-field="priority" data-project-id="{{ project.id }}">
-                            {% for value, display in project.Priority.choices %}<option value="{{ value }}" {% if project.priority == value %}selected{% endif %}>{{ display }}</option>{% endfor %}
-                        </select>
+                    <select class="form-select-inline" data-field="priority" data-project-id="{{ project.id }}">
+                        {% for value, display in project.Priority.choices %}<option value="{{ value }}" {% if project.priority == value %}selected{% endif %}>{{ display }}</option>{% endfor %}
+                    </select>
                     {% endif %}
                 </p>
             </div>
             <div class="col-md-4">
-                <p class="mb-2"><strong class="text-muted">Categoria:</strong> {{ project.category.name|default:"N/D" }}</p>
+                <p class="mb-2"><strong class="text-muted">Categoria:</strong> {{ project.category.name|default:"N/D" }}
+                </p>
                 <p class="mb-1">
                     <strong class="text-muted">Quantità:</strong>
                     <span class="badge bg-secondary" data-bs-toggle="tooltip" title="Totale ordine">{{ project.quantity }}</span> /
                     <span class="badge bg-success" data-bs-toggle="tooltip" title="Prodotti">{{ project.total_objects_printed }}</span> /
-                    <span class="badge {% if project.remaining_objects > 0 %}bg-warning text-dark{% else %}bg-secondary{% endif %}" data-bs-toggle="tooltip" title="Rimanenti">{{ project.remaining_objects }}</span>
+                    <span
+                        class="badge {% if project.remaining_objects > 0 %}bg-warning text-dark{% else %}bg-secondary{% endif %}"
+                        data-bs-toggle="tooltip" title="Rimanenti">{{ project.remaining_objects }}</span>
                 </p>
             </div>
             <div class="col-md-4">
                 <p class="mb-2"><strong class="text-muted">Tempo Totale:</strong> {{ project.total_print_time }}</p>
-                <p class="mb-1"><strong class="text-muted">Tempo Rimanente:</strong> {{ project.remaining_print_time }}</p>
+                <p class="mb-1"><strong class="text-muted">Tempo Rimanente:</strong> {{ project.remaining_print_time }}
+                </p>
             </div>
         </div>
         <hr class="border-secondary my-3">
@@ -123,7 +147,9 @@
             <div class="flex-grow-1 me-md-4">
                 <p class="mb-1 text-center small text-muted">Progresso: {{ project.progress }}</p>
                 <div class="progress" style="height: 10px; background-color: #444;">
-                    <div class="progress-bar" role="progressbar" style="width: {{ project.progress_percentage }}%; background-color: #ffa500;"></div>
+                    <div class="progress-bar" role="progressbar"
+                        style="width: {{ project.progress_percentage|stringformat:'.1f' }}%; background-color: #ffa500;">
+                    </div>
                 </div>
             </div>
             <div class="text-center mt-3 mt-md-0">
@@ -144,31 +170,54 @@
 <!-- Tabella File di Stampa Associati -->
 <div class="card bg-dark-card text-white mb-4">
     <div class="card-header d-flex justify-content-between align-items-center">
-        <div><i class="bi bi-file-earmark-code-fill me-2"></i><h5 class="mb-0 d-inline-block">File di Stampa Associati</h5></div>
+        <div><i class="bi bi-file-earmark-code-fill me-2"></i>
+            <h5 class="mb-0 d-inline-block">File di Stampa Associati</h5>
+        </div>
         {% if project.status != 'DONE' %}
-        <button class="btn btn-sm btn-primary-custom" data-bs-toggle="modal" data-bs-target="#printFileModal" data-action="add"><i class="bi bi-plus-lg me-1"></i> Aggiungi File</button>
+        <button class="btn btn-sm btn-primary-custom" data-bs-toggle="modal" data-bs-target="#printFileModal"
+            data-action="add"><i class="bi bi-plus-lg me-1"></i> Aggiungi File</button>
         {% endif %}
     </div>
     <div class="card-body">
         <div class="table-responsive">
             <table class="table table-dark {% if project.status != 'DONE' %}table-hover{% endif %}">
-                <thead><tr><th>Nome</th><th>Stampante</th><th>Piatto</th><th>Filamenti Usati</th><th>Grammi Totali</th><th>Costo</th><th>Tempo</th><th>Stato</th></tr></thead>
+                <thead>
+                    <tr>
+                        <th>Nome</th>
+                        <th>Stampante</th>
+                        <th>Piatto</th>
+                        <th>Filamenti Usati</th>
+                        <th>Grammi Totali</th>
+                        <th>Costo</th>
+                        <th>Tempo</th>
+                        <th>Stato</th>
+                    </tr>
+                </thead>
                 <tbody>
-                {% for file in project.print_files.all %}
+                    {% for file in project.print_files.all %}
                     {% if project.status == 'DONE' %}
                     <tr>
-                    {% else %}
-                    <tr class="clickable-row" data-bs-toggle="modal" data-bs-target="#printFileModal" data-action="edit" data-file-id="{{ file.id }}">
-                    {% endif %}
-                        <td>{{ file.name }}</td><td>{{ file.printer.name|default:"-" }}</td><td>{{ file.plate.name|default:"-" }}</td>
-                        <td>{% for usage in file.filament_usages.all %}<span class="filament-pill" style="background-color: {{ usage.spool.filament.color_hex }};">{{ usage.spool.filament }}</span>&nbsp;{% endfor %}</td>
+                        {% else %}
+                    <tr class="clickable-row" data-bs-toggle="modal" data-bs-target="#printFileModal" data-action="edit"
+                        data-file-id="{{ file.id }}">
+                        {% endif %}
+                        <td>{{ file.name }}</td>
+                        <td>{{ file.printer.name|default:"-" }}</td>
+                        <td>{{ file.plate.name|default:"-" }}</td>
+                        <td>{% for usage in file.filament_usages.all %}<span class="filament-pill"
+                                style="background-color: {{ usage.spool.filament.color_hex }};">{{ usage.spool.filament}}</span>&nbsp;{% endfor %}</td>
                         <td>{{ file.total_grams_used|floatformat:2 }}g</td>
                         <td class="text-warning fw-bold">{{ file.total_cost|floatformat:2 }}€</td>
-                        <td>{{ file.print_time_formatted }}</td><td><span class="badge bg-print-status-{{ file.status|lower }}">{{ file.get_status_display }}</span></td>
+                        <td>{{ file.print_time_formatted }}</td>
+                        <td><span class="badge bg-print-status-{{ file.status|lower }}">{{ file.get_status_display }}</span></td>
                     </tr>
-                {% empty %}
-                <tr><td colspan="8" class="text-center py-4"><p class="text-muted">Nessun file di stampa per questo progetto.</p></td></tr>
-                {% endfor %}
+                    {% empty %}
+                    <tr>
+                        <td colspan="8" class="text-center py-4">
+                            <p class="text-muted">Nessun file di stampa per questo progetto.</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
                 </tbody>
             </table>
         </div>
@@ -202,8 +251,39 @@
         </div>
     </div>
 </div>
-<div class="modal fade" id="editProjectModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content bg-dark-card text-white"><div class="modal-header border-secondary"><h5 class="modal-title">Modifica Progetto</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><form id="editProjectForm" action="{% url 'edit_project' project.id %}" method="post">{% csrf_token %}<div class="modal-body">{{ edit_project_form.as_p }}</div><div class="modal-footer border-secondary"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button><button type="submit" class="btn btn-primary-custom">Salva Modifiche</button></div></form></div></div></div>
-<div class="modal fade" id="deleteProjectModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content bg-dark-card text-white"><div class="modal-header border-danger bg-danger"><h5 class="modal-title">Conferma Eliminazione</h5></div><div class="modal-body"><p>Sei sicuro di voler eliminare il progetto <strong>"{{ project.name }}"</strong>?</p><p class="text-danger small">Questa azione è permanente e non può essere annullata.</p></div><div class="modal-footer border-secondary"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button><form id="deleteProjectForm" action="{% url 'delete_project' project.id %}" method="post">{% csrf_token %}<button type="submit" class="btn btn-danger">Sì, Elimina</button></form></div></div></div></div>
+<div class="modal fade" id="editProjectModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-dark-card text-white">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title">Modifica Progetto</h5><button type="button" class="btn-close btn-close-white"
+                    data-bs-dismiss="modal"></button>
+            </div>
+            <form id="editProjectForm" action="{% url 'edit_project' project.id %}" method="post">{% csrf_token %}<div
+                    class="modal-body">{{ edit_project_form.as_p }}</div>
+                <div class="modal-footer border-secondary"><button type="button" class="btn btn-secondary"
+                        data-bs-dismiss="modal">Annulla</button><button type="submit"
+                        class="btn btn-primary-custom">Salva Modifiche</button></div>
+            </form>
+        </div>
+    </div>
+</div>
+<div class="modal fade" id="deleteProjectModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-dark-card text-white">
+            <div class="modal-header border-danger bg-danger">
+                <h5 class="modal-title">Conferma Eliminazione</h5>
+            </div>
+            <div class="modal-body">
+                <p>Sei sicuro di voler eliminare il progetto <strong>"{{ project.name }}"</strong>?</p>
+                <p class="text-danger small">Questa azione è permanente e non può essere annullata.</p>
+            </div>
+            <div class="modal-footer border-secondary"><button type="button" class="btn btn-secondary"
+                    data-bs-dismiss="modal">Annulla</button>
+                <form id="deleteProjectForm" action="{% url 'delete_project' project.id %}" method="post">{% csrf_token %}<button type="submit" class="btn btn-danger">Sì, Elimina</button></form>
+            </div>
+        </div>
+    </div>
+</div>
 
 <!-- MODALE PER CREAZIONE AUTOMATICA FILE -->
 <div class="modal fade" id="autoCreateFilesModal" tabindex="-1">
@@ -216,8 +296,10 @@
                 <p id="auto-create-message"></p>
             </div>
             <div class="modal-footer border-secondary">
-                <button type="button" class="btn btn-secondary" id="cancel-auto-create-btn" data-bs-dismiss="modal">No, grazie</button>
-                <button type="button" class="btn btn-primary-custom" id="confirm-auto-create-btn">Sì, crea copie</button>
+                <button type="button" class="btn btn-secondary" id="cancel-auto-create-btn" data-bs-dismiss="modal">No,
+                    grazie</button>
+                <button type="button" class="btn btn-primary-custom" id="confirm-auto-create-btn">Sì, crea
+                    copie</button>
             </div>
         </div>
     </div>
@@ -234,8 +316,10 @@
                 <p class="mb-0">Vuoi rimettere in coda una nuova copia di questo file per ritentare la stampa?</p>
             </div>
             <div class="modal-footer border-secondary">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="requeue-no-btn">No, grazie</button>
-                <button type="button" class="btn btn-primary-custom" id="confirm-requeue-btn">Sì, rimetti in coda</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="requeue-no-btn">No,
+                    grazie</button>
+                <button type="button" class="btn btn-primary-custom" id="confirm-requeue-btn">Sì, rimetti in
+                    coda</button>
             </div>
         </div>
     </div>
@@ -244,22 +328,16 @@
 
 
 {% block scripts %}
-<script id="project-detail-urls"
-    data-api-filaments-url="{% url 'api_get_all_filaments' %}"
-    data-ajax-plates-url="{% url 'ajax_load_plates' %}"
-    data-add-file-url="{% url 'add_print_file' %}"
-    data-clone-file-url="{% url 'clone_print_file' %}"
-    data-file-url-base="/printfile/"
-    data-project-id="{{ project.id }}"
-    data-project-url-base="/project/"
-    data-api-spools-url-base="{% url 'api_get_filament_spools' 0 %}"
-    data-referer="{{ referer }}"
-    defer>
-</script>
+<script id="project-detail-urls" data-api-filaments-url="{% url 'api_get_all_filaments' %}"
+    data-ajax-plates-url="{% url 'ajax_load_plates' %}" data-add-file-url="{% url 'add_print_file' %}"
+    data-clone-file-url="{% url 'clone_print_file' %}" data-file-url-base="/printfile/"
+    data-project-id="{{ project.id }}" data-project-url-base="/project/"
+    data-api-spools-url-base="{% url 'api_get_filament_spools' 0 %}" data-referer="{{ referer }}" defer>
+    </script>
 
 <script>
     // Gestione intelligente del tasto indietro per preservare i filtri
-    document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('DOMContentLoaded', function () {
         const backBtn = document.getElementById('back-dashboard-btn');
         if (backBtn) {
             const lastUrl = localStorage.getItem('last_dashboard_url');
