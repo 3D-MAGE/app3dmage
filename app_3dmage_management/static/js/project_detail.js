@@ -550,15 +550,13 @@ document.addEventListener('DOMContentLoaded', async function() {
             showToast(data.message || 'Errore', data.status === 'ok' ? 'success' : 'error');
             if (data.status === 'ok') {
                 setTimeout(() => window.location.reload(), 800);
+            } else {
+                hideLoader();
             }
         } catch (error) {
             console.error('Errore durante la clonazione:', error);
             showToast('Errore durante la clonazione del file.', 'error');
-        } finally {
-            // Nasconde l'overlay solo dopo che il toast è stato mostrato e il timeout è partito
-            if (! (await response.json()).status === 'ok') {
-                hideLoader();
-            }
+            hideLoader();
         }
     });
 

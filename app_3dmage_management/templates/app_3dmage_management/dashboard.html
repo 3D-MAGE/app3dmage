@@ -124,8 +124,7 @@
                         <td class="text-center">{{ project.remaining_print_time }}</td>
                         <td style="position: relative; min-width: 120px;">
                             <div class="progress" style="height: 22px; background-color: #444;">
-                                <div class="progress-bar" role="progressbar"
-                                    style="width: {{ project.progress_percentage|stringformat:'.1f' }}%; background-color: #ffa500;">
+                                <div class="progress-bar" role="progressbar" style="--p: {{ project.progress_percentage|floatformat:1 }}%; width: var(--p); background-color: #ffa500;">
                                 </div>
                             </div><strong
                                 class="justify-content-center align-items-center d-flex position-absolute w-100 h-100 top-0 start-0 text-dark"
@@ -244,13 +243,12 @@
                         <td class="fw-bold">{{ project.name }}</td>
                         <td class="text-center">{{ project.completed_at|date:"d/m/y" }}</td>
                         <td class="text-center">{{ project.total_print_time }}</td>
-                        <td class="text-center text-warning fw-bold">{{ project.annotated_material_cost|floatformat:2
-                            }}€</td>
+                        <td class="text-center text-warning fw-bold">{{ project.annotated_material_cost|floatformat:2}}€</td>
                         <td class="text-center">{{ project.category.name|default:"N/A" }}</td>
                         <!-- MODIFICA: Loop per mostrare le pillole colorate -->
                         <td class="text-center">
                             {% for filament in project.filament_summary_details %}
-                            <span class="filament-pill" style="background-color: {{ filament.color_hex }};"
+                            <span class="filament-pill" style="--bg: {{ filament.color_hex }}; background-color: var(--bg);"
                                 title="{{ filament.name }}">{{ filament.name }}</span>&nbsp;
                             {% empty %}
                             -

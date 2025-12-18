@@ -247,7 +247,7 @@ def clone_print_file(request):
             )
             for usage in original_file.filament_usages.all():
                 FilamentUsage.objects.create(
-                    new_file,
+                    print_file=new_file,
                     spool=usage.spool,
                     grams_used=usage.grams_used
                 )
@@ -350,7 +350,7 @@ def requeue_print_file(request, file_id):
         else:
             for usage in original_file.filament_usages.all():
                 FilamentUsage.objects.create(
-                    new_file,
+                    print_file=new_file,
                     spool=usage.spool,
                     grams_used=usage.grams_used
                 )

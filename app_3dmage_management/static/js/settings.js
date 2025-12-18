@@ -99,27 +99,6 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     });
 
-    // Logica per il reset del contatore di manutenzione
-    document.querySelectorAll('.reset-maintenance-btn').forEach(button => {
-        button.addEventListener('click', function() {
-            const printerId = this.dataset.printerId;
-            if (confirm(`Sei sicuro di voler azzerare il contatore parziale per questa stampante?`)) {
-                fetch(`/settings/maintenance/reset_counter/${printerId}/`, {
-                    method: 'POST',
-                    headers: {'X-CSRFToken': csrftoken}
-                })
-                .then(res => res.json())
-                .then(data => {
-                    if (data.status === 'ok') {
-                        showToast(data.message, 'success');
-                        setTimeout(() => window.location.reload(), 500);
-                    } else {
-                        showToast(data.message || 'Errore durante il reset.', 'error');
-                    }
-                });
-            }
-        });
-    });
 
     // --- Logica per lo switcher del tema ---
     const themeSwitcher = document.getElementById('theme-switcher');

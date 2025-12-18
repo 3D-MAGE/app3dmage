@@ -5,7 +5,7 @@ from django.views.decorators.http import require_POST
 from django.contrib.auth.decorators import login_required
 from django.utils import timezone
 from django.forms.models import model_to_dict
-from django.db.models import Sum, Count, Subquery, OuterRef, IntegerField, DecimalField, ExpressionWrapper, F
+from django.db.models import Sum, Count, Subquery, OuterRef, IntegerField, DecimalField, ExpressionWrapper, F, Value
 from django.db.models.functions import Coalesce
 
 from ..models import (
@@ -52,15 +52,6 @@ def settings_dashboard(request):
         total=Sum('print_time_seconds')
     ).values('total')
 
-    # Subquery for calculating print seconds since the last maintenance reset.
-    maintenance_seconds_subquery = PrintFile.objects.filter(
-        printer=OuterRef('pk'),
-        status='DONE',
-        # Compare completion date with the printer's specific reset date
-        project__completed_at__gte=OuterRef('last_maintenance_reset')
-    ).values('printer').annotate(
-        total=Sum('print_time_seconds')
-    ).values('total')
 
 
     # Main query for printers, now using the robust subqueries for aggregations
@@ -71,20 +62,8 @@ def settings_dashboard(request):
         plate_count=Count('plates', distinct=True),
         maintenance_count=Count('maintenance_logs', distinct=True),
 
-        # Use subqueries for time calculations
         relevant_print_seconds=Coalesce(
             Subquery(relevant_seconds_subquery, output_field=IntegerField()), 0
-        ),
-        seconds_since_maintenance=Coalesce(
-            Subquery(maintenance_seconds_subquery, output_field=IntegerField()), 0
-        )
-    ).annotate(
-        # Calculate electricity cost based on the now-correct 'relevant_print_seconds'
-        annotated_electricity_cost=ExpressionWrapper(
-            (F('relevant_print_seconds') / Decimal('3600.0')) *
-            (F('power_consumption') / Decimal('1000.0')) *
-            electricity_cost_kwh,
-            output_field=DecimalField()
         )
     ).order_by('name')
 
@@ -97,12 +76,10 @@ def settings_dashboard(request):
         m_relevant = (relevant_seconds % 3600) // 60
         printer.relevant_print_time_formatted = f"{h_relevant} ore {m_relevant} min"
 
-        # Format the time since last maintenance reset
-        partial_seconds = printer.seconds_since_maintenance
-        h_partial = partial_seconds // 3600
-        m_partial = (partial_seconds % 3600) // 60
-        printer.partial_print_time_formatted = f"{h_partial} ore {m_partial} min"
-
+        # Calculate electricity cost in Python for precision
+        relevant_hours = Decimal(relevant_seconds) / Decimal('3600.0')
+        printer_kw = Decimal(printer.power_consumption) / Decimal('1000.0')
+        printer.annotated_electricity_cost = relevant_hours * printer_kw * electricity_cost_kwh
         printers.append(printer)
 
 
@@ -138,13 +115,6 @@ def settings_dashboard(request):
     return render(request, 'app_3dmage_management/settings.html', context)
 
 
-@require_POST
-@login_required
-def reset_maintenance_counter(request, printer_id):
-    printer = get_object_or_404(Printer, id=printer_id)
-    printer.last_maintenance_reset = timezone.now()
-    printer.save()
-    return JsonResponse({'status': 'ok', 'message': f'Contatore per {printer.name} azzerato.'})
 
 @require_POST
 @login_required

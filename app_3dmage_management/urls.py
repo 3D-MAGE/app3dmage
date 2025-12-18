@@ -110,7 +110,7 @@ urlpatterns = [
     path('settings/expense_category/<int:pk>/edit/', views.edit_expense_category, name='edit_expense_category'),
     path('settings/expense_category/<int:pk>/delete/', views.delete_expense_category, name='delete_expense_category'),
     path('settings/maintenance/add/', views.add_maintenance_log, name='add_maintenance_log'),
-    path('settings/maintenance/reset_counter/<int:printer_id>/', views.reset_maintenance_counter, name='reset_maintenance_counter'), # NUOVO URL
+
     path('settings/general/update/', views.update_general_settings, name='update_general_settings'),
     path('quotes/', views.quote_calculator, name='quote_calculator'),
 
