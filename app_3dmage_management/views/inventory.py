@@ -153,8 +153,9 @@ def update_stock_item(request, item_id):
         item_to_process.save()
 
         if item_to_process.payment_method and item_to_process.sale_price:
-            total_sale_price = item_to_process.sale_price * item_to_process.quantity
-            item_to_process.payment_method.balance += total_sale_price
+            net_revenue = item_to_process.get_net_revenue()
+            item_to_process.payment_method.refresh_from_db()
+            item_to_process.payment_method.balance += net_revenue
             item_to_process.payment_method.save()
     else:
         newly_sold_item = StockItem.objects.create(
@@ -203,8 +204,9 @@ def update_stock_item(request, item_id):
         item_to_process.save()
         
         if newly_sold_item.payment_method and newly_sold_item.sale_price:
-            total_sale_price = newly_sold_item.sale_price * newly_sold_item.quantity
-            newly_sold_item.payment_method.balance += total_sale_price
+            net_revenue = newly_sold_item.get_net_revenue()
+            newly_sold_item.payment_method.refresh_from_db()
+            newly_sold_item.payment_method.balance += net_revenue
             newly_sold_item.payment_method.save()
 
     return JsonResponse({'status': 'ok', 'message': 'Oggetto venduto con successo!'})

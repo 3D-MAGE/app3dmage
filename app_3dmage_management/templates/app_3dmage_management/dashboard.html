@@ -1,5 +1,5 @@
 {% extends "app_3dmage_management/base.html" %}
-{% load static %}
+{% load static l10n %}
 {% block title %}Dashboard Progetti - 3DMAGE MANAGEMENT{% endblock %}
 
 {% block content %}
@@ -124,8 +124,11 @@
                         <td class="text-center">{{ project.remaining_print_time }}</td>
                         <td style="position: relative; min-width: 120px;">
                             <div class="progress" style="height: 22px; background-color: #444;">
-                                <div class="progress-bar" role="progressbar" style="--p: {{ project.progress_percentage|floatformat:1 }}%; width: var(--p); background-color: #ffa500;">
+                                {% localize off %}
+                                <div class="progress-bar" role="progressbar"
+                                 style="width: {{ project.progress_percentage }}%; background-color: #ffa500 !important;">
                                 </div>
+                                {% endlocalize %}
                             </div><strong
                                 class="justify-content-center align-items-center d-flex position-absolute w-100 h-100 top-0 start-0 text-dark"
                                 style="font-size: 0.8em;">{{ project.progress }}</strong>

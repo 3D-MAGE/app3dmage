@@ -39,10 +39,10 @@ def accounting_dashboard(request):
     if category_filter:
         expenses_query = expenses_query.filter(category_id=category_filter)
 
-    income_items = income_items_query.select_related('payment_method').order_by('-sold_at', '-id')
+    income_items = income_items_query.with_net_values().select_related('payment_method').order_by('-sold_at', '-id')
     expenses = expenses_query.order_by('-expense_date', '-id')
 
-    total_income = income_items.annotate(total_price=F('quantity') * F('sale_price')).aggregate(total=Sum('total_price'))['total'] or Decimal('0.00')
+    total_income = income_items.aggregate(total=Sum('annotated_net_revenue'))['total'] or Decimal('0.00')
     total_expenses = expenses.aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
 
     profit = total_income - total_expenses
@@ -80,9 +80,12 @@ def add_manual_income(request):
         income.quantity = 1
         income.material_cost = 0
         if income.payment_method and income.sale_price:
-            income.payment_method.balance += income.sale_price
+            income.save() # Salviamo per avere l'ID e i campi impostati
+            income.payment_method.refresh_from_db()
+            income.payment_method.balance += income.get_net_revenue()
             income.payment_method.save()
-        income.save()
+        else:
+            income.save()
     return redirect('accounting_dashboard')
 
 @require_POST

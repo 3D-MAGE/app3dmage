@@ -44,7 +44,7 @@ def project_dashboard(request):
 
     # --- Gestione Progetti Attivi (Solo se view_mode è active) ---
     if view_mode == 'active':
-        sort_active = request.GET.get('sort_active', 'name')
+        sort_active = request.GET.get('sort_active', 'priority')
         order_active = request.GET.get('order_active', 'asc')
         order_prefix_active = '-' if order_active == 'desc' else ''
 
@@ -63,7 +63,12 @@ def project_dashboard(request):
         valid_sort_fields_active = ['name', 'priority', 'status', 'remaining_print_time_seconds', 'total_print_time_seconds', 'category__name']
         if sort_active not in valid_sort_fields_active:
             sort_active = 'name'
-        active_projects = active_projects_query.order_by(f'{order_prefix_active}{sort_active}')
+        
+        sort_field = f'{order_prefix_active}{sort_active}'
+        if sort_active == 'priority':
+            sort_field = f'{order_prefix_active}priority_order'
+            
+        active_projects = active_projects_query.order_by(sort_field).distinct()
 
     # Variabili per il template (default vuoti per evitare errori)
     else:

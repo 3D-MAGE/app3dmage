@@ -1,179 +1,75 @@
-document.addEventListener('DOMContentLoaded', function () {
-    // Funzione per ottenere il valore di un cookie, necessario per il token CSRF
-    const getCookie = (name) => {
-        let cookieValue = null;
-        if (document.cookie && document.cookie !== '') {
-            const cookies = document.cookie.split(';');
-            for (let i = 0; i < cookies.length; i++) {
-                const cookie = cookies[i].trim();
-                if (cookie.substring(0, name.length + 1) === (name + '=')) {
-                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                    break;
-                }
-            }
-        }
-        return cookieValue;
+// Utility globale per il calcolo del prezzo netto (commissioni)
+window.calculateNetPrice = function (grossPrice, methodName) {
+    if (isNaN(grossPrice)) return grossPrice;
+    
+    const method = methodName.toLowerCase();
+    if (method.includes('satispay business')) {
+        return Math.round(grossPrice * 0.99 * 100) / 100; // 1% fee
+    } else if (method.includes('sumup') || method.includes('sum up')) {
+        return Math.round(grossPrice * 0.9805 * 100) / 100; // 1.95% fee
     }
+    return grossPrice;
+};
 
-    const csrftoken = getCookie('csrftoken');
-    let currentItemId = null;
-    let currentItemData = null; // Store fetched data
-
-    // --- Gestione Modale per MODIFICARE un oggetto (StockItem) ---
+document.addEventListener('DOMContentLoaded', function () {
     const editModalEl = document.getElementById('editStockItemModal');
+    const sellModalEl = document.getElementById('sellStockItemModal');
+    const sellForm = document.getElementById('sellStockItemForm');
+    
+    // Inizializzazione modali Bootstrap
     let editModal = null;
+    let sellModal = null;
+    if (editModalEl) editModal = new bootstrap.Modal(editModalEl);
+    if (sellModalEl) sellModal = new bootstrap.Modal(sellModalEl);
+
+    let currentItemData = null;
+
     if (editModalEl) {
-        editModal = new bootstrap.Modal(editModalEl);
-        const form = editModalEl.querySelector('#editStockItemForm');
-
-        if (form) {
-            const statusSelect = form.querySelector('[name="status"]');
-            if (statusSelect) {
-                // Rimuovi l'opzione "Venduto" dal dropdown se presente (UX richiesta)
-                for (let i = 0; i < statusSelect.options.length; i++) {
-                    if (statusSelect.options[i].value === 'SOLD') {
-                        statusSelect.remove(i);
-                        break;
-                    }
-                }
-            } else {
-                console.warn("Status select not found in edit form");
-            }
-        } else {
-            console.error("Edit form not found in edit modal");
-        }
-
-        // Popola la modale quando viene aperta
+        // Caricamento dati nel modale di modifica
         editModalEl.addEventListener('show.bs.modal', function (event) {
-            const triggerRow = event.relatedTarget;
-            currentItemId = triggerRow.dataset.itemId;
-            form.action = `/ajax/stock_item/${currentItemId}/update/`;
+            const button = event.relatedTarget;
+            const itemId = button.getAttribute('data-item-id');
+            const form = document.getElementById('editStockItemForm');
+            form.action = `/inventory/edit/${itemId}/`;
 
-            fetch(`/ajax/stock_item/${currentItemId}/details/`)
-                .then(res => res.json())
+            fetch(`/inventory/details/${itemId}/`)
+                .then(response => response.json())
                 .then(data => {
-                    currentItemData = data; // Save for Sell Modal
-                    const modalTitle = editModalEl.querySelector('#editStockItemModalLabel');
-                    modalTitle.textContent = `Gestisci: ${data.name} (#${data.custom_id})`;
+                    currentItemData = data;
+                    document.getElementById('editStockItemModalLabel').textContent = `Modifica: ${data.name}`;
+                    document.getElementById('itemProjectName').textContent = data.project_name || 'N/D';
+                    document.getElementById('itemProjectID').textContent = data.project_id ? `#${data.project_id}` : '';
+                    
                     form.querySelector('[name="name"]').value = data.name;
                     form.querySelector('[name="quantity"]').value = data.quantity;
                     form.querySelector('[name="suggested_price"]').value = data.suggested_price;
                     form.querySelector('[name="status"]').value = data.status;
+                    
+                    document.getElementById('itemMaterialCost').textContent = `${parseFloat(data.material_cost_unit).toFixed(2)}€`;
+                    document.getElementById('itemLaborCost').textContent = `${parseFloat(data.labor_cost_unit).toFixed(2)}€`;
 
-                    const materialCostEl = document.getElementById('itemMaterialCost');
-                    const laborCostEl = document.getElementById('itemLaborCost');
-
-                    if (materialCostEl) {
-                        materialCostEl.textContent = `${parseFloat(data.production_cost_per_unit).toFixed(2)}€`;
-                    }
-                    if (laborCostEl) {
-                        laborCostEl.textContent = `${parseFloat(data.labor_cost_per_unit).toFixed(2)}€`;
-                    }
-
-                    document.getElementById('itemProjectName').textContent = data.project_name || 'N/A';
-                    document.getElementById('itemProjectID').textContent = data.project_id ? `(#${data.project_id})` : '';
-
+                    // Gestione note progetto (se presenti)
                     const notesWrapper = document.getElementById('project-notes-wrapper');
                     const notesTextarea = document.getElementById('id_project_notes');
-                    if (data.project_id) {
-                        notesTextarea.value = data.project_notes || '';
+                    if (data.project_notes) {
                         notesWrapper.style.display = 'block';
+                        notesTextarea.value = data.project_notes;
+                        notesTextarea.readOnly = true;
                     } else {
                         notesWrapper.style.display = 'none';
                     }
                 });
         });
 
-        // Gestisce l'invio del form di modifica
-        form.addEventListener('submit', function (e) {
-            e.preventDefault();
-            const formData = new FormData(form);
-
-            fetch(form.action, {
-                method: 'POST',
-                body: formData,
-                headers: { 'X-CSRFToken': csrftoken }
-            })
-                .then(res => {
-                    if (!res.ok) return res.json().then(err => Promise.reject(err));
-                    return res.json();
-                })
-                .then(data => {
-                    editModal.hide();
-                    if (data.status === 'ok') {
-                        showToast(data.message, 'success');
-                        setTimeout(() => window.location.reload(), 1200);
-                    } else {
-                        const errorMsg = data.message || (data.errors ? Object.values(JSON.parse(data.errors)).join(' ') : 'Errore sconosciuto');
-                        showToast(errorMsg, 'error');
-                    }
-                })
-                .catch(error => {
-                    console.error('Fetch Error:', error);
-                    const errorMsg = error.message || 'Si è verificato un errore di comunicazione con il server.';
-                    showToast(errorMsg, 'error');
-                });
-        });
-
-        // Gestione eliminazione
-        const deleteModalEl = document.getElementById('confirmDeleteModal');
-        const deleteModal = new bootstrap.Modal(deleteModalEl);
-        const deleteBtn = editModalEl.querySelector('#deleteStockItemBtn');
-        const confirmDeleteBtn = deleteModalEl.querySelector('#confirmDeleteBtn');
-        const itemNameToDelete = deleteModalEl.querySelector('#itemNameToDelete');
-
-        deleteBtn.addEventListener('click', function () {
-            itemNameToDelete.textContent = form.querySelector('[name="name"]').value;
-            editModal.hide();
-            deleteModal.show();
-        });
-
-        confirmDeleteBtn.addEventListener('click', function () {
-            fetch(`/ajax/stock_item/${currentItemId}/delete/`, {
-                method: 'POST',
-                headers: { 'X-CSRFToken': csrftoken }
-            })
-                .then(res => res.json())
-                .then(data => {
-                    deleteModal.hide();
-                    if (data.status === 'ok') {
-                        showToast(data.message, 'success');
-                        setTimeout(() => window.location.reload(), 1200);
-                    } else {
-                        showToast(data.message, 'error');
-                    }
-                })
-                .catch(error => {
-                    deleteModal.hide();
-                    showToast('Errore durante l\'eliminazione.', 'error');
-                });
-        });
-    }
-
-    // --- Gestione Modale per VENDERE un oggetto ---
-    const sellModalEl = document.getElementById('sellStockItemModal');
-    if (sellModalEl && editModalEl) {
-        const sellModal = new bootstrap.Modal(sellModalEl);
-        const sellForm = sellModalEl.querySelector('#sellStockItemForm');
-
-        // Il bottone nel modale Edit potrebbe essere stato spostato nel DOM, 
-        // ma ID dovrebbe essere univoco.
-        const openSellBtn = document.getElementById('openSellModalBtn');
-
-        if (openSellBtn) {
-            openSellBtn.addEventListener('click', function () {
-                if (!currentItemData) return;
-
-                // Chiudi modale edit e apri modale sell
+        // Apertura modale vendita
+        document.getElementById('openSellModalBtn').addEventListener('click', function () {
+            if (currentItemData) {
                 editModal.hide();
                 sellModal.show();
-
-                // Pre-popola form di vendita
-                sellForm.action = `/ajax/stock_item/${currentItemId}/update/`; // Usa lo stesso endpoint
-
+                
+                // Popola i campi del modale vendita
                 document.getElementById('sell_original_quantity').value = currentItemData.quantity;
                 document.getElementById('sell_suggested_price_hidden').value = currentItemData.suggested_price;
-
                 document.getElementById('sell_name').value = currentItemData.name;
 
                 const qtyInput = document.getElementById('sell_quantity');
@@ -181,107 +77,102 @@ document.addEventListener('DOMContentLoaded', function () {
                 qtyInput.value = 1;
                 document.getElementById('sell_available_qty').textContent = currentItemData.quantity;
 
-                // Imposta data odierna
                 document.getElementById('sell_date').valueAsDate = new Date();
+                const priceInput = document.getElementById('sell_price');
+                priceInput.value = currentItemData.suggested_price;
 
-                // Prezzo
-                document.getElementById('sell_price').value = currentItemData.suggested_price;
-
-                // Reset altri campi
                 document.getElementById('sell_sold_to').value = '';
                 document.getElementById('sell_notes').value = '';
-                // Reset select pagamento (se presente)
+                
                 const paySelect = sellForm.querySelector('[name="payment_method"]');
                 if (paySelect) paySelect.selectedIndex = 0;
-            });
-        }
 
-        sellForm.addEventListener('submit', function (e) {
-            e.preventDefault();
-
-            // Logica commissioni frontend (Satispay/SumUp)
-            const priceInput = document.getElementById('sell_price');
-            const originalPriceStr = priceInput.value;
-            const originalPrice = parseFloat(originalPriceStr.replace(',', '.'));
-
-            const paySelect = sellForm.querySelector('[name="payment_method"]');
-            let finalPrice = originalPrice;
-
-            if (paySelect && !isNaN(originalPrice)) {
-                const selectedOption = paySelect.options[paySelect.selectedIndex];
-                const methodName = selectedOption ? selectedOption.text.trim().toLowerCase() : '';
-
-                if (methodName.indexOf('satispay business') !== -1) {
-                    finalPrice = originalPrice * 0.99;
-                }
-                else if (methodName.indexOf('sumup') !== -1 || methodName.indexOf('sum up') !== -1) {
-                    finalPrice = originalPrice * 0.9805;
-                }
+                // Aggiorna anteprima netto subito
+                updateNetPreview();
             }
+        });
 
-            if (!isNaN(finalPrice) && finalPrice !== originalPrice) {
-                priceInput.value = finalPrice.toFixed(2);
+        // Gestione eliminazione
+        const deleteBtn = document.getElementById('deleteStockItemBtn');
+        const confirmDeleteModal = new bootstrap.Modal(document.getElementById('confirmDeleteModal'));
+        deleteBtn.addEventListener('click', function () {
+            if (currentItemData) {
+                document.getElementById('itemNameToDelete').textContent = currentItemData.name;
+                editModal.hide();
+                confirmDeleteModal.show();
             }
+        });
 
-            const formData = new FormData(sellForm);
-            priceInput.value = originalPriceStr; // Ripristina per UX
-
-            fetch(sellForm.action, {
+        document.getElementById('confirmDeleteBtn').addEventListener('click', function () {
+            fetch(`/inventory/delete/${currentItemData.id}/`, {
                 method: 'POST',
-                body: formData,
-                headers: { 'X-CSRFToken': csrftoken }
+                headers: { 'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value }
             })
-                .then(res => {
-                    if (!res.ok) return res.json().then(err => Promise.reject(err));
-                    return res.json();
-                })
-                .then(data => {
-                    sellModal.hide();
-                    if (data.status === 'ok') {
-                        showToast(data.message, 'success');
-                        setTimeout(() => window.location.reload(), 1200);
-                    } else {
-                        const errorMsg = data.message || (data.errors ? Object.values(JSON.parse(data.errors)).join(' ') : 'Errore vendita');
-                        showToast(errorMsg, 'error');
-                    }
-                })
-                .catch(error => {
-                    console.error('Fetch Error:', error);
-                    showToast(error.message || 'Errore comunicazione server', 'error');
-                });
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'ok') window.location.reload();
+            });
         });
     }
 
-    // Aggiunta manuale oggetto
-    const addModalEl = document.getElementById('addStockItemModal');
-    if (addModalEl) {
-        const addForm = addModalEl.querySelector('#addStockItemForm');
-        addForm.addEventListener('submit', function (e) {
+    // --- LOGICA VENDITA ---
+
+    function updateNetPreview() {
+        const priceInput = document.getElementById('sell_price');
+        const previewDiv = document.getElementById('sell_net_preview');
+        const paySelect = sellForm.querySelector('[name="payment_method"]');
+        
+        if (!priceInput || !previewDiv || !paySelect) return;
+
+        const grossPrice = parseFloat(priceInput.value.replace(',', '.'));
+        const selectedOption = paySelect.options[paySelect.selectedIndex];
+        const methodName = selectedOption ? selectedOption.text.trim() : '';
+
+        if (isNaN(grossPrice)) {
+            previewDiv.textContent = '';
+            return;
+        }
+
+        const netPrice = window.calculateNetPrice(grossPrice, methodName);
+        if (netPrice !== grossPrice) {
+            previewDiv.textContent = `Netto ricevuto: ${netPrice.toFixed(2)}€ (dopo commissioni)`;
+        } else {
+            previewDiv.textContent = 'Nessuna commissione applicata';
+        }
+    }
+
+    if (sellForm) {
+        const priceInput = document.getElementById('sell_price');
+        const paySelect = sellForm.querySelector('[name="payment_method"]');
+
+        priceInput.addEventListener('input', updateNetPreview);
+        paySelect.addEventListener('change', updateNetPreview);
+
+        sellForm.addEventListener('submit', function (e) {
             e.preventDefault();
-            fetch(addForm.action, {
+            
+            // Il backend ora si aspetta il prezzo LORDO e calcola lui il netto per il saldo.
+            // Quindi inviamo i dati così come sono nel form.
+            const formData = new FormData(sellForm);
+            const itemId = currentItemData.id;
+
+            fetch(`/inventory/sell/${itemId}/`, {
                 method: 'POST',
-                body: new FormData(addForm),
-                headers: { 'X-CSRFToken': csrftoken }
+                body: formData,
+                headers: { 'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value }
             })
-                .then(res => {
-                    if (!res.ok) return res.json().then(err => Promise.reject(err));
-                    return res.json();
-                })
-                .then(data => {
-                    const addModal = bootstrap.Modal.getInstance(addModalEl);
-                    addModal.hide();
-                    if (data.status === 'ok') {
-                        showToast('Oggetto aggiunto manualmente con successo!', 'success');
-                        setTimeout(() => window.location.reload(), 1200);
-                    } else {
-                        const errorMsg = data.message || (data.errors ? Object.values(JSON.parse(data.errors)).join(' ') : 'Errore');
-                        showToast(errorMsg, 'error');
-                    }
-                })
-                .catch(error => {
-                    console.error('Fetch Error:', error);
-                    showToast(error.message || 'Errore comunicazione server', 'error');
-                });
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'ok') {
+                    window.location.reload();
+                } else {
+                    alert(data.message || 'Errore durante la vendita');
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                alert('Errore di comunicazione con il server.');
+            });
         });
     }
 });

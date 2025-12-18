@@ -158,8 +158,9 @@ class Project(models.Model):
 
     class Status(models.TextChoices):
         QUOTE = 'QUOTE', 'Preventivo'
-        TODO = 'TODO', 'Da Stampare'
-        POST = 'POST', 'Post-Produzione'
+        TODO = 'TODO', 'Da stampare'
+        PRINTING = 'PRINTING', 'In stampa'
+        PRINTED = 'PRINTED', 'Stampato'
         DONE = 'DONE', 'Completato'
 
     objects = ProjectManager()
@@ -345,6 +346,38 @@ class PaymentMethod(models.Model):
         verbose_name = "Metodo di Pagamento"
         verbose_name_plural = "Metodi di Pagamento"
 
+class StockItemQuerySet(models.QuerySet):
+    def with_net_values(self):
+        """
+        Annotates net revenue and net profit at the DB level.
+        Logic:
+        - Satispay Business: 1% fee (0.99 multiplier)
+        - SumUp / Sum Up: 1.95% fee (0.9805 multiplier)
+        - Others: 0 fee (1.0 multiplier)
+        """
+        from django.db.models import FloatField, DecimalField
+        return self.annotate(
+            # Coalesce to avoid null results in math
+            safe_sale_price=Case(When(sale_price__isnull=True, then=Value(0)), default=F('sale_price'), output_field=DecimalField(max_digits=10, decimal_places=2)),
+            annotated_total_gross=F('safe_sale_price') * F('quantity'),
+            annotated_production_cost=F('material_cost') + F('labor_cost'),
+            multiplier=Case(
+                When(payment_method__name__icontains='satispay business', then=Value(0.99)),
+                When(payment_method__name__icontains='sumup', then=Value(0.9805)),
+                When(payment_method__name__icontains='sum up', then=Value(0.9805)),
+                default=Value(1.0),
+                output_field=FloatField()
+            )
+        ).annotate(
+            annotated_net_revenue=Case(
+                When(payment_method__isnull=True, then=F('annotated_total_gross')),
+                default=F('annotated_total_gross') * F('multiplier'),
+                output_field=DecimalField(max_digits=10, decimal_places=2)
+            )
+        ).annotate(
+            annotated_net_profit=F('annotated_net_revenue') - F('annotated_production_cost')
+        )
+
 # Modello per gli Oggetti a Magazzino
 class SaleType(models.TextChoices):
     COMMERCIAL = 'COMMERCIAL', 'Commerciale'
@@ -372,9 +405,34 @@ class StockItem(models.Model):
     sold_to = models.CharField(max_length=100, blank=True, verbose_name="Venduto a (o rimborsato da)")
     notes = models.TextField(blank=True, verbose_name="Note sulla vendita")
 
+    objects = StockItemQuerySet.as_manager()
+
     @property
     def total_cost(self):
-        return self.material_cost + self.labor_cost
+        """Material cost + Labor cost."""
+        return (self.material_cost or Decimal('0.00')) + (self.labor_cost or Decimal('0.00'))
+
+    def get_net_revenue(self):
+        """
+        Calculates the revenue after commissions based on payment method.
+        Treats current sale_price as GROSS.
+        Returns total revenue (price * qty) minus fees.
+        """
+        total_gross = (self.sale_price or Decimal('0.00')) * self.quantity
+        if not self.payment_method:
+            return total_gross
+        
+        method_name = self.payment_method.name.lower()
+        if 'satispay business' in method_name:
+            return (total_gross * Decimal('0.99')).quantize(Decimal('0.01')) # 1% fee
+        elif 'sumup' in method_name or 'sum up' in method_name:
+            return (total_gross * Decimal('0.9805')).quantize(Decimal('0.01')) # 1.95% fee
+        
+        return total_gross
+
+    def get_net_profit(self):
+        """Net revenue minus total production cost."""
+        return self.get_net_revenue() - self.total_cost
 
     @property
     def cost_per_item(self):

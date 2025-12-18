@@ -1,5 +1,5 @@
 {% extends "app_3dmage_management/base.html" %}
-{% load static %}
+{% load static l10n %}
 {% block title %}Kanban Progetti - 3DMAGE MANAGEMENT{% endblock %}
 
 {% block content %}
@@ -16,8 +16,7 @@
 <div class="kanban-board-container">
     {% for column in kanban_columns %}
     <div class="kanban-column" id="status-{{ column.status_id }}">
-        <h5 class="kanban-column-title"><span class="badge bg-status-{{ column.status_id|lower }} fs-6">{{
-                column.status_name }}</span><span class="text-muted small ms-2">{{ column.projects|length }}</span></h5>
+        <h5 class="kanban-column-title"><span class="badge bg-status-{{ column.status_id|lower }} fs-6">{{ column.status_name }}</span><span class="text-muted small ms-2">{{ column.projects|length }}</span></h5>
         <div class="kanban-cards-container" data-status="{{ column.status_id }}">
             {% for project in column.projects %}
             <div class="kanban-card" data-project-id="{{ project.id }}"
@@ -32,9 +31,11 @@
                     </div>
                     <div style="position: relative;">
                         <div class="progress" style="height: 20px; background-color: #444;">
+                            {% localize off %}
                             <div class="progress-bar" role="progressbar"
-                                style="width: {{ project.progress_percentage|stringformat:'.1f' }}%; background-color: #ffa500;">
+                                 style="width: {{ project.progress_percentage }}%; background-color: #ffa500 !important;">
                             </div>
+                            {% endlocalize %}
                         </div>
                         <strong
                             class="justify-content-center align-items-center d-flex position-absolute w-100 h-100 top-0 start-0 text-dark small fw-bold">

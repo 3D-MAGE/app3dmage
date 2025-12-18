@@ -15,6 +15,34 @@ from ..models import Project, PrintFile, StockItem, FilamentUsage, Spool, Filame
 from ..forms import ProjectForm, PrintFileForm, PrintFileEditForm, CompleteProjectForm
 from .filaments import _handle_filament_data # Importing helper function
 
+def _sync_project_status(project):
+    """
+    Sincronizza lo stato del progetto in base ai suoi print_files.
+    - Se almeno uno è PRINTING -> Progetto = PRINTING.
+    - Se tutti sono DONE/FAILED (e nessuno PRINTING/TODO) -> Progetto = PRINTED.
+    - Se ce ne sono in TODO (e nessuno in PRINTING) -> Progetto = TODO.
+    """
+    if project.status in [Project.Status.DONE, Project.Status.QUOTE]:
+        return
+
+    # Recupera tutti i file del progetto
+    files = project.print_files.all()
+    if not files.exists():
+        return
+
+    if files.filter(status='PRINTING').exists():
+        new_status = Project.Status.PRINTING
+    elif not files.filter(status__in=['TODO', 'PRINTING']).exists():
+        # Se tutti i file sono DONE o FAILED
+        new_status = Project.Status.PRINTED
+    else:
+        # Ci sono dei TODO, ma niente in PRINTING
+        new_status = Project.Status.TODO
+    
+    if project.status != new_status:
+        project.status = new_status
+        project.save()
+
 @login_required
 def project_detail(request, project_id):
     queryset = Project.objects.prefetch_related(
@@ -113,7 +141,7 @@ def complete_project(request, project_id):
                 'quantity': stock_item_quantity,
                 'material_cost': production_cost_for_batch.quantize(Decimal('0.01')),
                 'labor_cost': labor_cost_for_batch.quantize(Decimal('0.01')),
-                'status': StockItem.Status.IN_STOCK,
+                'status': StockItem.Status.POST_PROD,
                 'suggested_price': suggested_price_per_item.quantize(Decimal('0.01'))
             }
         )
@@ -188,6 +216,7 @@ def add_print_file(request):
                             }
                         })
 
+            _sync_project_status(project)
             return JsonResponse({'status': 'ok', 'message': 'File aggiunto con successo!'})
         else:
             return JsonResponse({'status': 'error', 'errors': form.errors.as_json()}, status=400)
@@ -252,6 +281,7 @@ def clone_print_file(request):
                     grams_used=usage.grams_used
                 )
 
+        _sync_project_status(original_file.project)
         return JsonResponse({'status': 'ok', 'message': f'{count} copie create con successo.'})
     except PrintFile.DoesNotExist:
         return JsonResponse({'status': 'error', 'message': 'File originale non trovato.'}, status=404)
@@ -284,10 +314,10 @@ def edit_print_file(request, file_id):
         if form.is_valid():
             new_status = form.cleaned_data.get('status')
 
-            if new_status == 'DONE' and instance.project.status != 'TODO':
+            if new_status == 'PRINTING' and instance.project.status == Project.Status.QUOTE:
                  return JsonResponse({
                     'status': 'error',
-                    'message': 'Impossibile segnare come "Stampato" se il progetto non è in stato "Pronto da Stampare".'
+                    'message': 'Impossibile mettere in stampa se il progetto è ancora in "Preventivo". Spostalo in "Da stampare".'
                 }, status=400)
 
             print_file = form.save(commit=False)
@@ -297,6 +327,7 @@ def edit_print_file(request, file_id):
                 print_file.actual_quantity = 0
 
             print_file.save()
+            _sync_project_status(instance.project)
 
             wasted_grams_str = request.POST.get('wasted_grams') if new_status == 'FAILED' else None
 
@@ -369,7 +400,7 @@ def get_print_file_details(request, file_id):
 
 @login_required
 def api_get_all_projects(request):
-    projects = Project.objects.filter(status__in=['QUOTE', 'TODO', 'POST']).order_by('name')
+    projects = Project.objects.filter(status__in=['QUOTE', 'TODO', 'PRINTING', 'PRINTED']).order_by('name')
     data = [{'id': p.id, 'name': p.name} for p in projects]
     return JsonResponse(data, safe=False)
 

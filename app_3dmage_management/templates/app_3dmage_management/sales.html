@@ -83,9 +83,9 @@
                         <th><a href="?sort=sold_to&order={% if sort_by == 'sold_to' and order == 'asc' %}desc{% else %}asc{% endif %}&{{ request.GET.urlencode|cut:'sort'|cut:'order' }}">Venduto a</a></th>
                         <th>Metodo Pag.</th>
                         <th>Note</th>
-                        <th class="text-end"><a href="?sort=total_sale_price&order={% if sort_by == 'total_sale_price' and order == 'asc' %}desc{% else %}asc{% endif %}&{{ request.GET.urlencode|cut:'sort'|cut:'order' }}">Prezzo Totale</a></th>
-                        <th class="text-end"><a href="?sort=annotated_total_cost&order={% if sort_by == 'annotated_total_cost' and order == 'asc' %}desc{% else %}asc{% endif %}&{{ request.GET.urlencode|cut:'sort'|cut:'order' }}">Costo Totale</a></th>
-                        <th class="text-end"><a href="?sort=profit&order={% if sort_by == 'profit' and order == 'asc' %}desc{% else %}asc{% endif %}&{{ request.GET.urlencode|cut:'sort'|cut:'order' }}">Profitto</a></th>
+                        <th class="text-end"><a href="?sort=annotated_net_revenue&order={% if sort_by == 'annotated_net_revenue' and order == 'asc' %}desc{% else %}asc{% endif %}&{{ request.GET.urlencode|cut:'sort'|cut:'order' }}">Prezzo Totale (Netto)</a></th>
+                        <th class="text-end"><a href="?sort=annotated_production_cost&order={% if sort_by == 'annotated_production_cost' and order == 'asc' %}desc{% else %}asc{% endif %}&{{ request.GET.urlencode|cut:'sort'|cut:'order' }}">Costo Totale</a></th>
+                        <th class="text-end"><a href="?sort=annotated_net_profit&order={% if sort_by == 'annotated_net_profit' and order == 'asc' %}desc{% else %}asc{% endif %}&{{ request.GET.urlencode|cut:'sort'|cut:'order' }}">Profitto</a></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -103,9 +103,9 @@
                             {% endif %}
                         </td>
                         <td>{{ item.notes|truncatechars:20 }}</td>
-                        <td class="text-end text-success fw-bold">{{ item.total_sale_price|floatformat:2 }}€</td>
-                        <td class="text-end text-warning">{{ item.annotated_total_cost|floatformat:2 }}€</td>
-                        <td class="text-end fw-bold {% if item.profit > 0 %}text-success{% elif item.profit < 0 %}text-danger{% endif %}">{{ item.profit|floatformat:2 }}€</td>
+                        <td class="text-end text-success fw-bold">{{ item.annotated_net_revenue|floatformat:2 }}€</td>
+                        <td class="text-end text-warning">{{ item.annotated_production_cost|floatformat:2 }}€</td>
+                        <td class="text-end fw-bold {% if item.annotated_net_profit > 0 %}text-success{% elif item.annotated_net_profit < 0 %}text-danger{% endif %}">{{ item.annotated_net_profit|floatformat:2 }}€</td>
                     </tr>
                     {% empty %}
                     <tr>

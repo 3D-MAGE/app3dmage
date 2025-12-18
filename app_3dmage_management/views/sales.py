@@ -23,11 +23,7 @@ def sales_dashboard(request):
     order = request.GET.get('order', 'desc')
     order_prefix = '-' if order == 'desc' else ''
 
-    sold_items_query = StockItem.objects.filter(status='SOLD').annotate(
-        annotated_total_cost=F('material_cost') + F('labor_cost'),
-        total_sale_price=F('sale_price') * F('quantity'),
-        profit= (F('sale_price') * F('quantity')) - (F('material_cost') + F('labor_cost'))
-    ).select_related('project', 'payment_method')
+    sold_items_query = StockItem.objects.filter(status='SOLD').with_net_values().select_related('project', 'payment_method')
 
 
     filter_summary_parts = []
@@ -60,17 +56,19 @@ def sales_dashboard(request):
 
     filter_summary = ", ".join(filter_summary_parts)
     filters_applied = bool(filter_summary_parts)
-
-    valid_sort_fields = ['sold_at', 'name', 'total_sale_price', 'material_cost', 'profit', 'sold_to']
+    
+    valid_sort_fields = ['sold_at', 'name', 'annotated_net_revenue', 'annotated_production_cost', 'annotated_net_profit', 'sold_to']
     if sort_by not in valid_sort_fields:
         sort_by = 'sold_at'
+    
+    # We apply order_by here
     sold_items = sold_items_query.order_by(f'{order_prefix}{sort_by}')
 
-    total_sales = sold_items_query.aggregate(total=Coalesce(Sum('total_sale_price'), Decimal('0.00')))['total']
-    total_profit = sold_items_query.aggregate(total=Coalesce(Sum('profit'), Decimal('0.00')))['total']
+    total_sales = sold_items_query.aggregate(total=Coalesce(Sum('annotated_net_revenue'), Decimal('0.00')))['total']
+    total_profit = sold_items_query.aggregate(total=Coalesce(Sum('annotated_net_profit'), Decimal('0.00')))['total']
 
     context = {
-        'sold_items': sold_items_query.order_by(f'{order_prefix}{sort_by}'),
+        'sold_items': sold_items,
         'page_title': 'Vendite',
         'all_payment_methods': PaymentMethod.objects.all(),
         'sale_edit_form': SaleEditForm(),
@@ -109,21 +107,20 @@ def get_sale_details(request, item_id):
 @transaction.atomic
 @login_required
 def edit_sale(request, item_id):
+    # Fetch the ORIGINAL sale instance
     sale = get_object_or_404(StockItem, id=item_id, status='SOLD')
-
-    # Utilizziamo refresh_from_db() per assicurarci di lavorare su dati aggiornati
-    # specialmente per i saldi dei metodi di pagamento.
+    
+    # CAPTURE OLD VALUES before the form modifies the instance!
+    old_payment_method = sale.payment_method
+    old_net_revenue = sale.get_net_revenue()
 
     form = SaleEditForm(request.POST, instance=sale)
     if form.is_valid():
         # 1. STORNA L'IMPORTO DAL VECCHIO METODO (Se esisteva)
-        if sale.payment_method:
-            method = sale.payment_method
-            method.refresh_from_db() # Cruciale per evitare dati vecchi
-
-            amount_to_reverse = (sale.sale_price or Decimal('0.00')) * sale.quantity
-            method.balance -= amount_to_reverse
-            method.save()
+        if old_payment_method:
+            old_payment_method.refresh_from_db() # Cruciale per evitare dati vecchi
+            old_payment_method.balance -= old_net_revenue
+            old_payment_method.save()
 
         # 2. SALVA LE MODIFICHE ALLA VENDITA
         updated_sale = form.save()
@@ -131,11 +128,9 @@ def edit_sale(request, item_id):
         # 3. AGGIUNGI IL NUOVO IMPORTO AL NUOVO METODO (Se presente)
         if updated_sale.payment_method:
             new_method = updated_sale.payment_method
-            # Anche se è lo stesso ID, ricarichiamo perché il saldo è cambiato al punto 1
             new_method.refresh_from_db()
-
-            new_amount = (updated_sale.sale_price or Decimal('0.00')) * updated_sale.quantity
-            new_method.balance += new_amount
+            net_amount = updated_sale.get_net_revenue()
+            new_method.balance += net_amount
             new_method.save()
 
         return JsonResponse({'status': 'ok'})
@@ -148,9 +143,11 @@ def edit_sale(request, item_id):
 def reverse_sale(request, stock_item_id):
     sale_to_reverse = get_object_or_404(StockItem, id=stock_item_id, status='SOLD')
 
-    total_sale_price = (sale_to_reverse.sale_price or Decimal('0.00')) * sale_to_reverse.quantity
     if sale_to_reverse.payment_method:
-        sale_to_reverse.payment_method.balance -= total_sale_price
+        sale_to_reverse.payment_method.refresh_from_db()
+        # Quando storniamo, dobbiamo togliere esattamente quanto abbiamo aggiunto (net revenue)
+        net_to_reverse = sale_to_reverse.get_net_revenue()
+        sale_to_reverse.payment_method.balance -= net_to_reverse
         sale_to_reverse.payment_method.save()
 
     existing_stock = StockItem.objects.filter(

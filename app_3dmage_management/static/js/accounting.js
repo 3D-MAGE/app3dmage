@@ -208,4 +208,29 @@ document.addEventListener('DOMContentLoaded', function() {
         confirmActionBtn.addEventListener('click', reverseAction, { once: true });
         confirmModal.show();
     });
+    // --- Logica scroll per header sticky e Back to Top ---
+    const stickyHeader = document.getElementById('accountingStickyHeader');
+    const backToTopBtn = document.getElementById('backToTop');
+
+    window.addEventListener('scroll', function() {
+        const scrollThreshold = 150; // Aumentato per evitare jitter
+        if (window.scrollY > scrollThreshold) {
+            stickyHeader?.classList.add('scrolled');
+        } else {
+            stickyHeader?.classList.remove('scrolled');
+        }
+
+        if (window.scrollY > 400) {
+            if (backToTopBtn) backToTopBtn.style.display = 'flex';
+        } else {
+            if (backToTopBtn) backToTopBtn.style.display = 'none';
+        }
+    });
+
+    backToTopBtn?.addEventListener('click', function() {
+        window.scrollTo({
+            top: 0,
+            behavior: 'smooth'
+        });
+    });
 });
