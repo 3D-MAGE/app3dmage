@@ -75,7 +75,8 @@
                         data-item-id="{{ item.id }}">
                         <td class="fw-bold">#{{ item.custom_id|default:"N/A" }}</td>
                         <td>
-                            <div class="fw-bold">{{ item.name }}</div><small class="text-muted">Da progetto: {{ item.project.name|default:"N/A" }}</small>
+                            <div class="fw-bold">{{ item.name }}</div>
+                            <small class="text-muted">Progetto: <strong>#{{ item.project.custom_id|default:"N/A" }}</strong> - {{ item.project.name|default:"N/A" }}</small>
                         </td>
                         <td class="text-center">{{ item.quantity }}</td>
                         <td class="text-end text-warning fw-bold">{{ item.annotated_total_cost|floatformat:2 }}€</td>

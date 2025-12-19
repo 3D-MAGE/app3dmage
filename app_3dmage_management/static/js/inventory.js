@@ -30,23 +30,23 @@ document.addEventListener('DOMContentLoaded', function () {
             const button = event.relatedTarget;
             const itemId = button.getAttribute('data-item-id');
             const form = document.getElementById('editStockItemForm');
-            form.action = `/inventory/edit/${itemId}/`;
+            form.action = `/ajax/stock_item/${itemId}/update/`;
 
-            fetch(`/inventory/details/${itemId}/`)
+            fetch(`/ajax/stock_item/${itemId}/details/`)
                 .then(response => response.json())
                 .then(data => {
                     currentItemData = data;
                     document.getElementById('editStockItemModalLabel').textContent = `Modifica: ${data.name}`;
-                    document.getElementById('itemProjectName').textContent = data.project_name || 'N/D';
-                    document.getElementById('itemProjectID').textContent = data.project_id ? `#${data.project_id}` : '';
+                    document.getElementById('itemProjectName').textContent = data.project_name || 'N/A';
+                    document.getElementById('itemProjectID').textContent = data.project_custom_id ? `#${data.project_custom_id}` : '';
                     
                     form.querySelector('[name="name"]').value = data.name;
                     form.querySelector('[name="quantity"]').value = data.quantity;
                     form.querySelector('[name="suggested_price"]').value = data.suggested_price;
                     form.querySelector('[name="status"]').value = data.status;
                     
-                    document.getElementById('itemMaterialCost').textContent = `${parseFloat(data.material_cost_unit).toFixed(2)}€`;
-                    document.getElementById('itemLaborCost').textContent = `${parseFloat(data.labor_cost_unit).toFixed(2)}€`;
+                    document.getElementById('itemMaterialCost').textContent = `${parseFloat(data.production_cost_per_unit).toFixed(2)}€`;
+                    document.getElementById('itemLaborCost').textContent = `${parseFloat(data.labor_cost_unit_per_unit || data.labor_cost_per_unit).toFixed(2)}€`;
 
                     // Gestione note progetto (se presenti)
                     const notesWrapper = document.getElementById('project-notes-wrapper');
@@ -104,7 +104,7 @@ document.addEventListener('DOMContentLoaded', function () {
         });
 
         document.getElementById('confirmDeleteBtn').addEventListener('click', function () {
-            fetch(`/inventory/delete/${currentItemData.id}/`, {
+            fetch(`/ajax/stock_item/${currentItemData.id}/delete/`, {
                 method: 'POST',
                 headers: { 'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value }
             })
@@ -156,7 +156,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const formData = new FormData(sellForm);
             const itemId = currentItemData.id;
 
-            fetch(`/inventory/sell/${itemId}/`, {
+            fetch(`/ajax/stock_item/${itemId}/update/`, {
                 method: 'POST',
                 body: formData,
                 headers: { 'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value }

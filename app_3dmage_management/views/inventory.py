@@ -89,13 +89,15 @@ def add_stock_item(request):
 def get_stock_item_details(request, item_id):
     item = get_object_or_404(StockItem.objects.select_related('project'), id=item_id)
     data = model_to_dict(item)
-    data['project_name'] = item.project.name if item.project else None
+    data['project_name'] = item.project.name if item.project else 'Manuale'
     data['project_id'] = item.project.id if item.project else None
+    data['project_custom_id'] = item.project.custom_id if item.project else 'N/A'
     data['project_notes'] = item.project.notes if item.project else ''
 
+    # Standardize keys to match inventory.js (production_cost_per_unit, labor_cost_per_unit)
     if item.quantity > 0:
-        data['production_cost_per_unit'] = str(item.material_cost / item.quantity)
-        data['labor_cost_per_unit'] = str(item.labor_cost / item.quantity)
+        data['production_cost_per_unit'] = str((item.material_cost / item.quantity).quantize(Decimal('0.01')))
+        data['labor_cost_per_unit'] = str((item.labor_cost / item.quantity).quantize(Decimal('0.01')))
     else:
         data['production_cost_per_unit'] = '0.00'
         data['labor_cost_per_unit'] = '0.00'
