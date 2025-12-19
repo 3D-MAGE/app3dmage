@@ -235,7 +235,9 @@ def _handle_filament_data(request, print_file, filament_data_json, wasted_grams_
 
 @login_required
 def api_get_all_filaments(request):
-    filaments = Filament.objects.all().order_by('material', 'brand', 'color_name')
+    # Mostra solo i filamenti che hanno almeno una bobina attiva (is_active=True)
+    # Ordina per materiale e poi per codice colore (ignorando la marca come richiesto)
+    filaments = Filament.objects.filter(spools__is_active=True).distinct().order_by('material', 'color_code')
     data = [{'id': f.id, 'name': str(f), 'color_hex': f.color_hex} for f in filaments]
     return JsonResponse(data, safe=False)
 

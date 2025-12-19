@@ -308,14 +308,17 @@ def api_get_costs(request):
         cost_kwh = 0.25
 
     filaments_data = []
-    for f in Filament.objects.all():
+    # Filtra solo i filamenti con bobbine attive e ordina per materiale e codice colore
+    filaments = Filament.objects.filter(spools__is_active=True).distinct().order_by('material', 'color_code')
+    for f in filaments:
         total_weight = f.spools.aggregate(total=Sum('initial_weight_g'))['total'] or 0
         total_cost = f.spools.aggregate(total=Sum('cost'))['total'] or 0
         cost_per_gram = (total_cost / total_weight) if total_weight > 0 else 0
         filaments_data.append({
             'id': f.id,
             'name': str(f),
-            'cost_per_gram': float(cost_per_gram)
+            'cost_per_gram': float(cost_per_gram),
+            'color_hex': f.color_hex
         })
 
     return JsonResponse({

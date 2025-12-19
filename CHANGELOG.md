@@ -2,6 +2,16 @@
 
 Tutte le modifiche notevoli a questo progetto saranno documentate in questo file.
 
+## [1.3.0] - 2025-12-19
+
+### Sincronizzazione Stato Progetto
+- **Logica Centralizzata**: Spostata la funzione di sincronizzazione stato nel modello `Project` come metodo `sync_status()`.
+- **Integrazione Coda**: Il progetto ora aggiorna automaticamente il suo stato in base agli spostamenti dei file nella coda di stampa (es. spostando in "In stampa" il progetto riflette lo stato immediatamente).
+
+### Miglioramento Selezione Filamenti
+- **Filtraggio Disponibilità**: I menu di selezione filamenti ora mostrano solo i materiali con almeno una bobina attiva, prevenendo errori di selezione di materiali esauriti.
+- **Ordinamento Raffinato**: Standardizzato l'ordinamento alfabetico per **Materiale** e poi per **Codice Colore** (ignorando la marca) per una ricerca più rapida nei dropdown.
+
 ## [1.2.0] - 2025-12-18
 
 ### Sincronizzazione Vendite e Contabilità
