@@ -241,6 +241,34 @@ class Project(models.Model):
     def remaining_objects(self):
         return self.quantity - self.total_objects_printed
 
+    def sync_status(self):
+        """
+        Sincronizza lo stato del progetto in base ai suoi print_files.
+        - Se almeno uno è PRINTING -> Progetto = PRINTING.
+        - Se tutti sono DONE/FAILED (e nessuno PRINTING/TODO) -> Progetto = PRINTED.
+        - Se ce ne sono in TODO (e nessuno in PRINTING) -> Progetto = TODO.
+        """
+        if self.status in [self.Status.DONE, self.Status.QUOTE]:
+            return
+
+        # Recupera tutti i file del progetto
+        files = self.print_files.all()
+        if not files.exists():
+            return
+
+        if files.filter(status='PRINTING').exists():
+            new_status = self.Status.PRINTING
+        elif not files.filter(status__in=['TODO', 'PRINTING']).exists():
+            # Se tutti i file sono DONE o FAILED
+            new_status = self.Status.PRINTED
+        else:
+            # Ci sono dei TODO, ma niente in PRINTING
+            new_status = self.Status.TODO
+        
+        if self.status != new_status:
+            self.status = new_status
+            self.save()
+
     def __str__(self):
         return self.name
 

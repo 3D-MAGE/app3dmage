@@ -90,6 +90,9 @@ def set_print_file_status(request, file_id):
         file_to_update.status = new_status
         file_to_update.save()
 
+        # Sincronizza lo stato del progetto associato
+        file_to_update.project.sync_status()
+
         return JsonResponse({'status': 'ok', 'message': 'Stato aggiornato con successo.'})
 
     except Exception as e:

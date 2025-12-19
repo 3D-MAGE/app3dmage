@@ -15,33 +15,6 @@ from ..models import Project, PrintFile, StockItem, FilamentUsage, Spool, Filame
 from ..forms import ProjectForm, PrintFileForm, PrintFileEditForm, CompleteProjectForm
 from .filaments import _handle_filament_data # Importing helper function
 
-def _sync_project_status(project):
-    """
-    Sincronizza lo stato del progetto in base ai suoi print_files.
-    - Se almeno uno è PRINTING -> Progetto = PRINTING.
-    - Se tutti sono DONE/FAILED (e nessuno PRINTING/TODO) -> Progetto = PRINTED.
-    - Se ce ne sono in TODO (e nessuno in PRINTING) -> Progetto = TODO.
-    """
-    if project.status in [Project.Status.DONE, Project.Status.QUOTE]:
-        return
-
-    # Recupera tutti i file del progetto
-    files = project.print_files.all()
-    if not files.exists():
-        return
-
-    if files.filter(status='PRINTING').exists():
-        new_status = Project.Status.PRINTING
-    elif not files.filter(status__in=['TODO', 'PRINTING']).exists():
-        # Se tutti i file sono DONE o FAILED
-        new_status = Project.Status.PRINTED
-    else:
-        # Ci sono dei TODO, ma niente in PRINTING
-        new_status = Project.Status.TODO
-    
-    if project.status != new_status:
-        project.status = new_status
-        project.save()
 
 @login_required
 def project_detail(request, project_id):
@@ -216,7 +189,7 @@ def add_print_file(request):
                             }
                         })
 
-            _sync_project_status(project)
+            project.sync_status()
             return JsonResponse({'status': 'ok', 'message': 'File aggiunto con successo!'})
         else:
             return JsonResponse({'status': 'error', 'errors': form.errors.as_json()}, status=400)
@@ -281,7 +254,7 @@ def clone_print_file(request):
                     grams_used=usage.grams_used
                 )
 
-        _sync_project_status(original_file.project)
+        original_file.project.sync_status()
         return JsonResponse({'status': 'ok', 'message': f'{count} copie create con successo.'})
     except PrintFile.DoesNotExist:
         return JsonResponse({'status': 'error', 'message': 'File originale non trovato.'}, status=404)
@@ -327,7 +300,7 @@ def edit_print_file(request, file_id):
                 print_file.actual_quantity = 0
 
             print_file.save()
-            _sync_project_status(instance.project)
+            instance.project.sync_status()
 
             wasted_grams_str = request.POST.get('wasted_grams') if new_status == 'FAILED' else None
 
