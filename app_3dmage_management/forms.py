@@ -93,6 +93,14 @@ class StockItemForm(forms.ModelForm):
             'suggested_price': 'Prezzo Vendita Previsto'
         }
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Filtra lo stato per rimuovere 'SOLD' (Venduto) dalle opzioni di modifica manuale
+        if 'status' in self.fields:
+            self.fields['status'].choices = [
+                (c[0], c[1]) for c in self.fields['status'].choices if c[0] != 'SOLD'
+            ]
+
 class ManualStockItemForm(forms.ModelForm):
     class Meta:
         model = StockItem

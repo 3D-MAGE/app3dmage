@@ -2,6 +2,16 @@
 
 Tutte le modifiche notevoli a questo progetto saranno documentate in questo file.
 
+## [1.4.0] - 2025-12-21
+
+### Magazzino (Inventory)
+- **Bug Fix**: Implementato l'invio tramite AJAX del modulo di modifica oggetti. Questo evita il reindirizzamento alla pagina della risposta JSON e ricarica correttamente la dashboard.
+- **Pulizia Stati**: Rimosso lo stato "Venduto" dal menu a tendina della modifica manuale. La vendita deve essere gestita esclusivamente tramite la procedura guidata dedicata.
+
+### Contabilità (Accounting)
+- **Restyling Layout**: Spostato il comportamento "sticky" dall'intestazione del riepilogo finanziario alla sezione dei filtri.
+- **Stabilità UI**: Rimossa la logica di restringimento dell'header allo scroll per eliminare effetti di jitter e migliorare la leggibilità durante la navigazione.
+
 ## [1.3.0] - 2025-12-19
 
 ### Sincronizzazione Stato Progetto
