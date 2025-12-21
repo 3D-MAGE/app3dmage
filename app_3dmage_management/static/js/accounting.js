@@ -213,13 +213,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const backToTopBtn = document.getElementById('backToTop');
 
     window.addEventListener('scroll', function() {
-        const scrollThreshold = 150; // Aumentato per evitare jitter
-        if (window.scrollY > scrollThreshold) {
-            stickyHeader?.classList.add('scrolled');
-        } else {
-            stickyHeader?.classList.remove('scrolled');
-        }
-
         if (window.scrollY > 400) {
             if (backToTopBtn) backToTopBtn.style.display = 'flex';
         } else {

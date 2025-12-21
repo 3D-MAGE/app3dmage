@@ -175,39 +175,22 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); }
 }
 
 /* --- Contabilità --- */
-.accounting-sticky-header {
-    position: sticky;
-    top: 70px; /* Sotto la navbar */
-    z-index: 1020;
+.accounting-header {
     background-color: var(--dark-bg);
     padding-top: 1rem;
     padding-bottom: 0.5rem;
     border-bottom: 2px solid var(--dark-card);
-    transition: padding 0.3s ease, box-shadow 0.3s ease;
 }
 
-.accounting-sticky-header.scrolled {
+.sticky-top-filters {
+    position: sticky;
+    top: 70px;
+    z-index: 1020;
+    background-color: var(--dark-bg);
     padding-top: 0.5rem;
     padding-bottom: 0.5rem;
     box-shadow: 0 4px 15px rgba(0,0,0,0.4);
-}
-
-.accounting-sticky-header .financial-summary {
-    transition: all 0.3s ease;
-}
-
-.accounting-sticky-header.scrolled .financial-summary .card {
-    padding: 0.5rem 1rem !important;
-}
-
-.accounting-sticky-header.scrolled .financial-summary h3 {
-    font-size: 1.1rem !important;
-    margin: 0 !important;
-}
-
-.accounting-sticky-header.scrolled .financial-summary h6 {
-    font-size: 0.75rem !important;
-    margin-bottom: 0 !important;
+    margin-bottom: 24px !important;
 }
 
 .cassa-section {

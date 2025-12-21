@@ -76,7 +76,7 @@
                         <td class="fw-bold">#{{ item.custom_id|default:"N/A" }}</td>
                         <td>
                             <div class="fw-bold">{{ item.name }}</div>
-                            <small class="text-muted">Progetto: <strong>#{{ item.project.custom_id|default:"N/A" }}</strong> - {{ item.project.name|default:"N/A" }}</small>
+                            <small class="text-muted">Progetto: <strong>#{{ item.project.id|default:"N/A" }}</strong> - {{ item.project.name|default:"N/A" }}</small>
                         </td>
                         <td class="text-center">{{ item.quantity }}</td>
                         <td class="text-end text-warning fw-bold">{{ item.annotated_total_cost|floatformat:2 }}€</td>
@@ -130,9 +130,11 @@
             <form id="editStockItemForm" method="post" novalidate>
                 <div class="modal-body">
                     {% csrf_token %}
-                    <p class="item-project-subtitle mb-2">Da progetto: <strong id="itemProjectName"></strong> <span
-                            id="itemProjectID"></span></p>
-                    <hr class="border-secondary">
+                    <div class="d-flex justify-content-between mb-3">
+                        <small class="text-light">ID: <strong id="itemStockID"></strong></small>
+                        <small class="text-light">Da progetto: <strong id="itemProjectName"></strong> #<span id="itemProjectID"></span></small>
+                    </div>
+                    <hr class="border-secondary mt-1">
 
                     <div class="mb-3">{{ form.name.label_tag }}{{ form.name }}</div>
                     <div class="row">

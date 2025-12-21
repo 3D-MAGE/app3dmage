@@ -3,7 +3,7 @@
 {% block title %}Contabilità - 3DMAGE MANAGEMENT{% endblock %}
 
 {% block content %}
-<div class="accounting-sticky-header" id="accountingStickyHeader">
+<div class="accounting-header" id="accountingStickyHeader">
     <div class="d-flex justify-content-between align-items-center mb-3">
         <h2 class="text-white mb-0">Riepilogo Contabilità</h2>
         <div class="header-actions">
@@ -56,7 +56,7 @@
     </div>
 
 <!-- Filtri -->
-<div class="card bg-dark-card mb-4">
+<div class="card bg-dark-card mb-4 sticky-top-filters">
     <div class="card-body">
         <form method="get" action="{% url 'accounting_dashboard' %}" class="row g-3 align-items-end">
             <div class="col-md-3">

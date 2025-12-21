@@ -38,7 +38,8 @@ document.addEventListener('DOMContentLoaded', function () {
                     currentItemData = data;
                     document.getElementById('editStockItemModalLabel').textContent = `Modifica: ${data.name}`;
                     document.getElementById('itemProjectName').textContent = data.project_name || 'N/A';
-                    document.getElementById('itemProjectID').textContent = data.project_custom_id ? `#${data.project_custom_id}` : '';
+                    document.getElementById('itemProjectID').textContent = data.project_id || 'N/A';
+                    document.getElementById('itemStockID').textContent = data.custom_id ? `#${data.custom_id}` : 'N/A';
                     
                     form.querySelector('[name="name"]').value = data.name;
                     form.querySelector('[name="quantity"]').value = data.quantity;
@@ -111,6 +112,32 @@ document.addEventListener('DOMContentLoaded', function () {
             .then(res => res.json())
             .then(data => {
                 if (data.status === 'ok') window.location.reload();
+            });
+        });
+
+        // Gestione Salvataggio Modifiche (AJAX)
+        const editForm = document.getElementById('editStockItemForm');
+        editForm.addEventListener('submit', function (e) {
+            e.preventDefault();
+            const formData = new FormData(editForm);
+            const actionUrl = editForm.action;
+
+            fetch(actionUrl, {
+                method: 'POST',
+                body: formData,
+                headers: { 'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value }
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'ok') {
+                    window.location.reload();
+                } else {
+                    alert(data.message || 'Errore durante l\'aggiornamento');
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                alert('Errore di comunicazione con il server.');
             });
         });
     }
