@@ -95,11 +95,17 @@ class StockItemForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Filtra lo stato per rimuovere 'SOLD' (Venduto) dalle opzioni di modifica manuale
+        # Filtra lo stato per rimuovere 'SOLD' (Venduto) dalle opzioni di modifica manuale.
+        # Lo manteniamo se l'oggetto è già venduto o se stiamo sottomettendo la vendita (status='SOLD' nei dati).
         if 'status' in self.fields:
-            self.fields['status'].choices = [
-                (c[0], c[1]) for c in self.fields['status'].choices if c[0] != 'SOLD'
-            ]
+            data = kwargs.get('data') or (args[0] if args else None)
+            submitted_status = data.get('status') if data else None
+            current_status = getattr(self.instance, 'status', None)
+
+            if current_status != 'SOLD' and submitted_status != 'SOLD':
+                self.fields['status'].choices = [
+                    (c[0], c[1]) for c in self.fields['status'].choices if c[0] != 'SOLD'
+                ]
 
 class ManualStockItemForm(forms.ModelForm):
     class Meta:
