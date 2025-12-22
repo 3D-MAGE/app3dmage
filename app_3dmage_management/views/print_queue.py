@@ -12,7 +12,8 @@ from ..models import PrintFile, Printer, Plate, Spool, FilamentUsage
 @login_required
 def print_queue_board(request):
     active_print_files_qs = PrintFile.objects.filter(
-        status__in=['TODO', 'PRINTING']
+        status__in=['TODO', 'PRINTING'],
+        project__status__in=['TODO', 'PRINTING']
     ).select_related(
         'project', 'printer', 'plate'
     ).prefetch_related(
@@ -24,7 +25,10 @@ def print_queue_board(request):
     ).annotate(
         total_queued_seconds=Sum(
             'print_files__print_time_seconds',
-            filter=Q(print_files__status__in=['TODO', 'PRINTING'])
+            filter=Q(
+                print_files__status__in=['TODO', 'PRINTING'],
+                print_files__project__status__in=['TODO', 'PRINTING']
+            )
         )
     ).order_by('name')
 
