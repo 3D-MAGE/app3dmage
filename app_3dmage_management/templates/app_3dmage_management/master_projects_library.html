@@ -1,0 +1,200 @@
+{% extends 'app_3dmage_management/base.html' %}
+{% load static %}
+{% load app_filters %}
+
+{% block title %}{{ page_title }} - 3DMAGE{% endblock %}
+
+{% block styles %}
+<style>
+    .label-orange-library {
+        background-color: transparent;
+        border: 1px solid #ffa500;
+        color: #ffa500;
+        font-weight: bold;
+    }
+</style>
+{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="library-title mb-0"><i class="bi bi-journal-bookmark-fill me-2"></i>Libreria Progetti</h2>       
+    <div class="d-flex gap-2">
+        <button class="btn btn-sm btn-primary-custom" data-bs-toggle="modal" data-bs-target="#addMasterModal">
+            <i class="bi bi-plus-circle me-1"></i> Nuovo Master
+        </button>
+    </div>
+</div>
+
+<div class="card bg-dark-card mb-4 p-3">
+    <form method="get" class="row g-2 align-items-end">
+        <div class="col-md-3">
+            <label class="form-label text-white-50 small mb-1">Cerca Progetto</label>
+            <div class="input-group input-group-sm">
+                <span class="input-group-text bg-dark border-secondary text-secondary"><i class="bi bi-search"></i></span>
+                <input type="text" name="q" class="form-control bg-dark text-white border-secondary" placeholder="Nome progetto..." value="{{ request.GET.q }}">
+            </div>
+        </div>
+        <div class="col-md-2">
+            <label class="form-label text-white-50 small mb-1">Stampante</label>
+            <select name="printer" class="form-select form-select-sm bg-dark text-white border-secondary">
+                <option value="">Tutte le stampanti</option>
+                {% for p in all_printers %}
+                <option value="{{ p.id }}" {% if request.GET.printer == p.id|stringformat:"s" %}selected{% endif %}>{{ p.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-2">
+            <label class="form-label text-white-50 small mb-1">Categoria</label>
+            <select name="category" class="form-select form-select-sm bg-dark text-white border-secondary">
+                <option value="">Tutte le categorie</option>
+                {% for cat in all_categories %}
+                <option value="{{ cat.id }}" {% if request.GET.category == cat.id|stringformat:"s" %}selected{% endif %}>{{ cat.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-2">
+            <label class="form-label text-white-50 small mb-1">Ordina Per</label>
+            <select name="sort" class="form-select form-select-sm bg-dark text-white border-secondary">
+                <option value="newest" {% if request.GET.sort == 'newest' or not request.GET.sort %}selected{% endif %}>Più Recenti (Aggiunta)</option>
+                <option value="updated" {% if request.GET.sort == 'updated' %}selected{% endif %}>Più Recenti (Modifica)</option>
+            </select>
+        </div>
+        <div class="col-md-2 d-flex gap-1">
+            <button type="submit" class="btn btn-sm btn-primary-custom flex-grow-1">Filtra</button>
+            <a href="{% url 'projects_library' %}" class="btn btn-sm btn-outline-secondary">Reset</a>
+        </div>
+    </form>
+</div>
+
+<div class="row">
+    {% for project in projects %}
+    <div class="col-md-4 col-lg-3 mb-4">
+        <div class="card bg-dark-card library-card h-100">
+            <a href="{% url 'project_master_detail' project.pk %}" class="library-img-link">
+                {% if project.preview_image %}
+                <img src="{{ project.preview_image.url }}" alt="{{ project.name }}">
+                {% else %}
+                <div class="bg-dark d-flex align-items-center justify-content-center h-100 text-secondary">
+                    <i class="bi bi-image" style="font-size: 3rem;"></i>
+                </div>
+                {% endif %}
+            </a>
+            <div class="card-body">
+                <h5 class="card-title text-center">
+                    <a href="{% url 'project_master_detail' project.pk %}" class="library-title text-center d-block">{{ project.name }}</a>
+                </h5>
+                <p class="text-center mb-2">
+                    <span class="badge bg-secondary">{{ project.category.name|default:"Senza Categoria" }}</span>
+                </p>
+                <p class="library-text text-center mb-2 small">
+                    <i class="bi bi-box-fill me-1"></i> Output previsti: {{ project.outputs.all|sum_quantities }}
+                </p>
+                <p class="library-text text-center mb-3 small">
+                    <i class="bi bi-puzzle me-1"></i> {{ project.parts.count }} part{{ project.parts.count|pluralize:"e,i" }}
+                </p>
+                <div class="d-flex justify-content-center gap-1 mt-auto">
+                    {% with printers=project|get_project_printers %}
+                        {% for p in printers %}
+                            <span class="badge label-orange-library" title="{{ p.name }}">{{ p.tag }}</span>
+                        {% endfor %}
+                    {% endwith %}
+                </div>
+            </div>
+            <div class="card-footer border-secondary text-muted small text-center">
+                Ultima modifica {{ project.updated_at|default:project.created_at|date:"d/m/Y" }}
+            </div>
+        </div>
+    </div>
+    {% empty %}
+    <div class="col-12">
+        <div class="library-empty-msg text-center">
+            <i class="bi bi-inbox-fill d-block mb-3" style="font-size: 2rem;"></i>
+            Nessun progetto trovato nella libreria.
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Modal Aggiungi Master -->
+<div class="modal fade" id="addMasterModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content bg-dark-card text-white border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title">Nuovo Progetto Master</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form action="{% url 'add_master_project' %}" method="post" enctype="multipart/form-data">
+                {% csrf_token %}
+                <div class="modal-body">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label class="form-label">Nome Progetto Master</label>
+                        {{ master_project_form.name }}
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Categoria</label>
+                        {{ master_project_form.category }}
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Immagine Anteprima</label>
+                        {{ master_project_form.preview_image }}
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Numero Parti Iniziali</label>
+                        {{ master_project_form.initial_parts_count }}
+                    </div>
+                    
+                    <hr class="border-secondary">
+                    <h6 class="text-info mb-3"><i class="bi bi-printer-fill me-2"></i>Output di Stampa (Oggetti a Magazzino)</h6>
+                    <div id="outputs-container-new">
+                        <div class="row g-2 mb-2 output-row">
+                            <div class="col-8">
+                                <input type="text" name="output_names[]" class="form-control bg-dark text-white" placeholder="Nome Output (es. Bambola RUMI)">
+                            </div>
+                            <div class="col-3">
+                                <input type="number" name="output_quantities[]" class="form-control bg-dark text-white" value="1" min="1" placeholder="Qtà">
+                            </div>
+                            <div class="col-1">
+                                <button type="button" class="btn btn-link text-danger remove-output-btn p-1"><i class="bi bi-trash"></i></button>
+                            </div>
+                        </div>
+                    </div>
+                    <button type="button" class="btn btn-sm btn-outline-primary mt-2" id="add-output-btn-new">
+                        <i class="bi bi-plus-lg me-1"></i> Aggiungi Output
+                    </button>
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button>
+                    <button type="submit" class="btn btn-primary-custom">Salva Master</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+<!-- Modal Crea Ordine -->
+<div class="modal fade" id="createOrderModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content bg-dark-card text-white border-success">
+            <div class="modal-header border-success">
+                <h5 class="modal-title">Crea Nuovo Ordine</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="createOrderForm" method="post">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <p id="createOrderText" class="small"></p>
+                    <div class="mb-3">
+                        <label class="form-label small text-light">Quantità da produrre</label>
+                        <input type="number" name="quantity" id="createOrderQuantity" class="form-control bg-dark text-white border-secondary" min="1" required>
+                    </div>
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Annulla</button>
+                    <button type="submit" class="btn btn-success btn-sm">Conferma e Crea</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script src="{% static 'js/master_projects_library.js' %}" defer></script>
+{% endblock %}

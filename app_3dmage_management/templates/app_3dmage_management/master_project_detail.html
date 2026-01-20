@@ -1,0 +1,531 @@
+{% extends 'app_3dmage_management/base.html' %}
+{% load static %}
+{% load app_filters %}
+
+{% block title %}{{ project.name }} - Master Detail{% endblock %}
+
+{% block styles %}
+<link href="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/css/tom-select.bootstrap5.css" rel="stylesheet">
+<style>
+    /* Stili per adattare Tom-Select al tema scuro */
+    .ts-control {
+        background-color: var(--dark-bg) !important;
+        background-color: #1a1a1a !important;
+        /* Forza scuro */
+        border-color: #555 !important;
+        color: #f8f9fa !important;
+    }
+
+    .ts-control input {
+        color: #f8f9fa !important;
+    }
+
+    .ts-dropdown {
+        background-color: #1a1a1a !important;
+        border-color: #555 !important;
+        color: #f8f9fa !important;
+    }
+
+    .ts-dropdown .option {
+        color: #f8f9fa !important;
+    }
+
+    .ts-dropdown .option:hover,
+    .ts-dropdown .active {
+        background-color: rgba(255, 255, 255, 0.15) !important;
+        color: inherit !important;
+    }
+
+    .ts-wrapper.multi .ts-control>div {
+        background: #333 !important;
+        color: #f8f9fa !important;
+        border: 1px solid #555 !important;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Header con pulsanti di azione -->
+
+<!-- Header con pulsanti di azione -->
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <a href="{% url 'projects_library' %}" class="btn btn-outline-secondary"><i
+            class="bi bi-arrow-left me-2"></i>Indietro</a>
+    <div>
+        <button class="btn btn-success me-2" data-bs-toggle="modal" data-bs-target="#createOrderModal"
+            data-project-id="{{ project.id }}" data-project-name="{{ project.name }}"
+            data-base-qty="{{ project.outputs.all|sum_quantities }}">
+            <i class="bi bi-rocket-takeoff-fill me-1"></i> Crea Ordine di Lavoro
+        </button>
+        <button class="btn btn-primary-custom" data-bs-toggle="modal" data-bs-target="#editMasterModal">
+            <i class="bi bi-pencil-fill me-2"></i>Modifica
+        </button>
+        <button class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#deleteMasterModal">
+            <i class="bi bi-trash-fill me-2"></i>Elimina
+        </button>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Anteprima Immagine -->
+    <div class="col-md-4 mb-4">
+        <div class="card bg-dark-card h-100 p-0 overflow-hidden border-secondary">
+            {% if project.preview_image %}
+            <img src="{{ project.preview_image.url }}" class="img-fluid"
+                style="width: 100%; height: 350px; object-fit: cover;" alt="{{ project.name }}">
+            {% else %}
+            <div class="bg-dark d-flex align-items-center justify-content-center" style="height: 350px;">
+                <i class="bi bi-image text-secondary" style="font-size: 5rem;"></i>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Informazioni Master -->
+    <div class="col-md-8 mb-4">
+        <div class="card bg-dark-card h-100 border-secondary">
+            <div class="card-body px-4 py-3">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <h3 class="text-primary-custom mb-0"><i class="bi bi-info-circle-fill me-2"></i>{{ project.name }}
+                    </h3>
+                </div>
+
+                <div class="row row-cols-2 row-cols-md-3 g-3 mb-4">
+                    <div class="col">
+                        <div class="info-label">Categoria</div>
+                        <div class="info-value">
+                            <span class="badge bg-secondary">{{ category_name }}</span>
+                        </div>
+                    </div>
+                    <div class="col">
+                        <div class="info-label">Creato il</div>
+                        <div class="info-value">{{ project.created_at|date:"d/m/Y" }}</div>
+                    </div>
+                    <div class="col">
+                        <div class="info-label">Ultima Modifica</div>
+                        <div class="info-value text-primary-custom">{{ project.updated_at|date:"d/m/Y" }}</div>
+                    </div>
+                    <div class="col">
+                        <div class="info-label">Parti Previste</div>
+                        <div class="info-value">{{ project.parts.count }} part{{ project.parts.count|pluralize:"e,i" }}
+                        </div>
+                    </div>
+                    <div class="col">
+                        <div class="info-label">Pezzi per Set</div>
+                        <div class="info-value">
+                            <span class="text-info fw-bold">{{ project.outputs.all|sum_quantities }}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-2">
+                    <div class="info-label mb-2">Riepilogo Output (per 1 Set)</div>
+                    <div class="p-2 rounded"
+                        style="background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.05);">
+                        <div class="row g-2">
+                            {% for output in project.outputs.all %}
+                            <div class="col-md-4 col-6">
+                                <div class="d-flex justify-content-between small px-2">
+                                    <span class="text-white-50 truncate-text">{{ output.name }}</span>
+                                    <span class="text-white fw-bold">x{{ output.quantity }}</span>
+                                </div>
+                            </div>
+                            {% empty %}
+                            <div class="col-12 text-center text-white-50 small">Nessun output definito.</div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Annotazioni Intera Larghezza -->
+    <div class="col-12 mb-4">
+        <div class="card bg-dark-card border-secondary">
+            <div class="card-header border-secondary d-flex justify-content-between align-items-center py-2">
+                <h6 class="mb-0 text-white"><i class="bi bi-journal-text me-2 text-primary-custom"></i>Annotazioni
+                    Master</h6>
+                <button class="btn btn-sm btn-outline-primary py-0" data-bs-toggle="modal"
+                    data-bs-target="#editNotesModal">
+                    <i class="bi bi-pencil me-1"></i>Modifica Note
+                </button>
+            </div>
+            <div class="card-body">
+                <div class="notes-display-compact text-white">
+                    {% if project.notes %}
+                    {{ project.notes|linebreaks }}
+                    {% else %}
+                    <span class="text-muted italic">Nessuna annotazione configurata per questo master.</span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Sezione Parti e File di Stampa Master (Template) -->
+<div class="row mb-3">
+    <div class="col-12">
+        <div class="card bg-dark-card">
+            <div class="card-header d-flex justify-content-between align-items-center border-secondary">
+                <h5 class="mb-0 text-white"><i
+                        class="bi bi-file-earmark-code-fill me-2 text-primary-custom"></i>Template File di Stampa</h5>
+                <div class="d-flex align-items-center">
+                    <div class="btn-group btn-group-sm me-3" id="printer-filter-group" role="group">
+                        <input type="radio" class="btn-check" name="printer-filter" id="filter-all" value="all" checked
+                            autocomplete="off">
+                        <label class="btn btn-outline-orange" for="filter-all">Tutte</label>
+
+                        {% with printers=project|get_project_printers %}
+                        {% for p in printers %}
+                        <input type="radio" class="btn-check" name="printer-filter" id="filter-{{ p.id }}"
+                            value="{{ p.id }}" autocomplete="off">
+                        <label class="btn btn-outline-orange" for="filter-{{ p.id }}">{{ p.name }}</label>
+                        {% endfor %}
+                        {% endwith %}
+                    </div>
+                </div>
+            </div>
+            <div class="card-body">
+                {% for item in parts_with_files %}
+                <div class="part-section mb-4" data-part-id="{{ item.part.id|default:'none' }}">
+                    <h6
+                        class="text-primary-custom border-bottom border-secondary pb-2 mb-3 d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-puzzle-fill me-2"></i>{{ item.display_name }}</span>
+                        {% if item.part %}
+                        <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal"
+                            data-bs-target="#masterFileModal" data-action="add" data-part-id="{{ item.part.id }}">
+                            <i class="bi bi-plus-lg me-1"></i> Aggiungi gcode a questa parte
+                        </button>
+                        {% endif %}
+                    </h6>
+                    <div class="table-responsive">
+                        <table class="table table-dark table-hover mb-0">
+                            <thead>
+                                <tr>
+                                    <th class="text-primary-custom" style="width: 25%;">Nome File</th>
+                                    <th class="text-primary-custom text-center" style="width: 10%;">Tempo Stimato</th>
+                                    <th class="text-primary-custom text-center" style="width: 10%;">Stampante</th>
+                                    <th class="text-primary-custom text-center" style="width: 10%;">Oggetti x Stampa
+                                    </th>
+                                    <th class="text-primary-custom text-center" style="width: 25%;">Filamenti</th>
+                                    <th class="text-primary-custom text-center" style="width: 10%;">Peso Totale</th>
+                                    <th class="text-end text-primary-custom" style="width: 10%;">Azioni</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for file in item.files %}
+                                <tr class="align-middle master-file-row" data-printer="{{file.dtag}}"
+                                    data-printer-name="{{ file.printer.name|default:'' }}"
+                                    data-printer-id="{{ file.printer.id|default:'none' }}"
+                                    data-produced-qty="{{ file.produced_quantity }}" data-file-id="{{ file.id }}">
+                                    <td class="text-white">{{ file.name }}</td>
+                                    <td class="text-white text-center">{{ file.estimated_time_seconds|duration_format }}
+                                    </td>
+                                    <td class="text-white text-center"><span
+                                            class="badge label-orange">{{file.dtag}}</span></td>
+                                    <td class="text-white text-center">{{ file.produced_quantity }}</td>
+                                    <td class="text-center">
+                                        {% for usage in file.filament_usages.all %}
+                                        <span class="filament-pill"
+                                            style="--bg: {{ usage.filament.color_hex|default:'#555' }}; background-color: var(--bg);">
+                                            {{ usage.filament }}
+                                        </span>
+                                        {% endfor %}
+                                    </td>
+                                    <td class="text-white text-center">{{ file.total_grams|floatformat:2 }}g</td>
+                                    <td class="text-end">
+                                        <button class="btn btn-sm btn-outline-info me-1" data-bs-toggle="modal"
+                                            data-bs-target="#masterFileModal" data-action="edit"
+                                            data-file-id="{{ file.id }}">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        <form action="{% url 'delete_master_print_file' file.id %}" method="post"
+                                            class="d-inline" onsubmit="return confirm('Eliminare questo template?')">
+                                            {% csrf_token %}
+                                            <button type="submit" class="btn btn-sm btn-outline-danger">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </form>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                                <tr class="no-files-row d-none">
+                                    <td colspan="7" class="text-center py-3 text-muted">
+                                        <i class="bi bi-info-circle me-2"></i>Nessun file per questa stampante in questa
+                                        parte.
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                {% empty %}
+                <div class="text-center py-5">
+                    <i class="bi bi-file-earmark-code text-secondary mb-3" style="font-size: 3rem;"></i>
+                    <p class="text-muted">Nessun file di stampa configurato per questo master.</p>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modali -->
+
+<!-- Modal Modifica Progetto Master -->
+<div class="modal fade" id="editMasterModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content bg-dark-card text-white border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title"><i class="bi bi-pencil-square me-2 text-primary-custom"></i>Modifica Progetto
+                    Master</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form action="{% url 'edit_master_project' project.id %}" method="post" enctype="multipart/form-data">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="master-edit-form">
+                        <div class="mb-3">
+                            <label class="form-label">Nome Progetto Master</label>
+                            {{ edit_master_form.name }}
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Categoria</label>
+                            {{ edit_master_form.category }}
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Immagine Anteprima</label>
+                            {{ edit_master_form.preview_image }}
+                        </div>
+
+                        <hr class="border-secondary">
+                        <h6 class="text-primary-custom mb-3"><i class="bi bi-puzzle-fill me-2"></i>Parti del Progetto
+                        </h6>
+                        <div id="parts-container">
+                            {% for part in project.parts.all %}
+                            <div class="input-group mb-2 part-row">
+                                <input type="hidden" name="part_ids[]" value="{{ part.id }}">
+                                <input type="text" name="part_names[]" class="form-control bg-dark text-white"
+                                    value="{{ part.name }}" placeholder="Nome Parte">
+                                <button type="button" class="btn btn-outline-danger remove-part-btn"><i
+                                        class="bi bi-trash"></i></button>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-primary mt-2" id="add-part-btn">
+                            <i class="bi bi-plus-lg me-1"></i> Aggiungi Parte
+                        </button>
+
+                        <hr class="border-secondary">
+                        <h6 class="text-info mb-3"><i class="bi bi-printer-fill me-2"></i>Output di Stampa (Oggetti a
+                            Magazzino)</h6>
+                        <div id="outputs-container">
+                            {% for output in project.outputs.all %}
+                            <div class="input-group mb-2 output-row">
+                                <input type="hidden" name="output_ids[]" value="{{ output.id }}">
+                                <input type="text" name="output_names[]" class="form-control bg-dark text-white"
+                                    value="{{ output.name }}" placeholder="Nome Output" style="flex: 2;">
+                                <input type="number" name="output_quantities[]"
+                                    class="form-control bg-dark text-white text-center" value="{{ output.quantity }}"
+                                    min="1" placeholder="Qtà" style="max-width: 80px;">
+                                <button type="button" class="btn btn-outline-danger remove-output-btn"><i
+                                        class="bi bi-trash"></i></button>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-primary mt-2" id="add-output-btn">
+                            <i class="bi bi-plus-lg me-1"></i> Aggiungi Output
+                        </button>
+                    </div>
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button>
+                    <button type="submit" class="btn btn-primary-custom">Salva Modifiche</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Elimina Progetto Master -->
+<div class="modal fade" id="deleteMasterModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content bg-dark text-white border-danger">
+            <div class="modal-header border-danger">
+                <h5 class="modal-title text-danger">Elimina Progetto Master</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body text-center">
+                <i class="bi bi-exclamation-triangle text-danger mb-3" style="font-size: 3rem;"></i>
+                <p>Sei sicuro di voler eliminare <strong>{{ project.name }}</strong>?</p>
+                <p class="small text-white-50">L'eliminazione del Master non influirà sugli ordini di lavoro già creati,
+                    ma eliminerà i template associati.</p>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button>
+                <form action="{% url 'delete_master_project' project.id %}" method="post">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-danger">Elimina Definitivamente</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<!-- Modal Crea Ordine Avanzato -->
+<div class="modal fade" id="createOrderModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content bg-dark-card text-white border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title"><i class="bi bi-rocket-takeoff-fill me-2 text-success"></i>Configura Nuovo
+                    Ordine</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="createOrderForm" method="post">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <p id="createOrderText" class="text-white-50 mb-4"></p>
+
+                    <div id="batches-container">
+                        <!-- Popolato via JS -->
+                    </div>
+
+                    <div class="text-center mb-4">
+                        <button type="button" class="btn btn-outline-primary btn-sm" id="btn-add-batch">
+                            <i class="bi bi-plus-circle me-1"></i> Dividi Stampe (Aggiungi Set)
+                        </button>
+                    </div>
+
+                    <div id="order-creation-summary" class="alert alert-info bg-dark-card border-info d-none">
+                        <h6 class="alert-heading small text-muted fw-bold">Riepilogo Totale Creazione:</h6>
+                        <ul class="mb-0 small" id="summary-list"></ul>
+                    </div>
+
+                    <input type="hidden" name="batch_data" id="batch_data_input">
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button>
+                    <button type="submit" class="btn btn-success" id="btn-submit-order">Crea Ordine di Lavoro</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Aggiungi/Modifica File Master -->
+<div class="modal fade" id="masterFileModal" tabindex="-1" data-url-add="{% url 'add_master_print_file' project.id %}">
+    <div class="modal-dialog">
+        <div class="modal-content bg-dark-card text-white border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title" id="masterFileModalTitle">Dettagli Template</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="masterFileForm" method="post">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Nome File Template</label>
+                        {{ master_print_file_form.name }}
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col">
+                            <label class="form-label">Giorni</label>
+                            {{ master_print_file_form.estimated_time_days }}
+                        </div>
+                        <div class="col">
+                            <label class="form-label">Ore</label>
+                            {{ master_print_file_form.estimated_time_hours }}
+                        </div>
+                        <div class="col">
+                            <label class="form-label">Minuti</label>
+                            {{ master_print_file_form.estimated_time_minutes }}
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-6">
+                            <label class="form-label">Stampante</label>
+                            {{ master_print_file_form.printer }}
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">Piatto</label>
+                            <select name="plate" id="id_plate" class="form-select bg-dark text-white">
+                                <option value="">Seleziona Piatto</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-6">
+                            <label class="form-label">Parti Progetto</label>
+                            <select name="project_parts" id="id_project_parts" class="form-select bg-dark text-white"
+                                multiple>
+                                {% for part in project.parts.all %}
+                                <option value="{{ part.id }}">{{ part.name }}</option>
+                                {% endfor %}
+                            </select>
+                            <small class="text-muted">Seleziona una o più parti.</small>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">Oggetti per Stampa</label>
+                            <input type="number" name="produced_quantity" id="id_produced_quantity"
+                                class="form-control bg-dark text-white" value="1" min="1">
+                        </div>
+                    </div>
+
+                    <hr class="border-secondary">
+                    <div class="d-flex align-items-center mb-3">
+                        <h5 class="mb-0 me-3 text-white">Filamenti Consigliati</h5>
+                        <button type="button" class="btn btn-sm btn-outline-primary" id="add-master-filament-btn">
+                            <i class="bi bi-plus-lg"></i> Aggiungi
+                        </button>
+                    </div>
+                    <div id="master-filament-inputs-container">
+                        <!-- Righe dinamiche qui -->
+                    </div>
+                    <input type="hidden" name="filament_data" id="master_filament_data_input">
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button>
+                    <button type="submit" class="btn btn-primary-custom" id="masterFileSubmitBtn">Salva</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Gestione Note Master -->
+<!-- Modal Modifica Note Master -->
+<div class="modal fade" id="editNotesModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content bg-dark-card text-white border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title"><i class="bi bi-journal-text me-2 text-primary-custom"></i>Modifica Annotazioni
+                    Master</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form action="{% url 'edit_master_notes' project.id %}" method="post">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Annotazioni</label>
+                        <textarea name="notes" class="form-control bg-dark text-white"
+                            rows="10">{{ project.notes }}</textarea>
+                    </div>
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button>
+                    <button type="submit" class="btn btn-primary-custom">Salva Note</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/js/tom-select.complete.min.js"></script>
+{{ all_filaments_json|json_script:"all-filaments-data" }}
+<script src="{% static 'js/master_project_detail.js' %}" defer></script>
+{% endblock %}

@@ -1,0 +1,60 @@
+<div id="inventory-table-container"
+     hx-get="{% url 'inventory_dashboard' %}?v={{ server_version }}&{{ request.GET.urlencode|cut:'v' }}"
+     hx-trigger="every 10s, refreshInventory from:body"
+     hx-swap="outerHTML"
+     hx-indicator="#loading-overlay">
+<div class="table-responsive">
+    <table class="table table-dark table-hover align-middle">
+        <thead>
+            <tr>
+                <th><a
+                        href="?sort=custom_id&order={% if sort_by == 'custom_id' and order == 'asc' %}desc{% else %}asc{% endif %}&{{ request.GET.urlencode|cut:'sort'|cut:'order' }}">ID</a>
+                </th>
+                <th><a
+                        href="?sort=name&order={% if sort_by == 'name' and order == 'asc' %}desc{% else %}asc{% endif %}&{{ request.GET.urlencode|cut:'sort'|cut:'order' }}">Oggetto</a>
+                </th>
+                <th class="text-center"><a
+                        href="?sort=quantity&order={% if sort_by == 'quantity' and order == 'asc' %}desc{% else %}asc{% endif %}&{{ request.GET.urlencode|cut:'sort'|cut:'order' }}">Quantità</a>
+                </th>
+                <th class="text-end"><a
+                        href="?sort=annotated_total_cost&order={% if sort_by == 'annotated_total_cost' and order == 'asc' %}desc{% else %}asc{% endif %}&{{ request.GET.urlencode|cut:'sort'|cut:'order' }}">Costo
+                        Totale</a></th>
+                <th class="text-end"><a
+                        href="?sort=suggested_price&order={% if sort_by == 'suggested_price' and order == 'asc' %}desc{% else %}asc{% endif %}&{{ request.GET.urlencode|cut:'sort'|cut:'order' }}">Prezzo
+                        Previsto (unitario)</a></th>
+                <th class="text-center"><a
+                        href="?sort=status&order={% if sort_by == 'status' and order == 'asc' %}desc{% else %}asc{% endif %}&{{ request.GET.urlencode|cut:'sort'|cut:'order' }}">Stato</a>
+                </th>
+            </tr>
+        </thead>
+        <tbody id="inventory-table-body">
+            {% for item in stock_items %}
+            <tr style="cursor: pointer;" data-item-id="{{ item.id }}" class="{% if item.is_locked %}row-locked{% endif %}">
+                <td class="fw-bold">
+                    #{{ item.custom_id|default:"N/A" }}
+                    {% if item.is_locked %}
+                    <i class="bi bi-lock-fill text-warning ms-2" title="In modifica da {{ item.locked_by.username }}"></i>
+                    {% endif %}
+                </td>
+                <td>
+                    <div class="fw-bold">{{ item.name }}</div>
+                    <small class="text-muted">Progetto: <strong>#{{ item.work_order.id|default:"N/A" }}</strong> - {{ item.work_order.name|default:"N/A" }}</small>
+                </td>
+                <td class="text-center">{{ item.quantity }}</td>
+                <td class="text-end text-warning fw-bold">{{ item.annotated_total_cost|floatformat:2 }}€</td>
+                <td class="text-end text-info">{{ item.suggested_price|floatformat:2 }}€</td>
+                <td class="text-center">
+                     <span class="badge rounded-pill bg-stock-status-{{ item.status|lower }}">{{ item.get_status_display }}</span>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="6" class="text-center py-5">
+                    <p class="lead">Nessun oggetto trovato per i filtri selezionati.</p>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+</div>

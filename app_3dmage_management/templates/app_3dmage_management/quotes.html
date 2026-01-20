@@ -1,0 +1,112 @@
+{% extends "app_3dmage_management/base.html" %}
+{% load static %}
+{% block title %}Preventivi - 3DMAGE MANAGEMENT{% endblock %}
+
+{% block content %}
+<!-- IMPORTANTE: Include le risorse per Tom Select -->
+<link href="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/css/tom-select.bootstrap5.css" rel="stylesheet">
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="text-white"><i class="bi bi-file-earmark-text-fill me-2"></i>Calcolatore Preventivi</h2>
+</div>
+<div class="row g-5">
+    <!-- Colonna Input -->
+    <div class="col-lg-7">
+        <div class="card bg-dark-card p-4">
+            <div class="mb-3">
+                <label for="quoteName" class="form-label">Nome Preventivo</label>
+                <input type="text" class="form-control" id="quoteName" placeholder="Es. Set Scacchi Completo">
+            </div>
+            <div class="row g-3 mb-3">
+                <div class="col"><label class="form-label">Ore di Stampa</label><input type="number" class="form-control" id="printHours" value="0" min="0"></div>
+                <div class="col"><label class="form-label">Minuti di Stampa</label><input type="number" class="form-control" id="printMinutes" value="0" min="0" max="59"></div>
+            </div>
+            <hr class="border-secondary">
+            <h6 class="mb-3">Materiali Usati</h6>
+            <div id="materials-container"></div>
+            <button type="button" class="btn btn-sm btn-outline-light mt-2" id="add-material-btn"><i class="bi bi-plus-circle"></i> Aggiungi Materiale</button>
+        </div>
+    </div>
+    <!-- Colonna Risultati -->
+    <div class="col-lg-5">
+        <div class="card bg-dark-card p-4 sticky-top" style="top: 100px;">
+            <h4 class="text-primary-custom mb-3" id="result-title">Riepilogo Costi</h4>
+            <div id="cost-breakdown"><p class="text-muted">Inserisci i dati per calcolare il preventivo.</p></div>
+            <hr class="border-secondary">
+            <div class="d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">COSTO TOTALE</h5>
+                <h4 class="fw-bold mb-0" id="total-cost">0.00€</h4>
+            </div>
+            <div class="d-grid gap-2 mt-4">
+                <button class="btn btn-success" id="create-project-btn"><i class="bi bi-folder-plus me-2"></i>Crea Progetto</button>
+                <button class="btn btn-primary-custom" id="save-quote-btn"><i class="bi bi-save-fill me-2"></i>Salva Preventivo</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tabella Preventivi Salvati -->
+<h3 class="text-white mt-5 mb-3">Preventivi Salvati</h3>
+<div class="card bg-dark-card">
+    <div class="table-responsive">
+        <table class="table table-dark table-hover align-middle">
+            <thead>
+                <tr>
+                    <th>Nome</th>
+                    <th>Data</th>
+                    <th class="text-end">Costo Totale</th>
+                    <th class="text-end">Azioni</th>
+                </tr>
+            </thead>
+            <tbody id="saved-quotes-table">
+                {% for quote in saved_quotes %}
+                <tr class="clickable-row saved-quote-row" data-quote-id="{{ quote.id }}" style="cursor: pointer;">
+                    <td class="fw-bold">{{ quote.name }}</td>
+                    <td>{{ quote.created_at|date:"d/m/Y H:i" }}</td>
+                    <td class="text-end text-primary-custom fw-bold">{{ quote.total_cost|floatformat:2 }}€</td>
+                    <td class="text-end">
+                        <button class="btn btn-sm btn-outline-danger delete-quote-btn" data-id="{{ quote.id }}" title="Elimina Preventivo"><i class="bi bi-trash"></i></button>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="4" class="text-center text-muted py-4">Nessun preventivo salvato.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Modale di conferma creazione progetto -->
+<div class="modal fade" id="createProjectConfirmModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-dark-card text-white">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title">Conferma Creazione Progetto</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Stai per creare un nuovo progetto chiamato "<strong id="projectNameInModal"></strong>". Vuoi continuare?</p>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button>
+                <button type="button" class="btn btn-success" id="confirmCreateProjectBtn">Sì, Crea Progetto</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<template id="material-row-template">
+    <div class="row g-2 mb-2 align-items-center material-row">
+        <!-- MODIFICATO: Container vuoto per ospitare il select dinamico -->
+        <div class="col-7 select-container"></div>
+        <div class="col-3"><input type="number" class="form-control grams-input" placeholder="grammi" min="0"></div>
+        <div class="col-2"><button type="button" class="btn btn-sm btn-outline-danger w-100 remove-row-btn" title="Rimuovi riga"><i class="bi bi-trash"></i></button></div>
+    </div>
+</template>
+{% endblock %}
+
+{% block scripts %}
+<!-- JS di Tom Select -->
+<script src="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/js/tom-select.complete.min.js"></script>
+<script src="{% static 'js/quotes.js' %}" defer></script>
+{% endblock %}

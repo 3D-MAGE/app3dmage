@@ -1,0 +1,616 @@
+/* Stili Globali */
+html {
+    scrollbar-gutter: stable;
+}
+:root {
+    --primary-color: #ffa500; /* Arancione */
+    --dark-bg: #1a1a1a;
+    --dark-card: #2c2c2c;
+    --dark-card-lighter: #3a3a3a;
+    --dark-nav: #212529;
+    --text-light: #f8f9fa;
+    --text-muted: #6c757d;
+}
+
+/* --- Layout di Base --- */
+body {
+  padding-top: 70px; /* Mantiene lo spazio per la navbar fissa */
+  background-color: var(--dark-bg);
+  color: var(--text-light);
+  overflow-x: hidden;
+}
+
+header {
+    position: fixed;
+    top: 0;
+    width: 100%;
+    z-index: 1030;
+}
+
+/* --- Navbar --- */
+.bg-dark-custom { background-color: var(--dark-nav) !important; border-bottom: 1px solid var(--dark-card); }
+.navbar-brand .fw-bold { margin-left:20px; font-weight: 600 !important; font-size: 1.5rem; vertical-align: middle; letter-spacing: 1px; }
+.navbar-brand-divider { border-left: 2px solid var(--primary-color); height: 25px; }
+.nav-link { color: var(--text-light) !important; font-weight: 400; margin: 0 0.5rem; transition: color 0.3s ease; }
+.nav-link.active { color: var(--primary-color) !important; font-weight: 700; }
+.nav-link:not(.active):hover { color: var(--primary-color) !important; }
+
+/* --- Elementi Comuni --- */
+.btn-primary-custom { background-color: var(--primary-color); border-color: var(--primary-color); color: var(--dark-bg); font-weight: bold; }
+.btn-primary-custom:hover { background-color: #e69500; border-color: #e69500; color: #000; }
+.card.bg-dark-card { background-color: var(--dark-card) !important; border: none; border-radius: 0.5rem; }
+.card.bg-dark-card-lighter { background-color: var(--dark-card-lighter) !important; border: 1px solid #444; }
+.card.bg-dark-card .text-muted { color: #a0a0a0 !important; }
+
+/* --- Tabelle --- */
+.table { --bs-table-bg: var(--dark-card); --bs-table-hover-bg: #3a3a3a; border-color: #444; }
+.table thead th a { color: var(--primary-color); text-decoration: none; font-weight: 600; }
+.table thead th a:hover { color: #e69500; }
+.card .table thead th { color: var(--primary-color); font-weight: 600; }
+
+/* --- Badge, Pillole e Form In-linea --- */
+.bg-priority-low { background-color: #0d6efd !important; }
+.bg-priority-medium { background-color: #198754 !important; }
+.bg-priority-high { background-color: #ffc107 !important; color: #000 !important; }
+.bg-priority-urgent { background-color: #dc3545 !important; }
+.bg-status-quote { background-color: #6c757d !important; }
+.bg-status-todo { background-color: var(--primary-color) !important; color: #000 !important; }
+.bg-status-printing { background-color: #0dcaf0 !important; color: #000 !important; }
+.bg-status-printed { background-color: #198754 !important; }
+.bg-status-done { background-color: #0d6efd !important; }
+.bg-print-status-todo { background-color: #ffa500 !important; }
+.bg-print-status-printing { background-color: #0dcaf0 !important; color: #000 !important; }
+.bg-print-status-done { background-color: #198754 !important; }
+.bg-print-status-failed { background-color: #dc3545 !important; }
+
+/* Pillole filamento (usate in vari dettagli) */
+.filament-pill {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    margin-right: 4px;
+    margin-bottom: 4px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #ffffff;
+}
+.spool-list-group .list-group-item { background-color: transparent !important; color: var(--text-light) !important; border-color: #444 !important; }
+.spool-list-group .badge { vertical-align: middle; }
+.spool-list-group .btn { vertical-align: middle; }
+
+.form-select {
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23ffffff' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 0.5rem center;
+  background-size: 16px 12px;
+}
+
+.form-select-inline {
+  display: inline-block; width: auto; border: 1px solid #555; border-radius: 0.375rem; padding: 0.2rem 1.75rem 0.2rem 0.75rem;
+  -webkit-appearance: none; -moz-appearance: none; appearance: none;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='currentColor' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
+  background-repeat: no-repeat; background-position: right 0.5rem center; background-size: 16px 12px;
+  font-size: 0.9em; font-weight: bold; cursor: pointer; transition: background-color 0.2s ease-in-out;
+}
+.form-select-inline:focus { outline: none; border-color: var(--primary-color); box-shadow: 0 0 0 0.2rem rgba(255, 165, 0, 0.25); }
+select.select-priority-low { background-color: #0d6efd !important; }
+select.select-priority-medium { background-color: #198754 !important; }
+select.select-priority-high { background-color: #ffc107 !important; color: #1a1a1a !important;}
+select.select-priority-urgent { background-color: #dc3545 !important; }
+select.select-status-quote { background-color: #6c757d !important; }
+select.select-status-todo { background-color: var(--primary-color) !important; color: #1a1a1a !important;}
+select.select-status-printing { background-color: #0dcaf0 !important; color: #1a1a1a !important;}
+select.select-status-printed { background-color: #198754 !important; }
+select.select-status-done { background-color: #198754 !important; }
+
+/* MODIFICA: Colorazione scura per input nei modali */
+.modal-content.bg-dark-card .form-control,
+.modal-content.bg-dark-card .form-select,
+.modal-content.bg-dark-card .input-group-text {
+    background-color: #1a1a1a !important;
+    color: #f8f9fa !important;
+    border: 1px solid #444;
+}
+.modal-content.bg-dark-card .form-control:focus,
+.modal-content.bg-dark-card .form-select:focus {
+    background-color: #222 !important;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 0.2rem rgba(255, 165, 0, 0.25);
+    color: #fff !important;
+}
+.modal-content.bg-dark-card .form-control::placeholder {
+    color: #6c757d;
+}
+
+.notes-text-display { background-color: var(--dark-bg); color: #ccc; border: 1px solid #444; border-radius: 0.375rem; padding: 0.5rem 0.75rem; min-height: 80px; white-space: pre-wrap; font-size: 0.9em; }
+
+input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); }
+
+/* --- Kanban / Coda di Stampa --- */
+.dropzone-printing {
+    /* Altezza fissa minima (circa l'altezza di una card) per evitare saltelli */
+    min-height: 160px;
+
+    /* Layout */
+    display: flex;
+    flex-direction: column;
+    justify-content: center; /* Centra verticalmente la scritta "Slot Vuoto" */
+
+    /* Stile esistente */
+    position: relative;
+    border: 2px dashed #4a4e53;
+    border-radius: 8px;
+    padding: 10px;
+    background-color: rgba(0, 0, 0, 0.15);
+    transition: background-color 0.2s ease-in-out, border-color 0.2s ease-in-out;
+}
+
+/* Assicura che la card quando presente occupi tutto lo spazio e nasconda il flex center */
+.dropzone-printing .kanban-card {
+    flex-grow: 1;
+    margin-bottom: 0;
+}
+.dropzone-printing .empty-slot { color: #6c757d; font-style: italic; min-height: 200px; display: flex; align-items: center; justify-content: center; }
+.dropzone-printing.sortable-drag-over { background-color: rgba(0, 123, 255, 0.1); border-color: #0d6efd; }
+.queue-separator { text-align: center; color: #6c757d; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; margin: 15px 0 10px 0; border-top: 1px solid #6c757d; padding-top: 10px; margin-top: 20px; }
+.kanban-board-container { display: flex; flex-wrap: wrap; gap: 1rem; padding-bottom: 1rem; width: 100%; align-items: flex-start; }
+.kanban-column { flex: 1 1 0; min-width: 280px; background-color: var(--dark-bg); border-radius: 0.5rem; padding: 0.75rem; height: auto; max-height: none; display: flex; flex-direction: column; overflow: visible; }
+.kanban-card-header em.text-muted { color: #adb5bd !important; }
+.kanban-card-body strong { overflow-wrap: break-word; word-wrap: break-word; word-break: break-word; }
+.kanban-column-title { padding-bottom: 0.5rem; margin-bottom: 0.75rem; border-bottom: 2px solid var(--dark-card); }
+.kanban-column-title .text-muted.small { color: #adb5bd !important; font-weight: 600; }
+.kanban-cards-container { flex-grow: 1; overflow-y: auto; min-height: 150px; }
+.kanban-card { background-color: var(--dark-card); border-radius: 0.375rem; padding: 0.75rem; margin-bottom: 0.75rem; cursor: grab; border-left: 4px solid var(--primary-color); box-shadow: 0 2px 4px rgba(0,0,0,0.2); word-wrap: break-word; }
+.kanban-card:active { cursor: grabbing; }
+.kanban-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
+.kanban-card-body { margin-bottom: 0.5rem; }
+.kanban-card-ghost { opacity: 0.4; background: #333; border: 2px dashed var(--primary-color); }
+.print-queue-container .kanban-card-body .text-muted { color: #d1d1d1 !important; font-style: italic; }
+.filament-label {
+    font-weight: 700; /* Grassetto */
+    font-style: italic; /* Corsivo */
+    /* Colore ereditato dal genitore o forzalo se vuoi, es: color: white; */
+}
+/* --- Fix Grafico Drag & Drop --- */
+
+/* Assicuriamo che il contenitore possa gestire elementi assoluti */
+.dropzone-printing {
+    position: relative;
+    overflow: hidden; /* Mantiene tutto dentro i bordi arrotondati */
+}
+
+/* Quando trascini dentro l'area IN STAMPA, il "fantasma" si sovrappone invece di dividere */
+.dropzone-printing .kanban-card-ghost {
+    position: absolute !important;
+    top: 0;
+    left: 0;
+    width: 100% !important;
+    height: 100% !important;
+    margin: 0 !important;
+    z-index: 5;
+    opacity: 0.6; /* Leggermente trasparente */
+    background-color: var(--dark-card-lighter);
+    border: 2px dashed var(--primary-color);
+    box-shadow: 0 0 10px rgba(0,0,0,0.5);
+
+    /* Centra contenuto se necessario */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* --- Contabilità --- */
+.accounting-header {
+    background-color: var(--dark-bg);
+    padding-top: 0;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid var(--dark-card);
+}
+
+.sticky-top-filters {
+    position: sticky;
+    top: 70px;
+    z-index: 1020;
+    background-color: var(--dark-bg);
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+    margin-bottom: 24px !important;
+}
+
+.cassa-section {
+    margin-bottom: 2rem;
+}
+
+.cassa-total { font-size: 1.1rem; font-weight: 500; color: var(--primary-color) !important; }
+.card.bg-dark-card .d-flex span { color: var(--text-light) !important; }
+
+/* Sticky Table Header - Simplified for stability */
+.table-sticky-header-custom {
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+.table-sticky-header-custom thead th {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background-color: var(--dark-card);
+    box-shadow: inset 0 -1px 0 #444;
+}
+
+/* Back to Top Button */
+#backToTop {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    display: none;
+    z-index: 1000;
+    border-radius: 50%;
+    width: 50px;
+    height: 50px;
+    padding: 0;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+    background-color: var(--primary-color);
+    color: #000;
+    border: none;
+    font-size: 1.5rem;
+}
+#backToTop:hover {
+    transform: translateY(-5px);
+    background-color: #e69500;
+}
+
+/* --- Pagina Impostazioni --- */
+.settings-nav .nav-link { color: var(--text-light); font-weight: 500; margin-bottom: 0.5rem; border: 1px solid transparent; transition: all 0.2s ease-in-out; }
+.settings-nav .nav-link:hover { background-color: #3a3a3a; border-color: #444; }
+.settings-nav .nav-link.active { background-color: var(--primary-color) !important; color: var(--dark-bg) !important; font-weight: 700; border-color: var(--primary-color) !important; }
+.settings-content .tab-pane { background-color: var(--dark-card); padding: 1.5rem; border-radius: 0.5rem; }
+.accordion-item, .accordion-item.bg-dark-card { background-color: var(--dark-card) !important; border-color: #3a3a3a !important; }
+.accordion-button { background-color: transparent !important; color: var(--text-light) !important; box-shadow: none !important; }
+.accordion-button.collapsed { border-bottom: 0; }
+.accordion-button:not(.collapsed) { border-bottom: 1px solid #3a3a3a; }
+.accordion-button::after { filter: invert(1) grayscale(1) brightness(200%); }
+.accordion-button small.text-muted { color: #a0a0a0 !important; }
+.settings-list-group .list-group-item { transition: background-color 0.2s ease-in-out; padding: .75rem 1rem; }
+.settings-list-group .list-group-item:hover { background-color: #3a3a40 !important; }
+.item-actions { opacity: 0; transition: opacity 0.2s ease-in-out; }
+.settings-list-group .list-group-item:hover .item-actions, .accordion-header:hover .item-actions { opacity: 1; }
+.accordion-body .list-group-item { color: var(--text-light); }
+
+/* --- Stili per Manutenzione --- */
+.maintenance-card .card-header { background-color: rgba(0,0,0,0.1); }
+.maintenance-counters .text-muted { color: #a0a0a0 !important; }
+.maintenance-log-list .list-group-item { border-bottom: 1px solid #444; }
+.maintenance-log-list .list-group-item:last-child { border-bottom: 0; }
+.maintenance-log-list p { margin-bottom: 0.25rem; }
+
+/* --- Stili per i Modal --- */
+.modal-content.bg-dark-card { background-color: var(--dark-card) !important; color: var(--text-light); }
+.modal-content.bg-dark-card .form-control, .modal-content.bg-dark-card .form-select { background-color: var(--dark-bg); color: var(--text-light); border-color: #555; }
+.modal-content.bg-dark-card .form-control:focus, .modal-content.bg-dark-card .form-select:focus { background-color: var(--dark-bg); color: var(--text-light); border-color: var(--primary-color); box-shadow: 0 0 0 0.25rem rgba(255, 165, 0, 0.25); }
+.modal-content.bg-dark-card label { margin-bottom: 0.5rem; display: block; }
+.spool-select.is-empty { color: var(--text-light) !important; opacity: 0.7; }
+
+/* --- Stili per la pagina Preventivi --- */
+#cost-breakdown p, #cost-breakdown p span { color: var(--text-light); }
+#cost-breakdown p .text-muted { color: #a0a0a0 !important; }
+.bg-dark-card .form-control, .bg-dark-card .form-select { background-color: var(--dark-bg); color: var(--text-light); border-color: #555; }
+.bg-dark-card .form-control:focus, .bg-dark-card .form-select:focus { background-color: var(--dark-bg); color: var(--text-light); border-color: var(--primary-color); box-shadow: 0 0 0 0.25rem rgba(255, 165, 0, 0.25); }
+.bg-dark-card label, .bg-dark-card h6, .bg-dark-card h5 { color: #f8f9fa; }
+.bg-dark-card h4#total-cost { color: #f8f9fa !important; }
+.bg-dark-card .form-control::placeholder { color: #a0a0a0; opacity: 1; }
+.text-primary-custom { color: var(--primary-color) !important; }
+
+/* --- Library Custom Styles --- */
+.library-card {
+    transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+    border: 1px solid #444 !important;
+}
+.library-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.4);
+}
+.library-img-link {
+    display: block;
+    position: relative;
+    overflow: hidden;
+    height: 180px;
+}
+.library-img-link img {
+    object-fit: cover;
+    width: 100%;
+    height: 100%;
+    transition: transform 0.3s ease;
+}
+.library-img-link:hover img {
+    transform: scale(1.05);
+}
+/* Titoli dei progetti nella libreria (card) */
+.card-title .library-title {
+    color: #ffa500;
+    transition: color 0.3s ease;
+    text-decoration: none;
+}
+
+.card-title .library-title:hover {
+    color: #fff !important;
+}
+.library-text {
+    color: #ccc;
+    font-size: 0.9rem;
+}
+.library-empty-msg {
+    color: #888;
+    font-style: italic;
+    border: 1px dashed #555;
+    padding: 2rem;
+    border-radius: 0.5rem;
+}
+.library-notes-display {
+    background-color: var(--dark-bg);
+    color: #ccc;
+    border: 1px solid #444;
+    border-radius: 0.375rem;
+    padding: 0.75rem;
+    min-height: 100px;
+    white-space: pre-wrap;
+}
+
+/* --- Stili per il dropdown delle notifiche --- */
+#notification-list .dropdown-header { color: var(--primary-color); font-weight: 600; border-bottom: 1px solid #444; margin-bottom: 0.25rem; padding-top: 0.75rem; padding-bottom: 0.75rem; }
+#notification-list .dropdown-item-text { color: #a0a0a0 !important; }
+.dropdown-item-wrapper { display: flex; align-items: center; justify-content: space-between; padding-right: 0.5rem; }
+.dropdown-item-wrapper .dropdown-item { flex-grow: 1; padding-right: 0.5rem; white-space: normal; }
+.dropdown-item-wrapper .dropdown-item small { color: #f8f9fa; }
+.dropdown-item-wrapper .delete-notification-btn { --bs-btn-padding-y: .1rem; --bs-btn-padding-x: .4rem; --bs-btn-font-size: .75rem; line-height: 1; opacity: 0.5; transition: opacity 0.2s ease-in-out; }
+.dropdown-item-wrapper:hover .delete-notification-btn { opacity: 1; }
+
+/* --- Stili per i Toast --- */
+#appToast.bg-success { background-color: #198754 !important; }
+#appToast.bg-danger { background-color: #dc3545 !important; }
+#appToast.bg-warning { background-color: #ffc107 !important; color: #000 !important; }
+#appToast.bg-warning .btn-close { filter: invert(1) grayscale(100) brightness(0); }
+
+/* --- Stili per i bottoni --- */
+#filament-count-selector .btn.active { background-color: var(--primary-color); border-color: var(--primary-color); color: black; }
+#status-btn-container .status-btn[data-status="TODO"].active { background-color: #ffa500; border-color: #ffa500; color: #ffffff; }
+#status-btn-container .status-btn[data-status="PRINTING"].active { background-color: #0dcaf0; border-color: #0dcaf0; color: #ffffff; }
+#status-btn-container .status-btn[data-status="DONE"].active { background-color: #198754; border-color: #198754; color: #ffffff; }
+#status-btn-container .status-btn[data-status="FAILED"].active { background-color: #dc3545; border-color: #dc3545; color: #ffffff; }
+
+/* --- Magazzino --- */
+.table-sticky-header .table-responsive { max-height: 70vh; }
+.table-sticky-header thead th { position: -webkit-sticky; position: sticky; top: 0; z-index: 2; background-color: var(--dark-card); box-shadow: inset 0 -2px 0 var(--dark-nav); }
+.bg-stock-status-post_prod { background-color: var(--primary-color) !important; }
+.bg-stock-status-in_stock { background-color: #0dcaf0 !important; }
+.bg-stock-status-consignment { background-color: #6c757d !important; color: #000 !important; }
+.bg-stock-status-sold { background-color: #198754 !important; }
+.modal-body .item-project-subtitle { color: var(--text-light); font-style: italic; }
+
+/* --- Impostazioni (Accordion) --- */
+.accordion-header .accordion-button, .accordion-header .accordion-button .fw-bold { color: var(--text-light) !important; }
+.accordion-header .accordion-button i { color: var(--primary-color); }
+.accordion-header .badge { color: var(--text-light) !important; }
+.btn-check:checked + .btn-outline-secondary { background-color: var(--primary-color); border-color: var(--primary-color); color: #000; }
+
+/* --- Responsive --- */
+@media (max-width: 991.98px) {
+  .navbar .container-fluid { justify-content: center; }
+  .navbar-brand { margin-right: 0; }
+  .navbar-toggler { position: absolute; left: 1rem; }
+}
+
+/* Stili per l'overlay di caricamento */
+.loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 1200; /* Più alto di qualsiasi altro elemento */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    backdrop-filter: blur(3px);
+}
+
+.loading-overlay .spinner-border {
+    width: 3rem;
+    height: 3rem;
+}
+
+/* =================================================================== */
+/* Stili TEMA CHIARO (consolidati e corretti)                          */
+/* =================================================================== */
+
+html.light-theme {
+    --primary-color: #ffa500;
+    --dark-bg: #f4f6f8;
+    --dark-card: #ffffff;
+    --dark-card-lighter: #f1f3f5;
+    --dark-nav: #e9ecef;
+    --text-light: #212529;
+    --text-muted: #6c757d;
+}
+
+html.light-theme body { background-color: var(--dark-bg) !important; color: var(--text-light) !important; }
+html.light-theme .text-white, html.light-theme .accordion-button, html.light-theme .accordion-header .accordion-button .fw-bold, html.light-theme .settings-list-group .list-group-item, html.light-theme .modal-body .item-project-subtitle, html.light-theme h5, html.light-theme .modal-content.bg-dark-card, html.light-theme .modal-content.bg-dark-card .modal-title, html.light-theme .modal-content.bg-dark-card label { color: var(--text-light) !important; }
+html.light-theme .bg-dark-custom { background-color: var(--dark-nav) !important; border-bottom: 1px solid #dee2e6; }
+html.light-theme .navbar-brand .fw-bold { color: var(--text-light) !important; }
+html.light-theme .nav-link { color: #343a40 !important; }
+html.light-theme .nav-link.active { color: var(--primary-color) !important; }
+html.light-theme .btn-primary-custom, html.light-theme .btn-primary-custom:hover { color: white; }
+html.light-theme .table { --bs-table-hover-bg: #f1f3f5; border-color: #dee2e6; color: var(--text-light); }
+html.light-theme .table td, html.light-theme .table th, html.light-theme .table .fw-bold { color: var(--text-light); }
+html.light-theme .table-hover > tbody > tr:hover > * { --bs-table-accent-bg: var(--bs-table-hover-bg); color: var(--text-light); }
+html.light-theme .table thead th a { color: var(--primary-color); }
+html.light-theme .badge.bg-status-todo { color: #000 !important; }
+html.light-theme .accordion-button::after { filter: none; }
+html.light-theme .modal-content.bg-dark-card .form-control, html.light-theme .modal-content.bg-dark-card .form-select { background-color: #f1f3f5; color: var(--text-light); border-color: #ced4da; }
+html.light-theme .settings-nav .nav-link.active { color: #000 !important; }
+html.light-theme .settings-nav .nav-link:hover { background-color: #6c757d; color: #fff !important; border-color: #6c757d; }
+html.light-theme .text-muted { color: #6c757d !important; }
+html.light-theme .maintenance-card { border-color: #dee2e6; }
+html.light-theme .maintenance-log-list .list-group-item, html.light-theme .maintenance-counters .border-end { border-color: #dee2e6 !important; }
+
+
+
+/* =================================================================== */
+/* MODIFICA: Stili corretti per il menu mobile                         */
+/* =================================================================== */
+@media (max-width: 991.98px) {
+    .navbar-toggler {
+        /* Assicura che il bottone sia sopra l'overlay del menu */
+        z-index: 1050;
+    }
+
+    /*
+     * Applica gli stili dell'overlay a schermo intero SOLO quando
+     * il menu è aperto (classe .show) o in transizione (classe .collapsing).
+     * In questo modo non interferisce con lo stato chiuso.
+    */
+    .navbar-collapse.show,
+    .navbar-collapse.collapsing {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(26, 26, 26, 0.98); /* Sfondo più opaco per nascondere il contenuto sotto */
+        backdrop-filter: blur(8px);
+        z-index: 1040;
+
+        /* Layout con scrolling */
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-start; /* Inizia dall'alto */
+        align-items: center;
+        text-align: center;
+        overflow-y: auto; /* Permette lo scroll interno */
+        padding-top: 80px; /* Spazio per non coprire il brand/toggler */
+        padding-bottom: 40px;
+    }
+
+    /* Stili per i link all'interno del menu aperto */
+    .navbar-collapse .navbar-nav {
+        width: 100%;
+        padding: 0 20px;
+    }
+
+    .navbar-collapse .nav-item {
+        margin: 0.8rem 0; /* Ridotto leggermente per far stare più voci */
+    }
+
+    .navbar-collapse .nav-link {
+        font-size: 1.5rem; /* Leggermente più piccolo per far stare tutto */
+        font-weight: 500;
+        color: #fff !important;
+        padding: 10px 0;
+    }
+
+    .navbar-collapse .nav-link.active {
+        color: var(--primary-color) !important;
+    }
+
+    /* Stili per il menu a tendina dell'utente su mobile */
+    .navbar-collapse .dropdown-menu {
+        background: rgba(255, 255, 255, 0.05) !important;
+        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        text-align: center !important;
+        font-size: 1.3rem;
+        margin-top: 10px;
+        position: static !important; /* Forza layout flat */
+        float: none !important;
+        width: auto !important;
+    }
+
+    .navbar-collapse .dropdown-item {
+        font-weight: 500;
+        color: #fff !important;
+        padding: 12px 0;
+    }
+}
+
+/* Utility per bloccare lo scroll del body */
+body.no-scroll {
+    overflow: hidden !important;
+    height: 100vh !important;
+}
+
+/* --- Multi-user Sync & Locking --- */
+.row-locked {
+    opacity: 0.65;
+    pointer-events: none; /* Impedisce il click sulla riga */
+    background-color: rgba(255, 193, 7, 0.05) !important;
+}
+
+.row-locked td {
+    color: #adb5bd !important;
+}
+
+.row-locked .badge {
+    filter: grayscale(1);
+    opacity: 0.8;
+}
+
+/* HTMX transition effect */
+.htmx-adding {
+    opacity: 0;
+}
+.htmx-settling {
+    transition: opacity 0.5s ease-in;
+    opacity: 1;
+}
+
+/* --- UI Compatti (Dettagli) --- */
+.info-label {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #6c757d;
+    margin-bottom: 0.1rem;
+}
+.info-value {
+    font-size: 0.95rem;
+    font-weight: 500;
+    color: #fff;
+}
+.notes-display-compact {
+    font-size: 0.85rem;
+    background: rgba(255,255,255,0.03);
+    padding: 0.5rem 0.75rem;
+    border-radius: 4px;
+    border-left: 3px solid var(--primary-color);
+}
+
+/* Pulsanti e Label Arancioni */
+.btn-outline-orange {
+    color: #ffa500;
+    border-color: #ffa500;
+}
+.btn-outline-orange:hover {
+    background-color: #ffa500 !important;
+    color: #000 !important;
+    border-color: #ffa500 !important;
+}
+.btn-check:checked + .btn-outline-orange {
+    background-color: #ffa500 !important;
+    color: #000 !important;
+    border-color: #ffa500 !important;
+    font-weight: bold;
+}
+.label-orange {
+    background-color: #ffa500;
+    color: #000;
+    font-weight: bold;
+}
+
+.card-info-compact .card-body {
+    padding: 1rem;
+}
+

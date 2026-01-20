@@ -1,0 +1,220 @@
+{% extends "app_3dmage_management/base.html" %}
+{% load static %}
+{% block title %}Magazzino - 3DMAGE MANAGEMENT{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="text-white"><i class="bi bi-box-seam-fill me-2"></i>Magazzino Oggetti Prodotti</h2>
+    <div>
+        <!-- NUOVO PULSANTE PER L'EXPORT -->
+        <a href="{% url 'export_stock_sales_csv' %}" class="btn btn-sm btn-outline-success me-2">
+            <i class="bi bi-file-earmark-spreadsheet-fill me-1"></i>Esporta CSV Completo
+        </a>
+        <button class="btn btn-sm btn-primary-custom" data-bs-toggle="modal" data-bs-target="#addStockItemModal"><i
+                class="bi bi-plus-circle me-1"></i>Aggiungi Oggetto</button>
+    </div>
+</div>
+
+<div class="card bg-dark-card mb-4">
+    <div class="card-body">
+        <form method="get" action="{% url 'inventory_dashboard' %}" class="row g-3 align-items-end">
+            <div class="col-md-6">
+                <label for="q" class="form-label">Cerca per Nome o ID</label>
+                <input type="text" class="form-control form-control-sm" name="q" id="q" value="{{ search_query }}">
+            </div>
+            <div class="col-md-4">
+                <label for="status" class="form-label">Filtra per Stato</label>
+                <select name="status" id="status" class="form-select form-select-sm">
+                    <option value="">Tutti gli Stati</option>
+                    {% for value, display in all_statuses %}
+                    {% if value != 'SOLD' %}
+                    <option value="{{ value }}" {% if value == status_filter %}selected{% endif %}>{{ display }}</option>
+                    {% endif %}
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-1 d-grid">
+                <button type="submit" class="btn btn-sm btn-primary-custom">Filtra</button>
+            </div>
+            <div class="col-md-1 d-grid">
+                <a href="{% url 'inventory_dashboard' %}" class="btn btn-sm btn-outline-secondary">Azzera</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card bg-dark-card">
+    <div class="card-body">
+        {% include "app_3dmage_management/partials/inventory_table.html" %}
+    </div>
+</div>
+
+<!-- Modale per AGGIUNGERE un oggetto manualmente -->
+<div class="modal fade" id="addStockItemModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-dark-card text-white">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title">Aggiungi Oggetto</h5>
+            </div>
+            <form id="addStockItemForm" action="{% url 'add_stock_item' %}" method="post">
+                {% csrf_token %}
+                <div class="modal-body">
+                    {{ manual_form.as_p }}
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button>
+                    <button type="submit" class="btn btn-primary-custom">Aggiungi Oggetto</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+
+<!-- Modale per MODIFICARE/VENDERE un oggetto -->
+<div class="modal fade" id="editStockItemModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-dark-card text-white">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title" id="editStockItemModalLabel"></h5>
+            </div>
+            <form id="editStockItemForm" method="post" novalidate>
+                <div class="modal-body">
+                    {% csrf_token %}
+                    <div class="d-flex justify-content-between mb-3">
+                        <small class="text-light">ID: <strong id="itemStockID"></strong></small>
+                        <small class="text-light">Da progetto: <strong id="itemProjectName"></strong> #<span id="itemProjectID"></span></small>
+                    </div>
+                    <hr class="border-secondary mt-1">
+
+                    <div class="mb-3">{{ form.name.label_tag }}{{ form.name }}</div>
+                    <div class="row">
+                        <div class="col-4 mb-3">{{ form.quantity.label_tag }}{{ form.quantity }}</div>
+                         <!-- Removed Button from here -->
+                        <div class="col-4 mb-3">
+                            <label class="form-label">Costo Produzione (per unità)</label>
+                            <p class="form-control-plaintext text-white fw-bold" id="itemMaterialCost">--</p>
+                        </div>
+                        <div class="col-4 mb-3">
+                            <label class="form-label">Costo Manodopera (per unità)</label>
+                            <p class="form-control-plaintext text-white fw-bold" id="itemLaborCost">--</p>
+                        </div>
+                    </div>
+                    <div class="mb-3">{{ form.suggested_price.label_tag }}{{ form.suggested_price }}</div>
+                    
+                    <!-- NEW POSITION FOR BUTTON -->
+                    <div class="mb-3 d-grid">
+                         <button type="button" class="btn btn-success" id="openSellModalBtn"><i class="bi bi-cart-check me-2"></i>Vendi Oggetto</button>
+                    </div>
+
+                    <div class="mb-3">{{ form.status.label_tag }}{{ form.status }}</div>
+                    <div class="mb-3" id="work-order-notes-wrapper" style="display: none;">
+                        <label for="id_work_order_notes" class="form-label">Annotazioni Ordine</label>
+                        <textarea name="work_order_notes" id="id_work_order_notes" class="form-control" rows="3"></textarea>
+                    </div>
+                </div>
+
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-danger me-auto" id="deleteStockItemBtn">Elimina</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button>
+                    <button type="submit" class="btn btn-primary-custom">Salva Modifiche</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modale di conferma eliminazione -->
+<div class="modal fade" id="confirmDeleteModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-dark-card text-white">
+            <div class="modal-header border-danger bg-danger">
+                <h5 class="modal-title">Conferma Eliminazione</h5>
+            </div>
+            <div class="modal-body">
+                <p>Sei sicuro di voler eliminare l'oggetto <strong id="itemNameToDelete"></strong>?</p>
+                <p class="text-danger small">Questa azione è permanente e non può essere annullata.</p>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteBtn">Sì, Elimina</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- NUOVO Modale per VENDERE un oggetto -->
+<div class="modal fade" id="sellStockItemModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-dark-card text-white">
+            <div class="modal-header border-success">
+                <h5 class="modal-title text-success"><i class="bi bi-cart-check me-2"></i>Dettagli Vendita</h5>
+            </div>
+            <form id="sellStockItemForm" method="post">
+                <div class="modal-body">
+                    {% csrf_token %}
+                    <!-- Campi nascosti per passare i dati al backend che si aspetta la struttura del form originale -->
+                    <input type="hidden" name="status" value="SOLD">
+                    <input type="hidden" name="quantity" id="sell_original_quantity">
+                    <input type="hidden" name="suggested_price" id="sell_suggested_price_hidden">
+
+                    <div class="mb-3">
+                        <label class="form-label">Oggetto</label>
+                        <input type="text" name="name" id="sell_name" class="form-control" required>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-6 mb-3">
+                            <label class="form-label">Quantità da Vendere</label>
+                            <input type="number" name="quantity_to_sell" id="sell_quantity" class="form-control" min="1"
+                                value="1" required>
+                            <div class="form-text text-light">Disponibili: <span id="sell_available_qty"
+                                    class="fw-bold"></span></div>
+                        </div>
+                        <div class="col-6 mb-3">
+                            <label class="form-label">Data Vendita</label>
+                            <input type="date" name="sold_at" id="sell_date" class="form-control">
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-6 mb-3">
+                            <label class="form-label">Prezzo Vendita (per unità)</label>
+                            <div class="input-group">
+                                <span class="input-group-text">€</span>
+                                <input type="number" name="sale_price" id="sell_price" class="form-control" step="0.01"
+                                    required>
+                            </div>
+                            <div id="sell_net_preview" class="form-text text-info fw-bold mt-1"></div>
+                        </div>
+                        <div class="col-6 mb-3">
+                            {{ form.payment_method.label_tag }}
+                            {{ form.payment_method }}
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Venduto a (o rimborsato da)</label>
+                        <input type="text" name="sold_to" id="sell_sold_to" class="form-control">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Note sulla vendita</label>
+                        <textarea name="notes" id="sell_notes" class="form-control" rows="2"></textarea>
+                    </div>
+
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button>
+                    <button type="submit" class="btn btn-success">Conferma Vendita</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="{% static 'js/inventory.js' %}" defer></script>
+{% endblock %}

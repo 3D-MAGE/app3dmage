@@ -1,0 +1,170 @@
+{% extends "app_3dmage_management/base.html" %}
+{% load static %}
+{% block title %}Storico Vendite - 3DMAGE MANAGEMENT{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="text-white"><i class="bi bi-cart-check-fill me-2"></i>Storico Vendite</h2>
+</div>
+
+<!-- Totali Dashboard -->
+<div class="row mb-4">
+    <div class="col-md-6 mb-3 mb-md-0">
+        <div class="card bg-dark-card h-100">
+            <div class="card-body text-center">
+                <h6 class="text-muted">TOTALE VENDITE {% if filter_summary %}<span class="filter-summary">({{ filter_summary }})</span>{% endif %}</h6>
+                <h3 class="text-success fw-bold">{{ total_sales|floatformat:2 }}€</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card bg-dark-card h-100">
+            <div class="card-body text-center">
+                <h6 class="text-muted">PROFITTO TOTALE {% if filter_summary %}<span class="filter-summary">({{ filter_summary }})</span>{% endif %}</h6>
+                <h3 class="fw-bold {% if total_profit > 0 %}text-success{% elif total_profit < 0 %}text-danger{% endif %}">{{ total_profit|floatformat:2 }}€</h3>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="text-white">Dettaglio Oggetti Venduti</h4>
+</div>
+
+<!-- Filtri -->
+<div class="card bg-dark-card mb-4">
+    <div class="card-body">
+        <form method="get" action="{% url 'sales_dashboard' %}" class="row g-3 align-items-end">
+            <div class="col-md-2">
+                <label for="q" class="form-label">Cerca per Nome</label>
+                <input type="text" class="form-control form-control-sm" name="q" value="{{ search_query|default:'' }}">
+            </div>
+            <div class="col-md-2">
+                <label for="sold_to" class="form-label">Venduto a</label>
+                <input type="text" class="form-control form-control-sm" name="sold_to" value="{{ sold_to_filter|default:'' }}">
+            </div>
+            <div class="col-md-2">
+                <label for="payment_method" class="form-label">Metodo Pagamento</label>
+                <select class="form-select form-select-sm" name="payment_method">
+                    <option value="">Tutti</option>
+                    <option value="UNPAID" {% if "UNPAID" == payment_method_filter %}selected{% endif %}>DA PAGARE</option>
+                    {% for method in all_payment_methods %}
+                        <option value="{{ method.id }}" {% if method.id|stringformat:"s" == payment_method_filter %}selected{% endif %}>{{ method.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label for="start_date" class="form-label">Da Data</label>
+                <input type="date" class="form-control form-control-sm" name="start_date" value="{{ start_date|default:'' }}">
+            </div>
+            <div class="col-md-2">
+                <label for="end_date" class="form-label">A Data</label>
+                <input type="date" class="form-control form-control-sm" name="end_date" value="{{ end_date|default:'' }}">
+            </div>
+            <div class="col-md-1 d-grid">
+                <button type="submit" class="btn btn-sm btn-primary-custom">Filtra</button>
+            </div>
+            <div class="col-md-1 d-grid">
+                <a href="{% url 'sales_dashboard' %}" class="btn btn-sm btn-outline-secondary">Azzera</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card bg-dark-card mt-3">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-dark table-hover align-middle">
+                <thead>
+                    <tr>
+                        <th><a href="?sort=sold_at&order={% if sort_by == 'sold_at' and order == 'asc' %}desc{% else %}asc{% endif %}&{{ request.GET.urlencode|cut:'sort'|cut:'order' }}">Data Vendita</a></th>
+                        <th><a href="?sort=name&order={% if sort_by == 'name' and order == 'asc' %}desc{% else %}asc{% endif %}&{{ request.GET.urlencode|cut:'sort'|cut:'order' }}">Oggetto</a></th>
+                        <th class="text-center">Qtà</th>
+                        <th><a href="?sort=sold_to&order={% if sort_by == 'sold_to' and order == 'asc' %}desc{% else %}asc{% endif %}&{{ request.GET.urlencode|cut:'sort'|cut:'order' }}">Venduto a</a></th>
+                        <th>Metodo Pag.</th>
+                        <th>Note</th>
+                        <th class="text-end"><a href="?sort=annotated_net_revenue&order={% if sort_by == 'annotated_net_revenue' and order == 'asc' %}desc{% else %}asc{% endif %}&{{ request.GET.urlencode|cut:'sort'|cut:'order' }}">Prezzo Totale (Netto)</a></th>
+                        <th class="text-end"><a href="?sort=annotated_production_cost&order={% if sort_by == 'annotated_production_cost' and order == 'asc' %}desc{% else %}asc{% endif %}&{{ request.GET.urlencode|cut:'sort'|cut:'order' }}">Costo Totale</a></th>
+                        <th class="text-end"><a href="?sort=annotated_net_profit&order={% if sort_by == 'annotated_net_profit' and order == 'asc' %}desc{% else %}asc{% endif %}&{{ request.GET.urlencode|cut:'sort'|cut:'order' }}">Profitto</a></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in sold_items %}
+                    <tr style="cursor: pointer;" class="{% if not item.payment_method %}table-danger{% endif %}" data-bs-toggle="modal" data-bs-target="#editSaleModal" data-item-id="{{ item.id }}">
+                        <td>{{ item.sold_at|date:"d/m/Y" }}</td>
+                        <td class="fw-bold">{{ item.name }}</td>
+                        <td class="text-center">{{ item.quantity }}</td>
+                        <td>{{ item.sold_to|default:"-" }}</td>
+                        <td>
+                            {% if item.payment_method %}
+                                {{ item.payment_method.name }}
+                            {% else %}
+                                <strong class="text-danger">DA PAGARE</strong>
+                            {% endif %}
+                        </td>
+                        <td>{{ item.notes|truncatechars:20 }}</td>
+                        <td class="text-end text-success fw-bold">{{ item.annotated_net_revenue|floatformat:2 }}€</td>
+                        <td class="text-end text-warning">{{ item.annotated_production_cost|floatformat:2 }}€</td>
+                        <td class="text-end fw-bold {% if item.annotated_net_profit > 0 %}text-success{% elif item.annotated_net_profit < 0 %}text-danger{% endif %}">{{ item.annotated_net_profit|floatformat:2 }}€</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="9" class="text-center py-5">
+                            <p class="lead">Nessun articolo venduto trovato per i filtri selezionati.</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="editSaleModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-dark-card text-white">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title" id="editSaleModalLabel"></h5>
+            </div>
+            <form id="editSaleForm" method="post">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <p class="mb-1"><strong>ID Oggetto:</strong> <span id="saleItemId"></span></p>
+                    <p class="mb-3"><strong>ID Progetto:</strong> <span id="saleProjectId"></span></p>
+                    <hr class="border-secondary">
+                    <!-- CORREZIONE BUG 3: Etichetta e ID dell'elemento cambiati -->
+                    <div class="mb-3">
+                        <label class="form-label">Costo Totale</label>
+                        <p class="form-control-plaintext text-warning fw-bold" id="saleTotalCost">--</p>
+                    </div>
+                    {{ sale_edit_form.as_p }}
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-danger me-auto" id="reverseSaleBtn">Storna Vendita</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button>
+                    <button type="submit" class="btn btn-primary-custom">Salva Modifiche</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="confirmReverseSaleModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-dark-card text-white">
+            <div class="modal-header border-danger bg-danger"><h5 class="modal-title">Conferma Storno</h5></div>
+            <div class="modal-body">
+                <p>Sei sicuro di voler stornare questa vendita? L'articolo tornerà disponibile in magazzino e l'eventuale importo verrà riaccreditato.</p>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button>
+                <button type="button" class="btn btn-danger" id="confirmReverseSaleBtn">Sì, Storna</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{% static 'js/sales.js' %}" defer></script>
+{% endblock %}

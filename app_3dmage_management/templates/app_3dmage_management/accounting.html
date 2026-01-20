@@ -1,0 +1,228 @@
+{% extends "app_3dmage_management/base.html" %}
+{% load static %}
+{% block title %}Contabilità - 3DMAGE MANAGEMENT{% endblock %}
+
+{% block content %}
+<div class="accounting-header" id="accountingStickyHeader">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="text-white mb-0"><i class="bi bi-cash-coin me-2"></i>Riepilogo Contabilità</h2>
+        <div class="header-actions">
+            <button class="btn btn-sm btn-outline-success" data-bs-toggle="modal" data-bs-target="#addIncomeModal"><i class="bi bi-plus-circle me-1"></i>Aggiungi Entrata</button>
+            <button class="btn btn-sm btn-outline-warning" data-bs-toggle="modal" data-bs-target="#transferModal"><i class="bi bi-arrow-left-right me-1"></i>Trasferimento</button>
+            <button class="btn btn-sm btn-primary-custom" data-bs-toggle="modal" data-bs-target="#addExpenseModal"><i class="bi bi-plus-circle me-1"></i>Aggiungi Spesa</button>
+        </div>
+    </div>
+
+    <!-- Riepilogo Finanziario (sempre visibile e sticky) -->
+    <div class="row g-3 financial-summary">
+        <div class="col-md-4"><div class="card bg-dark-card p-3 text-center"><h6 class="text-muted small">ENTRATE TOTALI</h6><h3 class="text-success fw-bold">{{ total_income|floatformat:2 }}€</h3></div></div>
+        <div class="col-md-4"><div class="card bg-dark-card p-3 text-center"><h6 class="text-muted small">USCITE TOTALI</h6><h3 class="text-danger fw-bold">{{ total_expenses|floatformat:2 }}€</h3></div></div>
+        <div class="col-md-4"><div class="card bg-dark-card p-3 text-center"><h6 class="text-muted small">PROFITTO NETTO</h6><h3 class="{% if profit >= 0 %}text-success{% else %}text-danger{% endif %} fw-bold">{{ profit|floatformat:2 }}€</h3></div></div>
+    </div>
+</div>
+
+<div class="content-wrapper pt-4">
+    <!-- Cassa (ora NON sticky per evitare jitter) -->
+    <div class="cassa-section mb-4">
+        <div class="d-flex align-items-baseline mb-3">
+            <h3 class="text-white mb-0">Cassa</h3>
+            <span class="cassa-total ms-3">(TOTALE: {{ total_cash|floatformat:2 }}€)</span>
+        </div>
+        <div class="row g-3">
+            {% for method in payment_methods %}
+            <div class="col-lg-4 col-md-6">
+                <div class="card bg-dark-card p-3 payment-method-card" style="cursor: pointer;" data-bs-toggle="modal" data-bs-target="#correctBalanceModal" data-method-id="{{ method.id }}" data-method-name="{{ method.name }}" data-method-balance="{{ method.balance|floatformat:2 }}">
+                    <div class="d-flex justify-content-between">
+                        <span>
+                            {% if "ontanti" in method.name|lower %}
+                                <i class="bi bi-cash-stack me-2"></i>
+                            {% elif "atispay" in method.name|lower %}
+                                <svg role="img" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" class="me-1" style="vertical-align: -0.1em;"><title>Satispay</title><path d="M12.003 24C5.37 24 0 18.625 0 11.998 0 5.375 5.37 0 12.003 0c6.628 0 12.001 5.375 12.001 11.998-.001 6.627-5.373 12.002-12.001 12.002zm-.004-2.25c5.378 0 9.752-4.375 9.752-9.748S17.377 2.25 12 2.25c-5.377 0-9.75 4.375-9.75 9.75s4.373 9.75 9.75 9.75zM12 18.625c3.65 0 6.625-2.972 6.625-6.625S15.65 5.375 12 5.375c-3.655 0-6.628 2.972-6.628 6.625s2.973 6.625 6.628 6.625zm0-2.25c-2.414 0-4.375-1.96-4.375-4.375s1.961-4.375 4.375-4.375c2.41 0 4.375 1.96 4.375 4.375s-1.965 4.375-4.375 4.375zm0-2.755V8.5h-1.072v3.37c0 .92-.93 1.25-1.753 1.25H8.5v1.072h.747c1.378 0 2.753-1.03 2.753-2.685z"/></svg>
+                            {% elif "vinted" in method.name|lower %}
+                                <i class="bi bi-bag-check-fill me-2"></i>
+                            {% elif "sumup" in method.name|lower %}
+                                <i class="bi bi-credit-card-fill me-2"></i>
+                            {% else %}
+                                <i class="bi bi-credit-card-2-front me-2"></i>
+                            {% endif %}
+                            {{ method.name }}
+                        </span>
+                        <strong class="text-primary-custom">{{ method.balance|floatformat:2 }}€</strong>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+<!-- Filtri -->
+<div class="card bg-dark-card mb-4 sticky-top-filters">
+    <div class="card-body">
+        <form method="get" action="{% url 'accounting_dashboard' %}" class="row g-3 align-items-end">
+            <div class="col-md-3">
+                <label for="q" class="form-label">Cerca per Descrizione/Note</label>
+                <input type="text" class="form-control form-control-sm" name="q" id="q" value="{{ search_query|default:'' }}">
+            </div>
+            <div class="col-md-3">
+                <label for="payment_method" class="form-label">Metodo Pagamento</label>
+                <select class="form-select form-select-sm" name="payment_method" id="payment_method">
+                    <option value="">Tutti</option>
+                    {% for method in all_payment_methods %}
+                        <option value="{{ method.id }}" {% if method.id|stringformat:"s" == payment_method_filter %}selected{% endif %}>{{ method.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <!-- NUOVO: Filtro Categoria -->
+            <div class="col-md-3">
+                <label for="category" class="form-label">Categoria Spesa</label>
+                <select class="form-select form-select-sm" name="category" id="category">
+                    <option value="">Tutte</option>
+                    {% for cat in all_expense_categories %}
+                        <option value="{{ cat.id }}" {% if cat.id|stringformat:"s" == category_filter %}selected{% endif %}>{{ cat.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-1">
+                <label for="year" class="form-label">Anno</label>
+                <select class="form-select form-select-sm" name="year" id="year">
+                    <option value="">Tutti</option>
+                    {% for y in available_years %}
+                        <option value="{{ y }}" {% if y|stringformat:"s" == year_filter %}selected{% endif %}>{{ y }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-1 d-grid">
+                <button type="submit" class="btn btn-sm btn-primary-custom">Filtra</button>
+            </div>
+            <div class="col-md-1 d-grid">
+                <a href="{% url 'accounting_dashboard' %}" class="btn btn-sm btn-outline-secondary">Azzera</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="row g-4">
+    <!-- Tabella Entrate -->
+    <div class="col-lg-6">
+        <h4 class="text-white mb-3">Dettaglio Entrate</h4>
+        <div class="card bg-dark-card rounded-3 overflow-hidden">
+            <div class="table-responsive" style="max-height: 500px;">
+                <table class="table table-dark table-sm table-hover mb-0 table-sticky-header-custom">
+                    <thead>
+                        <tr>
+                            <th class="px-3">Data</th>
+                            <th class="px-3">Oggetto</th>
+                            <th class="px-3">Venduto a</th>
+                            <th class="px-3">Note</th>
+                            <th class="text-end px-3">Importo</th>
+                        </tr>
+                    </thead>
+                    <tbody id="income-table">
+                        {% for item in income_items %}
+                        <tr class="clickable-row" data-action="reverse" data-id="{{ item.id }}" data-name="{{ item.name }}" title="Clicca per annullare la vendita">
+                            <td class="px-3">{{ item.sold_at|date:"d/m/y" }}</td>
+                            <td class="px-3">{{ item.name }}</td>
+                            <td class="px-3"><small>{{ item.sold_to|default:"-" }}</small></td>
+                            <td class="px-3"><small>{{ item.notes|truncatechars:30|default:"-" }}</small></td>
+                            <td class="text-end text-success px-3">{{ item.annotated_net_revenue|floatformat:2 }}€</td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="5" class="text-center text-muted py-4">Nessuna entrata registrata per i filtri selezionati.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <!-- Tabella Uscite -->
+    <div class="col-lg-6">
+        <h4 class="text-white mb-3">Dettaglio Uscite</h4>
+        <div class="card bg-dark-card rounded-3 overflow-hidden">
+            <div class="table-responsive" style="max-height: 500px;">
+                <table class="table table-dark table-sm table-hover mb-0 table-sticky-header-custom">
+                    <thead>
+                        <tr>
+                            <th class="px-3">Data</th>
+                            <th class="px-3">Descrizione</th>
+                            <th class="px-3">Note</th>
+                            <th class="text-end px-3">Importo</th>
+                        </tr>
+                    </thead>
+                    <tbody id="expenses-table">
+                        {% for expense in expenses %}
+                        <tr class="clickable-row" data-action="edit-expense" data-id="{{ expense.id }}" title="Clicca per modificare/eliminare la spesa">
+                            <td class="px-3">{{ expense.expense_date|date:"d/m/y" }}</td>
+                            <td class="px-3">{{ expense.description }}</td>
+                            <td class="px-3"><small>{{ expense.notes|truncatechars:30|default:"-" }}</small></td>
+                            <td class="text-end text-danger px-3">{{ expense.amount|floatformat:2 }}€</td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="4" class="text-center text-muted py-4">Nessuna uscita registrata per i filtri selezionati.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Back to Top Button -->
+<button type="button" class="btn btn-primary-custom" id="backToTop" title="Torna in alto">
+    <i class="bi bi-arrow-up"></i>
+</button>
+
+<!-- Modal Aggiungi Entrata (NUOVO) -->
+<div class="modal fade" id="addIncomeModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-dark-card text-white">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title">Aggiungi Nuova Entrata</h5>
+            </div>
+            <form action="{% url 'add_manual_income' %}" method="post">
+                <div class="modal-body">
+                    {% csrf_token %}
+                    {{ manual_income_form.as_p }}
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button>
+                    <button type="submit" class="btn btn-primary-custom">Salva Entrata</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Aggiungi Spesa -->
+<div class="modal fade" id="addExpenseModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content bg-dark-card text-white"><div class="modal-header border-secondary"><h5 class="modal-title">Aggiungi Nuova Spesa</h5></div><form action="{% url 'add_expense' %}" method="post"><div class="modal-body">{% csrf_token %}{{ expense_form.as_p }}</div><div class="modal-footer border-secondary"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button><button type="submit" class="btn btn-primary-custom">Salva Spesa</button></div></form></div></div></div>
+
+<!-- Modal Trasferimento Fondi -->
+<div class="modal fade" id="transferModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content bg-dark-card text-white"><div class="modal-header border-secondary"><h5 class="modal-title">Trasferimento Fondi</h5></div><form action="{% url 'transfer_funds' %}" method="post"><div class="modal-body">{% csrf_token %}{{ transfer_form.as_p }}</div><div class="modal-footer border-secondary"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button><button type="submit" class="btn btn-primary-custom">Esegui</button></div></form></div></div></div>
+
+<!-- Modal Correzione Saldo -->
+<div class="modal fade" id="correctBalanceModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content bg-dark-card text-white"><div class="modal-header border-secondary"><h5 class="modal-title" id="correctBalanceModalLabel">Modifica Saldo</h5></div><form id="correctBalanceForm" method="post"><div class="modal-body">{% csrf_token %}{{ correct_balance_form.as_p }}</div><div class="modal-footer border-secondary"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button><button type="submit" class="btn btn-primary-custom">Salva</button></div></form></div></div></div>
+
+<!-- Modal Modifica/Elimina Spesa -->
+<div class="modal fade" id="editExpenseModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content bg-dark-card text-white">
+    <div class="modal-header border-secondary"><h5 class="modal-title">Modifica Spesa</h5></div>
+    <form id="editExpenseForm" method="post"><div class="modal-body">{% csrf_token %}{{ expense_form.as_p }}</div>
+    <div class="modal-footer border-secondary"><button type="button" class="btn btn-danger me-auto" id="deleteExpenseBtn">Elimina</button><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button><button type="submit" class="btn btn-primary-custom">Salva</button></div></form>
+</div></div></div>
+
+<!-- Modal di Conferma Generico -->
+<div class="modal fade" id="confirmationModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content bg-dark-card text-white">
+      <div class="modal-header border-secondary"><h5 class="modal-title" id="confirmationModalTitle">Conferma Azione</h5></div>
+      <div class="modal-body" id="confirmationModalBody"></div>
+      <div class="modal-footer border-secondary">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button>
+        <button type="button" class="btn btn-danger" id="confirmActionBtn">Conferma</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{% static 'js/accounting.js' %}" defer></script>
+{% endblock %}

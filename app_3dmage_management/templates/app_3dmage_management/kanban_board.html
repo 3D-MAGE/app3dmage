@@ -1,0 +1,99 @@
+{% extends "app_3dmage_management/base.html" %}
+{% load static l10n %}
+{% block title %}Kanban Ordini - 3DMAGE MANAGEMENT{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="text-white">Kanban Ordini In Corso</h2>
+    <div>
+        <a href="{% url 'project_dashboard' %}" class="btn btn-sm btn-outline-light"><i
+                class="bi bi-table me-1"></i>Vista Tabella</a>
+        <button class="btn btn-sm btn-primary-custom" data-bs-toggle="modal" data-bs-target="#addProjectModal"><i
+                class="bi bi-plus-circle me-1"></i> Nuovo Ordine Manuale</button>
+    </div>
+</div>
+
+<div class="kanban-board-container">
+    {% for column in kanban_columns %}
+    <div class="kanban-column" id="status-{{ column.status_id }}">
+        <h5 class="kanban-column-title"><span class="badge bg-status-{{ column.status_id|lower }} fs-6">{{ column.status_name }}</span><span class="text-muted small ms-2">{{ column.projects|length }}</span></h5>
+        <div class="kanban-cards-container" data-status="{{ column.status_id }}">
+            {% for project in column.projects %}
+            <div class="kanban-card" data-project-id="{{ project.id }}"
+                data-url="{% url 'project_detail' project.id %}?from=kanban">
+                <div class="kanban-card-header"><strong class="text-white">{{ project.name }}</strong><span
+                        class="badge bg-priority-{{ project.priority|lower }}">{{ project.get_priority_display }}</span>
+                </div>
+                <div class="kanban-card-body">
+                    <div class="d-flex justify-content-between align-items-center text-white small mb-2">
+                        <span><i class="bi bi-clock-history text-muted me-1"></i>Tempo di stampa rimanente</span>
+                        <span class="fw-bold">{{ project.remaining_print_time }}</span>
+                    </div>
+                    <div style="position: relative;">
+                        <div class="progress" style="height: 20px; background-color: #444;">
+                            {% localize off %}
+                            <div class="progress-bar" role="progressbar"
+                                 style="--p: {{ project.progress_percentage }}%; width: var(--p); background-color: #ffa500 !important;">
+                            </div>
+                            {% endlocalize %}
+                        </div>
+                        <strong
+                            class="justify-content-center align-items-center d-flex position-absolute w-100 h-100 top-0 start-0 text-dark small fw-bold">
+                            {{ project.progress }}
+                        </strong>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+{% include 'app_3dmage_management/partials/add_project_modal.html' %}
+{% include 'app_3dmage_management/partials/add_edit_print_file_modal.html' %}
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const csrftoken = getCookie('csrftoken');
+
+        document.querySelectorAll('.kanban-card').forEach(card => {
+            let isDragging = false;
+            card.addEventListener('mousedown', () => { isDragging = false; });
+            card.addEventListener('mousemove', () => { isDragging = true; });
+            card.addEventListener('mouseup', () => {
+                if (!isDragging) { window.location.href = card.dataset.url; }
+            });
+        });
+
+        const columns = document.querySelectorAll('.kanban-cards-container');
+        columns.forEach(column => {
+            new Sortable(column, {
+                group: 'projects', animation: 150, ghostClass: 'kanban-card-ghost',
+                onEnd: function (evt) {
+                    const itemEl = evt.item;
+                    const toContainer = evt.to;
+                    const projectId = itemEl.dataset.projectId;
+                    const newStatus = toContainer.dataset.status;
+                    fetch("{% url 'update_project_status' %}", {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
+                        body: JSON.stringify({ project_id: projectId, new_status: newStatus })
+                    })
+                        .then(res => res.json()).then(data => {
+                            if (data.status === 'ok') {
+                                showToast('Stato aggiornato!');
+                                // Ricarica per aggiornare i contatori delle colonne
+                                setTimeout(() => window.location.reload(), 500);
+                            }
+                            else { showToast(`Errore: ${data.message}`, 'error'); }
+                        }).catch(() => showToast('Errore di connessione.', 'error'));
+                },
+            });
+        });
+    });
+</script>
+{% endblock scripts %}

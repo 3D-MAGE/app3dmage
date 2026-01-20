@@ -1,0 +1,80 @@
+{% extends "app_3dmage_management/base.html" %}
+{% load static %}
+
+{% block styles %}
+<style>
+    /* Stile per posizionare l'icona dentro il campo password */
+    .password-wrapper {
+        position: relative;
+    }
+    .password-wrapper .toggle-password {
+        position: absolute;
+        top: 50%;
+        right: 15px;
+        transform: translateY(-50%);
+        cursor: pointer;
+        color: #6c757d;
+    }
+</style>
+{% endblock styles %}
+
+
+{% block content %}
+<div class="row justify-content-center mt-5">
+    <div class="col-md-6 col-lg-5 col-xl-4">
+        <div class="card bg-dark-card">
+            <div class="card-body p-5">
+                <div class="text-center mb-4">
+                    <img src="{% static 'app_3dmage_management/images/Logo 3DMAGE.png' %}" alt="Logo" height="60">
+                    <h3 class="text-center text-white mt-3">Login</h3>
+                </div>
+
+                {% if form.errors %}
+                    <div class="alert alert-danger" role="alert">
+                        Il tuo username e password non corrispondono. Riprova.
+                    </div>
+                {% endif %}
+
+                <form method="post" action="{% url 'login' %}">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label for="id_username" class="form-label">Username</label>
+                        <input type="text" name="username" class="form-control" id="id_username" required>
+                    </div>
+                    <div class="mb-4">
+                        <label for="id_password" class="form-label">Password</label>
+                        <!-- MODIFICA: Aggiunto wrapper e icona -->
+                        <div class="password-wrapper">
+                            <input type="password" name="password" class="form-control" id="id_password" required>
+                            <i class="bi bi-eye-slash toggle-password" id="togglePassword"></i>
+                        </div>
+                    </div>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary-custom btn-lg">Accedi</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const togglePassword = document.querySelector('#togglePassword');
+    const password = document.querySelector('#id_password');
+
+    if (togglePassword && password) {
+        togglePassword.addEventListener('click', function (e) {
+            // Cambia il tipo di input da password a text e viceversa
+            const type = password.getAttribute('type') === 'password' ? 'text' : 'password';
+            password.setAttribute('type', type);
+            // Cambia l'icona
+            this.classList.toggle('bi-eye');
+            this.classList.toggle('bi-eye-slash');
+        });
+    }
+});
+</script>
+{% endblock scripts %}

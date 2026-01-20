@@ -1,0 +1,117 @@
+{% load static %}
+<div id="print-queue-board-wrapper"
+     hx-get="{% url 'print_queue_board' %}?v={{ server_version }}"
+     hx-trigger="every 10s"
+     hx-swap="outerHTML"
+     hx-indicator="#loading-overlay">
+    
+    <div class="kanban-board-container">
+        {% for printer in printers %}
+        <div class="kanban-column" id="printer-{{ printer.id }}">
+            <h5 class="kanban-column-title d-flex justify-content-between align-items-center">
+              <div>
+                <span><i class="bi bi-printer-fill me-2"></i>{{ printer.name }}</span>
+                <span class="text-muted small ms-2" title="File in coda / Tempo totale">
+                    {{ printer.todo_files|length }} / {{ printer.total_queued_time_formatted }}
+                </span>
+              </div>
+              <button class="btn btn-sm btn-outline-secondary border-0"
+                        onclick="sortQueue('{{ printer.id }}')"
+                        title="Ordina per Priorità > Materiale">
+                    <i class="bi bi-sort-down"></i>
+              </button>
+            </h5>
+
+            <div class="printing-now-container dropzone-printing" data-printer-id="{{ printer.id }}">
+                {% if printer.printing_file %}
+                    {% with print_file=printer.printing_file %}
+                    <div class="kanban-card printing-card" data-print-file-id="{{ print_file.id }}" data-url="{% url 'project_detail' print_file.work_order.id %}?from=queue&open_file_modal={{ print_file.id }}" style="cursor: pointer;">
+                        <div class="kanban-card-header">
+                            <em class="text-muted" title="{{ print_file.work_order.name }}">{{ print_file.work_order.name|truncatechars:30 }}</em>
+                            <div class="d-flex align-items-center">
+                                <span class="badge bg-print-status-{{ print_file.status|lower }} me-1">{{ print_file.get_status_display }}</span>
+                                <span class="badge bg-priority-{{ print_file.work_order.priority|lower }}">{{ print_file.work_order.get_priority_display }}</span>
+                            </div>
+                        </div>
+                        <div class="kanban-card-body">
+                            <strong class="text-white d-block mb-2">{{ print_file.name }}</strong>
+                            {% for usage in print_file.filament_usages.all %}
+                            <div class="filament-info-block mb-2">
+                                <strong class="filament-label">{{ usage.spool.filament }}</strong>
+                                <div class="d-flex align-items-center text-white-50">
+                                    <i class="bi bi-palette me-2" style="color: {{ usage.spool.filament.color_hex }};"></i>
+                                    <small>
+                                        {{ usage.spool.filament.color_name }} - {{ usage.spool.purchase_date|date:"m/y" }} {{ usage.spool.identifier|default:"A" }}
+                                        -> {{ usage.grams_used|floatformat:1 }}g
+                                    </small>
+                                </div>
+                            </div>
+                            {% endfor %}
+
+                            {% if print_file.plate %}
+                            <div class="d-flex align-items-center text-white mt-2">
+                                <i class="bi bi-stack me-2"></i>
+                                <small>Piatto: {{ print_file.plate.name }}</small>
+                            </div>
+                            {% endif %}
+
+                            <div class="d-flex align-items-center text-white mt-2">
+                                <i class="bi bi-clock-history me-2"></i>
+                                <small>{{ print_file.print_time_formatted }}</small>
+                            </div>
+                        </div>
+                    </div>
+                    {% endwith %}
+                {% else %}
+                    <div class="empty-slot">Trascina un file qui per metterlo in stampa</div>
+                {% endif %}
+            </div>
+
+            <div class="queue-separator">In Coda</div>
+
+            <div class="kanban-cards-container print-queue-container" data-printer-id="{{ printer.id }}">
+                {% for print_file in printer.todo_files %}
+                <div class="kanban-card"
+                     data-print-file-id="{{ print_file.id }}" 
+                     data-url="{% url 'project_detail' print_file.work_order.id %}?from=queue&open_file_modal={{ print_file.id }}"
+                     style="cursor: pointer;"
+                     data-sort-priority="{% if 'URGENTE' in print_file.work_order.get_priority_display|upper %}1{% elif 'ALTA' in print_file.work_order.get_priority_display|upper %}2{% elif 'MEDIA' in print_file.work_order.get_priority_display|upper %}3{% else %}4{% endif %}"
+                     data-sort-material="{{ print_file.filament_usages.first.spool.filament.name|default:'z'|lower }}"
+                     >
+                    <div class="kanban-card-header">
+                        <em class="text-muted" title="{{ print_file.work_order.name }}">{{ print_file.work_order.name|truncatechars:30 }}</em>
+                        <span class="badge bg-priority-{{ print_file.work_order.priority|lower }}">{{ print_file.work_order.get_priority_display }}</span>
+                    </div>
+
+                    <div class="kanban-card-body">
+                        <strong class="text-white d-block mb-2">{{ print_file.name }}</strong>
+                        {% for usage in print_file.filament_usages.all %}
+                        <div class="filament-info-block mb-2">
+                            <strong class="filament-label">{{ usage.spool.filament }}</strong>
+                            <div class="d-flex align-items-center text-white-50">
+                                <i class="bi bi-palette me-2" style="color: {{ usage.spool.filament.color_hex }};"></i>
+                                <small>
+                                    {{ usage.spool.filament.color_name }} - {{ usage.spool.purchase_date|date:"m/y" }} {{ usage.spool.identifier|default:"A" }}
+                                    -> {{ usage.grams_used|floatformat:1 }}g
+                                </small>
+                            </div>
+                        </div>
+                        {% endfor %}
+                        {% if print_file.plate %}
+                        <div class="d-flex align-items-center text-white mt-2">
+                            <i class="bi bi-stack me-2"></i>
+                            <small>Piatto: {{ print_file.plate.name }}</small>
+                        </div>
+                        {% endif %}
+                        <div class="d-flex align-items-center text-white mt-2">
+                            <i class="bi bi-clock-history me-2"></i>
+                            <small>{{ print_file.print_time_formatted }}</small>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>

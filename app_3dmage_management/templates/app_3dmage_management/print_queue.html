@@ -1,0 +1,21 @@
+{% extends "app_3dmage_management/base.html" %}
+{% load static %}
+{% block title %}Coda di Stampa - 3DMAGE MANAGEMENT{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="text-white"><i class="bi bi-printer-fill me-2"></i>Coda di Stampa</h2>
+</div>
+
+{% include 'app_3dmage_management/partials/print_queue_content.html' %}
+{% endblock %}
+
+{% block scripts %}
+<script id="print-queue-data"
+    data-update-queue-url="{% url 'update_print_queue' %}"
+    data-set-status-url-base="/printfile/">
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+<script src="{% static 'js/print_queue.js' %}"></script>
+{% endblock scripts %}

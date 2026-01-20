@@ -1,0 +1,200 @@
+{% extends "app_3dmage_management/base.html" %}
+{% load static l10n %}
+{% block title %}Dashboard Ordini - 3DMAGE MANAGEMENT{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="text-white">
+        <i class="bi bi-clipboard-data-fill me-2"></i>
+        {% if view_mode == 'completed' %}Archivio Ordini Completati{% else %}Ordini in Corso{% endif %}
+    </h2>
+    <div>
+        {% if view_mode == 'active' %}
+        <a href="{% url 'project_dashboard' %}?view=completed" class="btn btn-sm btn-secondary me-2"><i
+                class="bi bi-archive-fill me-1"></i>Archivio Completati</a>
+        <a href="{% url 'project_kanban_board' %}" class="btn btn-sm btn-outline-light"><i
+                class="bi bi-kanban-fill me-1"></i>Vista Kanban</a>
+        <button class="btn btn-sm btn-primary-custom ms-2" data-bs-toggle="modal" data-bs-target="#addProjectModal"><i
+                class="bi bi-plus-circle me-1"></i> Nuovo Ordine Manuale</button>
+        {% else %}
+        <a href="{% url 'project_dashboard' %}" class="btn btn-sm btn-outline-light"><i
+                class="bi bi-arrow-left me-1"></i>Torna agli Ordini in Corso</a>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Sezione Progetti Attivi -->
+{% if view_mode == 'active' %}
+<div class="collapse {% if active_filters_applied %}show{% endif %} mb-4" id="activeFiltersCollapse">
+    <div class="card bg-dark-card border-secondary">
+        <div class="card-body">
+            <form method="get" action="{% url 'project_dashboard' %}" class="row g-3 align-items-end">
+                <input type="hidden" name="view" value="active">
+                <div class="col-md-4">
+                    <label for="q" class="form-label small text-white-50">Cerca Ordine (Nome o ID)</label>
+                    <input type="text" class="form-control form-control-sm bg-dark text-white border-secondary" name="q" id="q" value="{{ search_query }}">
+                </div>
+                <div class="col-md-3">
+                    <label for="status" class="form-label small text-white-50">Stato</label>
+                    <select class="form-select form-select-sm bg-dark text-white border-secondary" name="status" id="status">
+                        <option value="">Tutti gli stati</option>
+                        {% for status_val, status_lbl in all_statuses %}
+                        {% if status_val != 'DONE' %}
+                        <option value="{{ status_val }}" {% if status_val == status_filter %}selected{% endif %}>{{ status_lbl }}</option>
+                        {% endif %}
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="category" class="form-label small text-white-50">Categoria</label>
+                    <select class="form-select form-select-sm bg-dark text-white border-secondary" name="category" id="category">
+                        <option value="">Tutte le categorie</option>
+                        {% for cat in all_categories %}
+                        <option value="{{ cat.id }}" {% if cat.id|stringformat:"s" == category_filter %}selected{% endif %}>{{ cat.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-1 d-grid">
+                    <button type="submit" class="btn btn-sm btn-primary-custom">Filtra</button>
+                </div>
+                <div class="col-md-1 d-grid">
+                    <a href="{% url 'project_dashboard' %}?view=active" class="btn btn-sm btn-outline-secondary">Azzera</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% include 'app_3dmage_management/partials/work_order_table_active.html' %}
+{% endif %}
+
+<!-- Sezione Progetti Completati -->
+{% if view_mode == 'completed' %}
+<div class="mt-4">
+    <!-- Header rimosso perché la pagina è dedicata -->
+    <div class="card bg-dark-card mt-3 mb-4">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="bi bi-funnel-fill me-2"></i>Filtra Archivio</h5>
+        </div>
+        <div class="card-body">
+            <form method="get" action="{% url 'project_dashboard' %}" class="row g-3 align-items-end">
+                <input type="hidden" name="view" value="completed">
+                <div class="col-md-3">
+                    <label for="q_completed" class="form-label">Cerca per Nome o ID</label>
+                    <input type="text" class="form-control form-control-sm" name="q_completed" id="q_completed"
+                        value="{{ completed_search_query }}">
+                </div>
+                <div class="col-md-2">
+                    <label for="year_completed" class="form-label">Anno</label>
+                    <select class="form-select form-select-sm" name="year_completed" id="year_completed">
+                        <option value="">Tutti</option>
+                        {% for year in completed_project_years %}
+                        <option value="{{ year }}" {% if year|stringformat:"s" == completed_year_filter %}selected{% endif %}>{{ year }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="category_completed" class="form-label">Categoria</label>
+                    <select class="form-select form-select-sm" name="category_completed" id="category_completed">
+                        <option value="">Tutte</option>
+                        {% for cat in all_categories %}
+                        <option value="{{ cat.id }}" {% if cat.id|stringformat:"s" == completed_category_filter %}selected{% endif %}>{{ cat.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label for="filament_completed" class="form-label">Filamento</label>
+                    <select class="form-select form-select-sm" name="filament_completed" id="filament_completed">
+                        <option value="">Tutti</option>
+                        {% for f in all_filaments %}
+                        <option value="{{ f.id }}" {% if f.id|stringformat:"s" == completed_filament_filter %}selected{% endif %}>{{ f }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-1 d-grid">
+                    <button type="submit" class="btn btn-sm btn-primary-custom">Filtra</button>
+                </div>
+                <div class="col-md-1 d-grid">
+                    <a href="{% url 'project_dashboard' %}?view=completed"
+                        class="btn btn-sm btn-outline-secondary">Azzera</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="card bg-dark-card mt-3">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-dark table-hover align-middle">
+                <!-- MODIFICA: Aggiunti link e icone per l'ordinamento -->
+                <thead>
+                    <tr>
+                        <th><a
+                                href="?view=completed&sort_completed=name&order_completed={% if sort_completed == 'name' and order_completed == 'asc' %}desc{% else %}asc{% endif %}">Nome
+                                {% if sort_completed == 'name' %}<i
+                                    class="bi bi-caret-{% if order_completed == 'asc' %}up{% else %}down{% endif %}-fill"></i>{% endif %}</a></th>
+                        <th class="text-center"><a
+                                href="?view=completed&sort_completed=completed_at&order_completed={% if sort_completed == 'completed_at' and order_completed == 'asc' %}desc{% else %}asc{% endif %}">Data
+                                Compl. {% if sort_completed == 'completed_at' %}<i
+                                    class="bi bi-caret-{% if order_completed == 'asc' %}up{% else %}down{% endif %}-fill"></i>{% endif %}</a></th>
+                        <th class="text-center"><a
+                                href="?view=completed&sort_completed=total_print_time_seconds&order_completed={% if sort_completed == 'total_print_time_seconds' and order_completed == 'asc' %}desc{% else %}asc{% endif %}">Tempo
+                                Totale {% if sort_completed == 'total_print_time_seconds' %}<i
+                                    class="bi bi-caret-{% if order_completed == 'asc' %}up{% else %}down{% endif %}-fill"></i>{% endif %}</a></th>
+                        <th class="text-center"><a
+                                href="?view=completed&sort_completed=annotated_material_cost&order_completed={% if sort_completed == 'annotated_material_cost' and order_completed == 'asc' %}desc{% else %}asc{% endif %}">Costo
+                                Materiali {% if sort_completed == 'annotated_material_cost' %}<i
+                                    class="bi bi-caret-{% if order_completed == 'asc' %}up{% else %}down{% endif %}-fill"></i>{% endif %}</a></th>
+                        <th class="text-center"><a
+                                href="?view=completed&sort_completed=category__name&order_completed={% if sort_completed == 'category__name' and order_completed == 'asc' %}desc{% else %}asc{% endif %}">Categoria
+                                {% if sort_completed == 'category__name' %}<i
+                                    class="bi bi-caret-{% if order_completed == 'asc' %}up{% else %}down{% endif %}-fill"></i>{% endif %}</a></th>
+                        <th class="text-center">Filamenti Usati</th>
+                        <th class="text-center"><a
+                                href="?view=completed&sort_completed=total_grams_used&order_completed={% if sort_completed == 'total_grams_used' and order_completed == 'asc' %}desc{% else %}asc{% endif %}">Peso
+                                totale {% if sort_completed == 'total_grams_used' %}<i
+                                    class="bi bi-caret-{% if order_completed == 'asc' %}up{% else %}down{% endif %}-fill"></i>{% endif %}</a></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for project in completed_projects %}
+                    <tr class="clickable-row" data-url="{% url 'project_detail' project.id %}?from=completed"
+                        style="cursor: pointer;">
+                        <td class="fw-bold">{{ project.name }}</td>
+                        <td class="text-center">{{ project.completed_at|date:"d/m/y" }}</td>
+                        <td class="text-center">{{ project.total_print_time }}</td>
+                        <td class="text-center text-warning fw-bold">{{ project.annotated_material_cost|floatformat:2}}€</td>
+                        <td class="text-center">{{ project.category.name|default:"N/A" }}</td>
+                        <!-- MODIFICA: Loop per mostrare le pillole colorate -->
+                        <td class="text-center">
+                            {% for filament in project.filament_summary_details %}
+                            <span class="filament-pill" style="--bg: {{ filament.color_hex }}; background-color: var(--bg);"
+                                title="{{ filament.name }}">{{ filament.name }}</span>&nbsp;
+                            {% empty %}
+                            -
+                            {% endfor %}
+                        </td>
+                        <td class="text-center">{{ project.total_grams_used|floatformat:2 }}g</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="7" class="text-center py-4">
+                            <p class="text-muted">Nessun ordine completato trovato per i filtri selezionati.</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% include 'app_3dmage_management/partials/add_project_modal.html' %}
+{% include 'app_3dmage_management/partials/add_edit_print_file_modal.html' %}
+{% endblock %}
+
+
+{% block scripts %}
+<script src="{% static 'js/dashboard.js' %}" defer></script>
+{% endblock %}
