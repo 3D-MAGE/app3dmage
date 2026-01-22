@@ -1,0 +1,25 @@
+{% load app_filters %}
+{% for project in completed_projects %}
+<tr class="clickable-row" data-url="{% url 'project_detail' project.id %}?from=completed"
+    style="cursor: pointer;"
+    {% if forloop.last and completed_projects.has_next %}
+    hx-get="{% url 'project_dashboard' %}?view=completed&page={{ completed_projects.next_page_number }}&q_completed={{ completed_search_query }}&year_completed={{ completed_year_filter }}&category_completed={{ completed_category_filter }}&filament_completed={{ completed_filament_filter }}&sort_completed={{ sort_completed }}&order_completed={{ order_completed }}"
+    hx-trigger="revealed"
+    hx-swap="afterend"
+    {% endif %}>
+    <td class="fw-bold">{{ project.name }}</td>
+    <td class="text-center">{{ project.completed_at|date:"d/m/y" }}</td>
+    <td class="text-center">{{ project.total_print_time }}</td>
+    <td class="text-center text-warning fw-bold">{{ project.annotated_material_cost|floatformat:2}}€</td>
+    <td class="text-center">{{ project.category.name|default:"N/A" }}</td>
+    <td class="text-center">
+        {% for filament in project.filament_summary_details %}
+        <span class="filament-pill" style="--bg: {{ filament.color_hex }}; background-color: var(--bg); --text: {{ filament.color_hex|contrast_color }};"
+            title="{{ filament.name }}">{{ filament.name }}</span>&nbsp;
+        {% empty %}
+        -
+        {% endfor %}
+    </td>
+    <td class="text-center">{{ project.total_grams_used|floatformat:2 }}g</td>
+</tr>
+{% endfor %}

@@ -56,7 +56,7 @@
                             {% widthratio filament.annotated_remaining_weight total_weight 100 as remaining_percentage %}
                         {% endif %}
                         <tr style="cursor:pointer;" data-bs-toggle="modal" data-bs-target="#filamentDetailModal" data-filament-id="{{ filament.id }}">
-                            <td class="fw-bold"><span class="filament-pill" style="background-color: {{ filament.color_hex }};">{{ filament }}</span></td>
+                            <td class="fw-bold"><span class="filament-pill" style="--bg: {{ filament.color_hex }}; background-color: var(--bg); --text: {{ filament.color_hex|contrast_color }};">{{ filament }}</span></td>
                             <td>{{ filament.color_name }}</td>
                             <td style="position: relative; min-width: 200px;">
                                 <div class="progress" style="height: 25px; background-color: #444;" title="{% if total_weight > 0 %}{{ remaining_percentage|floatformat:1 }}{% else %}0{% endif %}%">
@@ -99,7 +99,7 @@
                                     {% for filament in exhausted_filaments %}
                                     <tr style="cursor:pointer;" data-bs-toggle="modal" data-bs-target="#filamentDetailModal" data-filament-id="{{ filament.id }}">
                                         <td class="fw-bold">
-                                            <span class="filament-pill" style="background-color: {{ filament.color_hex }};">{{ filament }}</span>
+                                            <span class="filament-pill" style="--bg: {{ filament.color_hex }}; background-color: var(--bg); --text: {{ filament.color_hex|contrast_color }};">{{ filament }}</span>
                                         </td>
                                         <td>{{ filament.color_name }}</td>
                                         <td class="text-end">{{ filament.total_grams_ever_used|floatformat:2 }}g</td>

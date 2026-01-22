@@ -3,6 +3,7 @@ from django.http import HttpResponse
 from django.db.models import Sum, Case, When, Value, DecimalField, F, Q, IntegerField, Prefetch
 from django.db.models.functions import Coalesce
 from django.contrib.auth.decorators import login_required
+from django.core.paginator import Paginator
 from decimal import Decimal
 
 from ..models import WorkOrder, Category, Filament, FilamentUsage, GlobalSetting
@@ -141,6 +142,12 @@ def project_dashboard(request):
                         }
             wo.filament_summary_details = list(usages.values())
 
+        # Pagination for completed projects
+        paginator = Paginator(completed_projects, 25) # 25 projects per page
+        page_number = request.GET.get('page')
+        page_obj = paginator.get_page(page_number)
+        completed_projects = page_obj
+
     else:
         sort_completed = 'completed_at'
         order_completed = 'desc'
@@ -179,6 +186,8 @@ def project_dashboard(request):
     if request.headers.get('HX-Request'):
         if view_mode == 'active':
             return render(request, 'app_3dmage_management/partials/work_order_table_active.html', context)
+        elif view_mode == 'completed':
+            return render(request, 'app_3dmage_management/partials/work_order_table_completed_rows.html', context)
 
     return render(request, 'app_3dmage_management/work_order_dashboard.html', context)
 

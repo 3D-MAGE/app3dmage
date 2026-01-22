@@ -156,33 +156,8 @@
                                     class="bi bi-caret-{% if order_completed == 'asc' %}up{% else %}down{% endif %}-fill"></i>{% endif %}</a></th>
                     </tr>
                 </thead>
-                <tbody>
-                    {% for project in completed_projects %}
-                    <tr class="clickable-row" data-url="{% url 'project_detail' project.id %}?from=completed"
-                        style="cursor: pointer;">
-                        <td class="fw-bold">{{ project.name }}</td>
-                        <td class="text-center">{{ project.completed_at|date:"d/m/y" }}</td>
-                        <td class="text-center">{{ project.total_print_time }}</td>
-                        <td class="text-center text-warning fw-bold">{{ project.annotated_material_cost|floatformat:2}}€</td>
-                        <td class="text-center">{{ project.category.name|default:"N/A" }}</td>
-                        <!-- MODIFICA: Loop per mostrare le pillole colorate -->
-                        <td class="text-center">
-                            {% for filament in project.filament_summary_details %}
-                            <span class="filament-pill" style="--bg: {{ filament.color_hex }}; background-color: var(--bg);"
-                                title="{{ filament.name }}">{{ filament.name }}</span>&nbsp;
-                            {% empty %}
-                            -
-                            {% endfor %}
-                        </td>
-                        <td class="text-center">{{ project.total_grams_used|floatformat:2 }}g</td>
-                    </tr>
-                    {% empty %}
-                    <tr>
-                        <td colspan="7" class="text-center py-4">
-                            <p class="text-muted">Nessun ordine completato trovato per i filtri selezionati.</p>
-                        </td>
-                    </tr>
-                    {% endfor %}
+                <tbody id="completed-projects-body">
+                    {% include 'app_3dmage_management/partials/work_order_table_completed_rows.html' %}
                 </tbody>
             </table>
         </div>
