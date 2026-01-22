@@ -182,6 +182,8 @@ class Project(models.Model):
     category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Categoria")
     base_quantity = models.PositiveIntegerField(default=1, verbose_name="Quantità Base")
     preview_image = models.ImageField(upload_to='project_previews/', null=True, blank=True, verbose_name="Immagine Anteprima")
+    suggested_selling_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, verbose_name="Prezzo di Vendita Suggerito")
+    dimensions = models.CharField(max_length=100, null=True, blank=True, verbose_name="Dimensioni")
     notes = models.TextField(blank=True, verbose_name="Annotazioni Master")
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True) # Per "Ultima modifica"

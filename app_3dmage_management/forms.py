@@ -402,17 +402,21 @@ class MasterProjectForm(forms.ModelForm):
     )
     class Meta:
         model = Project
-        fields = ['name', 'category', 'preview_image', 'notes']
+        fields = ['name', 'category', 'preview_image', 'suggested_selling_price', 'dimensions', 'notes']
         widgets = {
             'name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Es. Scatola Drone'}),
             'category': forms.Select(attrs={'class': 'form-select'}),
             'preview_image': forms.FileInput(attrs={'class': 'form-control'}),
+            'suggested_selling_price': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'placeholder': 'Es. 25.00'}),
+            'dimensions': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Es. 10x10x5 cm'}),
             'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 4}),
         }
         labels = {
             'name': 'Nome Progetto Master',
             'category': 'Categoria',
             'preview_image': 'Immagine Anteprima',
+            'suggested_selling_price': 'Prezzo Vendita Suggerito (€)',
+            'dimensions': 'Dimensioni (L x P x H)',
             'notes': 'Annotazioni Master',
         }
 

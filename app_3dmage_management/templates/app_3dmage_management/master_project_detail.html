@@ -105,6 +105,18 @@
                         <div class="info-label">Ultima Modifica</div>
                         <div class="info-value text-primary-custom">{{ project.updated_at|date:"d/m/Y" }}</div>
                     </div>
+                    {% if project.suggested_selling_price %}
+                    <div class="col">
+                        <div class="info-label">Prezzo Suggerito</div>
+                        <div class="info-value text-success fw-bold">€{{ project.suggested_selling_price }}</div>
+                    </div>
+                    {% endif %}
+                    {% if project.dimensions %}
+                    <div class="col">
+                        <div class="info-label">Dimensioni</div>
+                        <div class="info-value">{{ project.dimensions }}</div>
+                    </div>
+                    {% endif %}
                     <div class="col">
                         <div class="info-label">Parti Previste</div>
                         <div class="info-value">{{ project.parts.count }} part{{ project.parts.count|pluralize:"e,i" }}
@@ -300,6 +312,16 @@
                         <div class="mb-3">
                             <label class="form-label">Immagine Anteprima</label>
                             {{ edit_master_form.preview_image }}
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Prezzo Vendita Suggerito (€)</label>
+                                {{ edit_master_form.suggested_selling_price }}
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Dimensioni (L x P x H)</label>
+                                {{ edit_master_form.dimensions }}
+                            </div>
                         </div>
 
                         <hr class="border-secondary">
