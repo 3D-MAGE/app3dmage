@@ -79,11 +79,11 @@
     }
 </style>
 
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="d-flex justify-content-between align-items-center mb-4 mobile-stack">
     <!-- MODIFICA: Logica HREF aggiornata per gestire active/completed. Il JS sotto farà l'override per i filtri specifici -->
     <a href="{% if referer == 'active' %}{% url 'project_dashboard' %}?view=active{% elif referer == 'completed' %}{% url 'project_dashboard' %}?view=completed{% elif referer == 'queue' %}{% url 'print_queue_board' %}{% else %}{% url 'project_kanban_board' %}{% endif %}"
         id="back-dashboard-btn" class="btn btn-outline-secondary"><i class="bi bi-arrow-left me-2"></i>Indietro</a>
-    <div class="d-flex gap-2">
+    <div class="btn-group-mobile">
         {% if project.status == 'DONE' %}
         {% if project.project_id %}
         <button type="button" class="btn btn-info syncToMasterBtn"

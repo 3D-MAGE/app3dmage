@@ -5,17 +5,19 @@
      hx-swap="outerHTML"
      hx-indicator="#loading-overlay">
     
-    <div class="d-flex justify-content-end align-items-center mt-3 mb-3">
-        <div class="d-flex align-items-center gap-2">
-            <span class="btn btn-sm btn-secondary" style="cursor: default; pointer-events: none;">
+    <div class="d-flex justify-content-between align-items-center mt-3 mb-3 mobile-stack">
+        <div class="dashboard-header-stats">
+            <span class="btn btn-sm btn-secondary mb-1" style="cursor: default; pointer-events: none;">
                 Totale: <strong>{{ active_count }}</strong>
             </span>
-            <span class="btn btn-sm btn-primary-custom" style="cursor: default; pointer-events: none;">
+            <span class="btn btn-sm btn-primary-custom mb-1" style="cursor: default; pointer-events: none;">
                 Da Stampare: <strong>{{ todo_count }}</strong>
             </span>
+        </div>
+        <div class="btn-group-mobile">
             <a class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse" href="#activeFiltersCollapse"
                 role="button" aria-expanded="false" aria-controls="activeFiltersCollapse">
-                <i class="bi bi-funnel-fill me-1"></i> Filtra
+                <i class="bi bi-funnel-fill me-1"></i> Filtra Elenco
             </a>
         </div>
     </div>

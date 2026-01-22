@@ -3,18 +3,18 @@
 {% block title %}Dashboard Ordini - 3DMAGE MANAGEMENT{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h2 class="text-white">
+<div class="d-flex justify-content-between align-items-center mb-4 mobile-stack">
+    <h2 class="text-white mb-0">
         <i class="bi bi-clipboard-data-fill me-2"></i>
         {% if view_mode == 'completed' %}Archivio Ordini Completati{% else %}Ordini in Corso{% endif %}
     </h2>
-    <div>
+    <div class="btn-group-mobile">
         {% if view_mode == 'active' %}
-        <a href="{% url 'project_dashboard' %}?view=completed" class="btn btn-sm btn-secondary me-2"><i
+        <a href="{% url 'project_dashboard' %}?view=completed" class="btn btn-sm btn-secondary"><i
                 class="bi bi-archive-fill me-1"></i>Archivio Completati</a>
         <a href="{% url 'project_kanban_board' %}" class="btn btn-sm btn-outline-light"><i
                 class="bi bi-kanban-fill me-1"></i>Vista Kanban</a>
-        <button class="btn btn-sm btn-primary-custom ms-2" data-bs-toggle="modal" data-bs-target="#addProjectModal"><i
+        <button class="btn btn-sm btn-primary-custom" data-bs-toggle="modal" data-bs-target="#addProjectModal"><i
                 class="bi bi-plus-circle me-1"></i> Nuovo Ordine Manuale</button>
         {% else %}
         <a href="{% url 'project_dashboard' %}" class="btn btn-sm btn-outline-light"><i

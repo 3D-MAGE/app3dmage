@@ -48,11 +48,11 @@
 <!-- Header con pulsanti di azione -->
 
 <!-- Header con pulsanti di azione -->
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="d-flex justify-content-between align-items-center mb-4 mobile-stack">
     <a href="{% url 'projects_library' %}" class="btn btn-outline-secondary"><i
             class="bi bi-arrow-left me-2"></i>Indietro</a>
-    <div>
-        <button class="btn btn-success me-2" data-bs-toggle="modal" data-bs-target="#createOrderModal"
+    <div class="btn-group-mobile">
+        <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#createOrderModal"
             data-project-id="{{ project.id }}" data-project-name="{{ project.name }}"
             data-base-qty="{{ project.outputs.all|sum_quantities }}">
             <i class="bi bi-rocket-takeoff-fill me-1"></i> Crea Ordine di Lavoro

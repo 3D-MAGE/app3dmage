@@ -1,5 +1,6 @@
 {% extends "app_3dmage_management/base.html" %}
 {% load static %}
+{% load app_filters %}
 {% block title %}Dashboard Filamenti - 3DMAGE MANAGEMENT{% endblock %}
 
 {% block content %}
@@ -26,9 +27,9 @@
     }
 </style>
 
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h2 class="text-white"><i class="bi bi-palette-fill me-2"></i>Gestione Filamenti</h2>
-    <div>
+<div class="d-flex justify-content-between align-items-center mb-4 mobile-stack">
+    <h2 class="text-white mb-0"><i class="bi bi-palette-fill me-2"></i>Gestione Filamenti</h2>
+    <div class="btn-group-mobile">
         <button class="btn btn-sm btn-outline-warning" data-bs-toggle="modal" data-bs-target="#addSpoolModal"><i class="bi bi-plus-circle me-1"></i>Aggiungi Bobina</button>
         <button class="btn btn-sm btn-primary-custom" data-bs-toggle="modal" data-bs-target="#addFilamentModal"><i class="bi bi-plus-circle me-1"></i>Aggiungi Tipo Filamento</button>
     </div>
