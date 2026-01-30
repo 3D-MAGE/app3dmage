@@ -1007,6 +1007,19 @@ def delete_master_print_file(request, file_id):
 def create_from_template(request, pk):
     master_project = get_object_or_404(Project.objects.prefetch_related('master_print_files__filament_usages'), pk=pk)
     
+    # Validazione: verifica che tutte le parti abbiano almeno un file assegnato
+    all_parts = master_project.parts.all()
+    parts_with_files = ProjectPart.objects.filter(
+        project=master_project,
+        master_print_files__isnull=False
+    ).distinct()
+    
+    if all_parts.count() > parts_with_files.count():
+        missing_parts = all_parts.exclude(id__in=parts_with_files)
+        names = ", ".join([p.name for p in missing_parts])
+        messages.error(request, f"Impossibile creare l'ordine: le seguenti parti non hanno file G-code assegnati: {names}")
+        return redirect('project_master_detail', pk=pk)
+    
     import json
     batch_data_str = request.POST.get('batch_data')
     
@@ -1084,8 +1097,8 @@ def create_from_template(request, pk):
 
                 for i in range(file_multiplier):
                     batch_suffix = f" (Set {batch_idx + 1})" if len(batches) > 1 else ""
-                    multiplier_suffix = f" (Batch {i+1})" if file_multiplier > 1 else ""
-                    part_suffix = f" [{part.name}]" if part else ""
+                    multiplier_suffix = f" ({i+1})" if file_multiplier > 1 else ""
+                    part_suffix = "" # Eliminiamo nome parte tra parentesi quadre
                     
                     pf_name = f"{mpf.name}{part_suffix}{batch_suffix}{multiplier_suffix}"
                     
