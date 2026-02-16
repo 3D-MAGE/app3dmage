@@ -25,6 +25,12 @@ else:
     ALLOWED_HOSTS = []
     CSRF_TRUSTED_ORIGINS = []
 
+# --- Sicurezza CSRF e Sessioni ---
+CSRF_COOKIE_SAMESITE = 'Lax'
+SESSION_COOKIE_SAMESITE = 'Lax'
+CSRF_COOKIE_HTTPONLY = False  # Necessario per JS se legge il cookie direttamente
+SESSION_COOKIE_HTTPONLY = True
+
 # --- App e Middleware ---
 INSTALLED_APPS = [
     'django.contrib.admin',

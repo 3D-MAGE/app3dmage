@@ -137,6 +137,47 @@ function initStaticModules() {
         });
     }
 
+    // Aggiunta Oggetto Manuale (Form Aggiunta)
+    const addForm = document.getElementById('addStockItemForm');
+    if (addForm) {
+        addForm.addEventListener('submit', function (e) {
+            e.preventDefault();
+            const formData = new FormData(addForm);
+
+            fetch(addForm.action, {
+                method: 'POST',
+                body: formData,
+                headers: { 'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value }
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'ok') {
+                    window.location.reload();
+                } else {
+                    // Gestione errori del form
+                    let errorMsg = 'Errore durante l\'aggiunta:\n';
+                    if (data.errors) {
+                        try {
+                            const errors = JSON.parse(data.errors);
+                            for (const field in errors) {
+                                errorMsg += `- ${field}: ${errors[field].map(e => e.message).join(', ')}\n`;
+                            }
+                        } catch (e) {
+                            errorMsg += 'Dati non validi.';
+                        }
+                    } else {
+                        errorMsg += data.message || 'Verifica i dati inseriti.';
+                    }
+                    alert(errorMsg);
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                alert('Errore di comunicazione con il server.');
+            });
+        });
+    }
+
     // Salvataggio Vendita (Form Vendita)
     const sellForm = document.getElementById('sellStockItemForm');
     if (sellForm) {
