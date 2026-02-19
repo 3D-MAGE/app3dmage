@@ -29,8 +29,8 @@ def project_detail(request, project_id):
     total_project_cost = sum(file.total_cost for file in work_order.print_files.all())
 
     # Calcolo della quantità suggerita per il magazzino: 
-    # Oggetti stampati effettivi (actual_quantity) meno oggetti già versati (produced_quantity)
-    pending_quantity = work_order.total_objects_printed - work_order.produced_quantity
+    # Pezzi totali attesi meno pezzi già versati (produced_quantity)
+    pending_quantity = work_order.total_expected_pieces - work_order.produced_quantity
     if pending_quantity < 0: pending_quantity = 0
 
     referer = request.GET.get('from', 'kanban')
@@ -154,7 +154,6 @@ def sync_work_order_to_master(request, project_id):
     })
 
 @require_POST
-@require_POST
 @login_required
 @transaction.atomic
 def complete_project(request, project_id):
@@ -198,8 +197,8 @@ def complete_project(request, project_id):
     total_added_quantity = sum(item['quantity'] for item in outputs_data)
     
     # Pro-rata dei costi in base alla quantità totale aggiunta rispetto alla quantità di progetto
-    # Pezzi totali previsti
-    total_expected_pieces = work_order.quantity
+    # Pezzi totali previsti basati sul nuovo property
+    total_expected_pieces = work_order.total_expected_pieces
     
     cost_per_piece = work_order.full_total_cost / total_expected_pieces if total_expected_pieces > 0 else Decimal('0.00')
     labor_per_piece = labor_cost_total / total_added_quantity if total_added_quantity > 0 else Decimal('0.00')
@@ -213,7 +212,6 @@ def complete_project(request, project_id):
         lab_cost = (labor_per_piece * qty).quantize(Decimal('0.01'))
         
         # Cerchiamo se esiste già un StockItem "POST_PROD" per questo output
-        # Il nome è il nostro "id" per ora, come concordato.
         stock_item = StockItem.objects.filter(work_order=work_order, name=name, status=StockItem.Status.POST_PROD).first()
         
         if stock_item:
@@ -241,27 +239,15 @@ def complete_project(request, project_id):
         
         stock_item.save()
 
-    # Aggiorniamo la quantità prodotta dell'ordine in "unità master"
-    # Se abbiamo prodotto 3 pezzi del Master X che ne prevede 3 per unità, abbiamo fatto 1 unità master.
-    total_pieces_per_master = work_order.project.outputs.aggregate(Sum('quantity'))['quantity__sum'] or 1
-    if total_pieces_per_master > 0:
-        master_units_completed = Decimal(total_added_quantity) / Decimal(total_pieces_per_master)
-    else:
-        master_units_completed = Decimal(total_added_quantity)
-    
-    # Usiamo Decimal per precisione, poi arrotondiamo per l'intero prodotto (ma forse meglio int(total_produced) / total_pieces_per_master)
-    # Lo user ha detto "producibilità parziale", quindi l'ordine è DONE solo se ALL pezzi (tutti gli output) sono a magazzino.
-    
-    # Lo user ha detto "producibilità parziale", quindi l'ordine è DONE solo se ALL pezzi (tutti gli output) sono a magazzino.
+    # Aggiorniamo la quantità prodotta dell'ordine in pezzi totali
     work_order.produced_quantity = StockItem.objects.filter(work_order=work_order).aggregate(Sum('quantity'))['quantity__sum'] or 0
     
-    if work_order.produced_quantity >= work_order.quantity:
+    # L'ordine è DONE solo se ALL pezzi (tutti gli output) sono a magazzino.
+    if work_order.produced_quantity >= total_expected_pieces:
         work_order.status = WorkOrder.Status.DONE
         work_order.completed_at = timezone.now()
     else:
-        # Se era PRINTED (finito di stampare) ma abbiamo fatto solo un versamento parziale, 
-        # non lo mettiamo DONE, resta in uno stato che permetta altri versamenti.
-        # Se tutti i file sono DONE, sync_status lo metterebbe in PRINTED.
+        # Se non è ancora finito, sincronizziamo lo stato (potrebbe passare a PRINTED o restare in PRINTING/TODO)
         work_order.sync_status() 
     
     work_order.save()

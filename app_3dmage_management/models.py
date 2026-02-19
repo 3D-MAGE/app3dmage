@@ -372,8 +372,17 @@ class WorkOrder(models.Model):
         return self.print_files.aggregate(total=Sum('actual_quantity'))['total'] or 0
 
     @property
+    def total_expected_pieces(self):
+        """Calcola il numero totale di pezzi attesi per tutti gli output definiti nel progetto."""
+        if not self.project:
+            return self.quantity
+        total_pieces_per_set = self.project.outputs.aggregate(Sum('quantity'))['quantity__sum'] or 1
+        return self.quantity * total_pieces_per_set
+
+    @property
     def remaining_objects(self):
-        return self.quantity - self.total_objects_printed
+        """Pezzi totali attesi meno pezzi effettivamente aggiunti a magazzino."""
+        return max(0, self.total_expected_pieces - self.produced_quantity)
 
     @property
     def remaining_to_stock(self):
@@ -381,9 +390,11 @@ class WorkOrder(models.Model):
 
     def get_remaining_for_output(self, output):
         """Calcola quanti pezzi di un determinato output devono ancora essere versati a magazzino."""
+        if not self.project:
+            return 0
         from django.db.models import Sum
-        total_pieces_per_set = self.project.outputs.all().aggregate(Sum('quantity'))['quantity__sum'] or 1
-        num_sets = self.quantity / total_pieces_per_set
+        # In un ordine, 'quantity' è il numero di SET.
+        num_sets = self.quantity
         total_expected = int(num_sets * output.quantity)
         
         from .models import StockItem
@@ -395,6 +406,9 @@ class WorkOrder(models.Model):
         Calcola quanti pezzi di un determinato output sono stati stampati (DONE) 
         ma non ancora versati a magazzino.
         """
+        if not self.project:
+            return 0
+            
         from django.db.models import Sum
         # 1. Quanti pezzi totali sono stati stampati (DONE)
         total_printed = self.print_files.filter(status='DONE').aggregate(Sum('actual_quantity'))['actual_quantity__sum'] or 0
