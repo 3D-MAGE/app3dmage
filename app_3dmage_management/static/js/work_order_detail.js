@@ -982,16 +982,32 @@ document.addEventListener('DOMContentLoaded', async function () {
 
         // Validazione istantanea quantità totale (opzionale)
         const qtyInputs = completeProjectForm.querySelectorAll('.output-qty-input');
-        const maxTotal = parseInt(qtyInputs[0]?.max) || 999999;
-        const warning = document.getElementById('completion-qty-warning');
+        const warningExcess = document.getElementById('completion-qty-warning');
+        const warningPartial = document.getElementById('partial-qty-warning');
+
+        const updateQtyWarnings = () => {
+            let currentTotal = 0;
+            let totalRemaining = 0;
+            qtyInputs.forEach(input => {
+                currentTotal += (parseInt(input.value) || 0);
+                totalRemaining += (parseInt(input.max) || 0);
+            });
+
+            if (warningExcess) {
+                warningExcess.style.display = currentTotal > totalRemaining ? 'block' : 'none';
+            }
+            if (warningPartial) {
+                // Mostra avviso se la quantità è superiore a zero ma inferiore al totale rimanente
+                warningPartial.style.display = (currentTotal > 0 && currentTotal < totalRemaining) ? 'block' : 'none';
+            }
+        };
 
         qtyInputs.forEach(input => {
-            input.addEventListener('input', () => {
-                let currentTotal = 0;
-                qtyInputs.forEach(i => currentTotal += (parseInt(i.value) || 0));
-                if (warning) warning.style.display = currentTotal > maxTotal ? 'block' : 'none';
-            });
+            input.addEventListener('input', updateQtyWarnings);
         });
+        
+        // Eseguiamo il controllo iniziale all'apertura
+        updateQtyWarnings();
     }
 
     // -----------------------------------------------------------------

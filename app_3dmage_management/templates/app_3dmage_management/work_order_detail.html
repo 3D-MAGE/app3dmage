@@ -348,6 +348,12 @@
                         completamento parziale.
                     </div>
 
+                    <!-- Avviso Completamento Parziale (Quantità inferiore al totale) -->
+                    <div class="alert alert-warning py-2 small" id="partial-qty-warning" style="display: none;">
+                        <i class="bi bi-exclamation-triangle me-1"></i>
+                        <strong>Attenzione:</strong> La quantità totale è inferiore a quella prevista. L'ordine rimarrà aperto come "Parziale".
+                    </div>
+
                     <div id="completion-outputs-list">
                         {% for output in project.project.outputs.all %}
                         <div class="row g-2 mb-3 align-items-center completion-output-row"

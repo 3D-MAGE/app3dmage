@@ -124,12 +124,17 @@ class Filament(models.Model):
     def remaining_weight(self):
         return self.total_initial_weight - self.total_used_weight
 
-    @property
-    def remaining_percentage(self):
-        total = self.total_initial_weight
-        if total == 0:
-            return 0
-        return (self.remaining_weight / total) * 100
+    def has_active_spools(self):
+        return self.spools.filter(is_active=True).exists()
+
+    def find_alternative(self):
+        """Trova un filamento alternativo con lo stesso materiale e codice colore, ma marca diversa, che abbia bobine attive."""
+        return Filament.objects.filter(
+            material=self.material,
+            color_code=self.color_code
+        ).exclude(id=self.id).filter(
+            spools__is_active=True
+        ).distinct().first()
 
     def __str__(self):
         return f"{self.material}-{self.color_code}-{self.brand}"
@@ -149,6 +154,22 @@ class Spool(models.Model):
     purchase_date = models.DateField(default=timezone.now, verbose_name="Data Acquisto")
     purchase_link = models.URLField(max_length=512, blank=True, null=True, verbose_name="Link Acquisto")
     is_active = models.BooleanField(default=True, verbose_name="Attiva")
+
+    @property
+    def remaining_weight(self):
+        """Peso (g) basato sulle stampe completate (DONE/FAILED)."""
+        used = self.usages.filter(print_file__status__in=['DONE', 'FAILED']).aggregate(total=Sum('grams_used'))['total'] or Decimal('0.00')
+        return (Decimal(self.initial_weight_g) + Decimal(str(self.weight_adjustment))) - used
+
+    @property
+    def pending_weight(self):
+        """Peso (g) impegnato per stampe in coda (TODO/PRINTING)."""
+        return self.usages.filter(print_file__status__in=['TODO', 'PRINTING']).aggregate(total=Sum('grams_used'))['total'] or Decimal('0.00')
+
+    @property
+    def available_weight(self):
+        """Peso (g) realmente disponibile (rimanente - impegnato)."""
+        return max(Decimal('0.00'), self.remaining_weight - self.pending_weight)
 
     # MODIFICA: Logica di assegnazione automatica lettera (A, B, C...)
     def save(self, *args, **kwargs):

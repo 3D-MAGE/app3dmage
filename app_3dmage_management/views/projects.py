@@ -993,6 +993,34 @@ def delete_master_print_file(request, file_id):
 def create_from_template(request, pk):
     master_project = get_object_or_404(Project.objects.prefetch_related('master_print_files__filament_usages'), pk=pk)
     
+    # --- CONTROLLO FILAMENTI ATTIVI ---
+    ignore_warnings = request.POST.get('ignore_warnings') == 'true'
+    # Se la richiesta è AJAX o se vogliamo solo controllare
+    is_ajax = request.headers.get('x-requested-with') == 'XMLHttpRequest' or request.POST.get('is_ajax') == 'true'
+
+    if not ignore_warnings:
+        missing_filaments = []
+        for mpf in master_project.master_print_files.all():
+            for usage in mpf.filament_usages.all():
+                if not usage.filament.has_active_spools():
+                    alt = usage.filament.find_alternative()
+                    missing_filaments.append({
+                        'id': usage.filament.id,
+                        'name': str(usage.filament),
+                        'alternative': str(alt) if alt else None,
+                        'alternative_id': alt.id if alt else None
+                    })
+        
+        if missing_filaments:
+            # Rendiamo unica la lista dei filamenti mancanti
+            unique_missing = {f['id']: f for f in missing_filaments}.values()
+            if is_ajax:
+                return JsonResponse({
+                    'status': 'warning',
+                    'message': 'Alcuni filamenti consigliati non hanno bobine attive.',
+                    'missing': list(unique_missing)
+                })
+
     # Validazione: verifica che tutte le parti abbiano almeno un file assegnato
     all_parts = master_project.parts.all()
     parts_with_files = ProjectPart.objects.filter(
@@ -1003,7 +1031,12 @@ def create_from_template(request, pk):
     if all_parts.count() > parts_with_files.count():
         missing_parts = all_parts.exclude(id__in=parts_with_files)
         names = ", ".join([p.name for p in missing_parts])
-        messages.error(request, f"Impossibile creare l'ordine: le seguenti parti non hanno file G-code assegnati: {names}")
+        error_msg = f"Impossibile creare l'ordine: le seguenti parti non hanno file G-code assegnati: {names}"
+        
+        if is_ajax:
+            return JsonResponse({'status': 'error', 'message': error_msg}, status=400)
+            
+        messages.error(request, error_msg)
         return redirect('project_master_detail', pk=pk)
     
     import json
@@ -1047,6 +1080,14 @@ def create_from_template(request, pk):
         notes=master_project.notes
     )
     
+    # Recuperiamo eventuali sostituzioni confermate dall'utente (mappatura ID originale -> ID sostituto)
+    replacements = {}
+    if request.POST.get('replacements'):
+        try:
+            replacements = json.loads(request.POST.get('replacements'))
+        except (json.JSONDecodeError, TypeError):
+            replacements = {}
+
     # 3. Creiamo i PrintFile per ogni lotto
     for batch_idx, batch in enumerate(batches):
         batch_qty = batch.get('quantity', 0)
@@ -1103,10 +1144,32 @@ def create_from_template(request, pk):
                     )
                     
                     for master_usage in mpf.filament_usages.all():
-                        spool = Spool.objects.filter(
-                            filament=master_usage.filament,
+                        # Controlla se l'utente ha confermato una sostituzione per questo filamento
+                        target_filament = master_usage.filament
+                        if str(target_filament.id) in replacements:
+                            try:
+                                target_filament = Filament.objects.get(id=replacements[str(target_filament.id)])
+                            except Filament.DoesNotExist:
+                                pass
+
+                        # Selezione automatica bobina: la più vuota che sia sufficiente
+                        spools = Spool.objects.filter(
+                            filament=target_filament,
                             is_active=True
-                        ).first()
+                        )
+                        # Ordiniamo per available_weight per proporre prima quelle più vuote
+                        # Nota: available_weight tiene conto anche delle FilamentUsage create in questo stesso loop
+                        suitable_spools = sorted(
+                            [s for s in spools if s.available_weight >= master_usage.grams_used],
+                            key=lambda x: x.available_weight
+                        )
+                        
+                        spool = None
+                        if suitable_spools:
+                            spool = suitable_spools[0]
+                        else:
+                            # Se nessuna bobina è sufficiente, prendiamo quella con più spazio residuo (o la prima)
+                            spool = sorted(list(spools), key=lambda x: x.available_weight, reverse=True)[0] if spools.exists() else None
                         
                         if spool:
                             FilamentUsage.objects.create(
@@ -1114,6 +1177,13 @@ def create_from_template(request, pk):
                                 spool=spool,
                                 grams_used=master_usage.grams_used
                             )
+
+    if is_ajax:
+        return JsonResponse({
+            'status': 'ok',
+            'message': 'Ordine creato correttamente!',
+            'redirect_url': reverse('project_detail', args=[new_wo.id])
+        })
 
     return redirect('project_detail', project_id=new_wo.id)
 

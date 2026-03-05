@@ -186,18 +186,24 @@ def delete_filament(request, filament_id):
 @login_required
 def get_spools_for_filament(request):
     filament_id = request.GET.get('filament_id')
+    # Filtra bobine attive e con peso disponibile > 0
+    # Ordiniamo per available_weight per proporre prima quelle più vuote
     spools = Spool.objects.filter(filament_id=filament_id, is_active=True)
+    
+    # Python sorting because available_weight is a property
+    # Note: For large datasets, this might need optimization (e.g. annotation)
+    active_spools = sorted(
+        [s for s in spools if s.available_weight > 0],
+        key=lambda x: x.available_weight
+    )
 
     spools_data = []
-    for spool in spools:
-        used_on_spool = spool.usages.filter(print_file__status__in=['DONE', 'FAILED']).aggregate(total=Sum('grams_used'))['total'] or 0
-        remaining = spool.initial_weight_g - used_on_spool
-        if remaining > 0:
-            spools_data.append({
-                'id': spool.id,
-                'purchase_date': spool.purchase_date.strftime('%d/%m/%Y'),
-                'remaining': remaining
-            })
+    for spool in active_spools:
+        spools_data.append({
+            'id': spool.id,
+            'purchase_date': spool.purchase_date.strftime('%d/%m/%Y'),
+            'remaining': spool.available_weight
+        })
     return JsonResponse(spools_data, safe=False)
 
 def _handle_filament_data(request, print_file, filament_data_json, wasted_grams_str=None):
@@ -248,11 +254,8 @@ def api_get_filament_spools(request, filament_id):
     inactive_spools_data = []
 
     for spool in spools:
-        used_on_spool = spool.usages.filter(
-            print_file__status__in=['DONE', 'FAILED']
-        ).aggregate(total=Sum('grams_used'))['total'] or Decimal('0')
-
-        remaining = (Decimal(spool.initial_weight_g) + spool.weight_adjustment) - used_on_spool
+        # Usiamo le nuove proprietà del modello
+        remaining = spool.available_weight
 
         spool_data = {
             'id': spool.id,

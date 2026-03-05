@@ -477,8 +477,90 @@ document.addEventListener('DOMContentLoaded', function () {
                 return;
             }
 
-            batchDataInput.value = JSON.stringify(batches);
-            this.submit();
+            const submitOrder = async (ignoreWarnings = false, replacements = {}) => {
+                const formData = new FormData(createOrderForm);
+                formData.set('batch_data', JSON.stringify(batches));
+                formData.set('is_ajax', 'true');
+                if (ignoreWarnings) formData.set('ignore_warnings', 'true');
+                if (Object.keys(replacements).length > 0) {
+                    formData.set('replacements', JSON.stringify(replacements));
+                }
+
+                if (typeof showLoader === 'function') showLoader();
+                
+                try {
+                    const response = await fetch(createOrderForm.action, {
+                        method: 'POST',
+                        body: formData,
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'X-CSRFToken': getCookie('csrftoken')
+                        }
+                    });
+
+                    if (!response.ok) {
+                        const err = await response.json();
+                        throw new Error(err.message || "Errore del server");
+                    }
+
+                    const result = await response.json();
+                    if (typeof hideLoader === 'function') hideLoader();
+
+                    if (result.status === 'warning') {
+                        const newReplacements = {};
+                        let confirmMsg = "Attenzione: i seguenti filamenti consigliati non hanno bobine attive:\n\n";
+                        let hasAlternatives = false;
+
+                        result.missing.forEach(item => {
+                            confirmMsg += `• ${item.name}`;
+                            if (item.alternative) {
+                                confirmMsg += ` -> Alternativa trovata: ${item.alternative}`;
+                                hasAlternatives = true;
+                            } else {
+                                confirmMsg += " (Nessuna alternativa trovata)";
+                            }
+                            confirmMsg += "\n";
+                        });
+
+                        confirmMsg += "\n";
+                        if (hasAlternatives) {
+                            confirmMsg += "Vuoi usare le alternative suggerite e procedere con la creazione dell'ordine?";
+                        } else {
+                            confirmMsg += "Vuoi procedere comunque senza assegnare bobine a questi filamenti?";
+                        }
+
+                        if (confirm(confirmMsg)) {
+                            if (hasAlternatives) {
+                                result.missing.forEach(item => {
+                                    if (item.alternative_id) {
+                                        newReplacements[item.id] = item.alternative_id;
+                                    }
+                                });
+                            }
+                            submitOrder(true, newReplacements);
+                        }
+                    } else if (result.status === 'ok') {
+                        if (result.redirect_url) {
+                            window.location.href = result.redirect_url;
+                        } else {
+                            if (typeof showToast === 'function') showToast(result.message || "Ordine creato!");
+                            const bootstrapModal = bootstrap.Modal.getInstance(createModal);
+                            if (bootstrapModal) bootstrapModal.hide();
+                            setTimeout(() => window.location.reload(), 1000);
+                        }
+                    } else {
+                        if (typeof showToast === 'function') showToast(result.message || "Errore sconosciuto", 'danger');
+                        else alert(result.message || "Errore durante la creazione");
+                    }
+                } catch (error) {
+                    if (typeof hideLoader === 'function') hideLoader();
+                    console.error("Errore creazione ordine:", error);
+                    if (typeof showToast === 'function') showToast(error.message || "Errore di connessione", 'danger');
+                    else alert("Errore durante l'invio dell'ordine.");
+                }
+            };
+
+            submitOrder();
         });
     }
 
