@@ -18,8 +18,13 @@
                 <input type="text" class="form-control" id="quoteName" placeholder="Es. Set Scacchi Completo">
             </div>
             <div class="row g-3 mb-3">
-                <div class="col"><label class="form-label">Ore di Stampa</label><input type="number" class="form-control" id="printHours" value="0" min="0"></div>
-                <div class="col"><label class="form-label">Minuti di Stampa</label><input type="number" class="form-control" id="printMinutes" value="0" min="0" max="59"></div>
+                <div class="col-4"><label class="form-label">Giorni Stampa</label><input type="number" class="form-control" id="printDays" value="0" min="0"></div>
+                <div class="col-4"><label class="form-label">Ore Stampa</label><input type="number" class="form-control" id="printHours" value="0" min="0"></div>
+                <div class="col-4"><label class="form-label">Minuti Stampa</label><input type="number" class="form-control" id="printMinutes" value="0" min="0" max="59"></div>
+            </div>
+            <div class="mb-3">
+                <label for="laborCost" class="form-label">Costo Manodopera (€)</label>
+                <input type="number" step="0.01" class="form-control" id="laborCost" value="0.00" min="0">
             </div>
             <hr class="border-secondary">
             <h6 class="mb-3">Materiali Usati</h6>
@@ -36,6 +41,10 @@
             <div class="d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">COSTO TOTALE</h5>
                 <h4 class="fw-bold mb-0" id="total-cost">0.00€</h4>
+            </div>
+            <div class="d-flex justify-content-between align-items-center mt-3 p-3 bg-secondary rounded">
+                <h5 class="mb-0 text-white">PREZZO CONSIGLIATO</h5>
+                <h4 class="fw-bold mb-0 text-success" id="suggested-price">0.00€</h4>
             </div>
             <div class="d-grid gap-2 mt-4">
                 <button class="btn btn-success" id="create-project-btn"><i class="bi bi-folder-plus me-2"></i>Crea Progetto</button>

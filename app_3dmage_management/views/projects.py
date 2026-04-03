@@ -229,13 +229,20 @@ def complete_project(request, project_id):
                 status=StockItem.Status.POST_PROD
             )
         
-        # Ricalcolo prezzo suggerito: usa quello del Master se presente, altrimenti calcola margina 1.5x
+        # Ricalcolo prezzo suggerito: usa quello del Master se presente, altrimenti applica nuova formula
         if work_order.project and work_order.project.suggested_selling_price:
             stock_item.suggested_price = work_order.project.suggested_selling_price
         else:
-            total_prod_cost = stock_item.material_cost + stock_item.labor_cost
-            unit_cost = total_prod_cost / stock_item.quantity if stock_item.quantity > 0 else Decimal('0.00')
-            stock_item.suggested_price = (unit_cost * Decimal('1.5')).quantize(Decimal('0.01'))
+            cp_unit = stock_item.material_cost / stock_item.quantity if stock_item.quantity > 0 else Decimal('0.00')
+            labor_unit = stock_item.labor_cost / stock_item.quantity if stock_item.quantity > 0 else Decimal('0.00')
+            
+            if cp_unit > 0 or labor_unit > 0:
+                price = (cp_unit * Decimal('1.5')) + (cp_unit * Decimal('9.2')) / (cp_unit + Decimal('1.0')) + labor_unit
+                rounded_price = Decimal(math.ceil(price * 2)) / Decimal('2.0')
+            else:
+                rounded_price = Decimal('0.00')
+                
+            stock_item.suggested_price = rounded_price.quantize(Decimal('0.01'))
         
         stock_item.save()
 

@@ -7,11 +7,14 @@ document.addEventListener('DOMContentLoaded', function() {
     const addMaterialBtn = document.getElementById('add-material-btn');
     const rowTemplate = document.getElementById('material-row-template');
     const quoteNameInput = document.getElementById('quoteName');
+    const printDaysInput = document.getElementById('printDays');
     const printHoursInput = document.getElementById('printHours');
     const printMinutesInput = document.getElementById('printMinutes');
+    const laborCostInput = document.getElementById('laborCost');
     const resultTitle = document.getElementById('result-title');
     const costBreakdown = document.getElementById('cost-breakdown');
     const totalCostEl = document.getElementById('total-cost');
+    const suggestedPriceEl = document.getElementById('suggested-price');
     const saveQuoteBtn = document.getElementById('save-quote-btn');
     const createProjectBtn = document.getElementById('create-project-btn');
     const savedQuotesTable = document.getElementById('saved-quotes-table');
@@ -33,9 +36,10 @@ document.addEventListener('DOMContentLoaded', function() {
     };
 
     function calculateAndDisplay() {
+        const days = parseFloat(printDaysInput.value) || 0;
         const hours = parseFloat(printHoursInput.value) || 0;
         const minutes = parseFloat(printMinutesInput.value) || 0;
-        const totalHours = hours + (minutes / 60);
+        const totalHours = (days * 24) + hours + (minutes / 60);
 
         const electricityKwh = totalHours * (AVG_PRINTER_WATTAGE / 1000);
         const electricityCost = electricityKwh * costs.electricity_cost_kwh;
@@ -58,9 +62,23 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
 
-        const totalCost = electricityCost + totalMaterialCost;
+        const laborCost = parseFloat(laborCostInput.value) || 0;
+        if (laborCost > 0) {
+            breakdownHtml += `<p class="d-flex justify-content-between mb-1"><span>Manodopera</span> <span>${laborCost.toFixed(2)}€</span></p>`;
+        }
+
+        const totalProductionCost = electricityCost + totalMaterialCost;
+        const totalCost = totalProductionCost + laborCost;
+
+        let suggestedPrice = 0;
+        if (totalProductionCost > 0 || laborCost > 0) {
+            const price = (totalProductionCost * 1.5) + (totalProductionCost * 9.2) / (totalProductionCost + 1.0) + laborCost;
+            suggestedPrice = Math.ceil(price * 2) / 2;
+        }
+
         costBreakdown.innerHTML = breakdownHtml || '<p class="text-muted">Nessun costo da mostrare.</p>';
         totalCostEl.textContent = `${totalCost.toFixed(2)}€`;
+        suggestedPriceEl.textContent = `${suggestedPrice.toFixed(2)}€`;
         const name = quoteNameInput.value.trim();
         resultTitle.textContent = name ? `Riepilogo Costi: ${name}` : 'Riepilogo Costi';
     }
@@ -131,14 +149,16 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function getQuoteData() {
         const quoteName = quoteNameInput.value.trim();
+        const days = parseInt(printDaysInput.value, 10) || 0;
         const hours = parseInt(printHoursInput.value, 10) || 0;
         const minutes = parseInt(printMinutesInput.value, 10) || 0;
+        const labor = parseFloat(laborCostInput.value) || 0;
 
         if (!quoteName) {
             showToast('Inserisci un nome per il preventivo.', 'error');
             return null;
         }
-        if (hours === 0 && minutes === 0) {
+        if (days === 0 && hours === 0 && minutes === 0) {
             showToast('Inserisci un tempo di stampa valido.', 'error');
             return null;
         }
@@ -173,9 +193,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
         return {
             name: quoteName,
+            days: days,
             hours: hours,
             minutes: minutes,
+            labor: labor,
             total_cost: parseFloat(totalCostEl.textContent.replace('€', '')),
+            suggested_price: parseFloat(suggestedPriceEl.textContent.replace('€', '')),
             materials: materials
         };
     }
@@ -186,8 +209,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
         addMaterialBtn.addEventListener('click', () => addMaterialRow());
         quoteNameInput.addEventListener('input', calculateAndDisplay);
+        printDaysInput.addEventListener('input', calculateAndDisplay);
         printHoursInput.addEventListener('input', calculateAndDisplay);
         printMinutesInput.addEventListener('input', calculateAndDisplay);
+        laborCostInput.addEventListener('input', calculateAndDisplay);
 
         saveQuoteBtn.addEventListener('click', function() {
             const quoteData = getQuoteData();
@@ -269,9 +294,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 .then(res => res.json())
                 .then(data => {
                     const details = data.details;
-                    quoteNameInput.value = details.name;
-                    printHoursInput.value = details.hours;
-                    printMinutesInput.value = details.minutes;
+                    quoteNameInput.value = details.name || '';
+                    printDaysInput.value = details.days || 0;
+                    printHoursInput.value = details.hours || 0;
+                    printMinutesInput.value = details.minutes || 0;
+                    laborCostInput.value = details.labor || 0;
 
                     materialsContainer.innerHTML = '';
                     if(details.materials && details.materials.length > 0) {
