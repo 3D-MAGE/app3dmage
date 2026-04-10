@@ -208,6 +208,79 @@ class Project(models.Model):
     notes = models.TextField(blank=True, verbose_name="Annotazioni Master")
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True) # Per "Ultima modifica"
+    
+    def create_work_order(self, quantity=1, priority='MEDIUM', status='TODO', notes=''):
+        """
+        Clona questo progetto Master in un nuovo Ordine di Lavoro (WorkOrder),
+        creando ricorsivamente tutti i PrintFile e i FilamentUsage associati.
+        """
+        import math
+        # I modelli sono definiti nello stesso file e saranno disponibili a runtime.
+        # Definiamo i riferimenti locali se necessario o usiamoli direttamente.
+        
+        # 1. Crea il WorkOrder
+        new_wo = WorkOrder.objects.create(
+            name=self.name,
+            category=self.category,
+            quantity=quantity,
+            project=self,
+            priority=priority,
+            status=status,
+            notes=notes or self.notes
+        )
+        
+        # 2. Crea i PrintFile basandosi sui file Master
+        for mpf in self.master_print_files.all():
+            # Otteniamo le parti a cui appartiene il file (o una lista con None se non ne ha)
+            file_parts = list(mpf.project_parts.all())
+            if not file_parts:
+                file_parts = [None]
+                
+            for part in file_parts:
+                # Calcolo Moltiplicatore per il file (quanti set di pezzi servono)
+                # Per semplicità nel re-print rapido assumiamo 1 set se non diversamente specificato
+                file_multiplier = 1 # In create_from_template era math.ceil(batch_qty / mpf.produced_quantity)
+                
+                for i in range(file_multiplier):
+                    multiplier_suffix = f" ({i+1})" if file_multiplier > 1 else ""
+                    pf_name = f"{mpf.name}{multiplier_suffix}"
+                    
+                    pf = PrintFile.objects.create(
+                        work_order=new_wo,
+                        master_print_file=mpf,
+                        project_part=part,
+                        name=pf_name,
+                        print_time_seconds=mpf.estimated_time_seconds,
+                        printer_id=mpf.printer_id,
+                        plate=mpf.plate,
+                        produced_quantity=mpf.produced_quantity,
+                        status=PrintFile.Status.TODO
+                    )
+                    
+                    # 3. Crea FilamentUsage
+                    for master_usage in mpf.filament_usages.all():
+                        target_filament = master_usage.filament
+                        
+                        # Selezione automatica bobina
+                        spools = Spool.objects.filter(filament=target_filament, is_active=True)
+                        suitable_spools = sorted(
+                            [s for s in spools if s.available_weight >= master_usage.grams_used],
+                            key=lambda x: x.available_weight
+                        )
+                        
+                        spool = None
+                        if suitable_spools:
+                            spool = suitable_spools[0]
+                        else:
+                            spool = sorted(list(spools), key=lambda x: x.available_weight, reverse=True)[0] if spools.exists() else None
+                        
+                        if spool:
+                            FilamentUsage.objects.create(
+                                print_file=pf,
+                                spool=spool,
+                                grams_used=master_usage.grams_used
+                            )
+        return new_wo
 
     def __str__(self):
         return self.name
@@ -314,6 +387,7 @@ class WorkOrder(models.Model):
     completed_at = models.DateTimeField(null=True, blank=True, verbose_name="Data Completamento")
     category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Categoria")
     quantity = models.PositiveIntegerField(default=1, verbose_name="Quantità oggetti ordine")
+    delivery_date = models.DateField(null=True, blank=True, verbose_name="Data Consegna Prevista")
     notes = models.TextField(blank=True, verbose_name="Annotazioni")
     actual_quantity = models.PositiveIntegerField(default=0)
     produced_quantity = models.PositiveIntegerField(default=0)
@@ -408,6 +482,20 @@ class WorkOrder(models.Model):
     @property
     def remaining_to_stock(self):
         return max(0, self.quantity - self.produced_quantity)
+
+    @property
+    def delivery_status_color(self):
+        if not self.delivery_date:
+            return "secondary"
+        delta = (self.delivery_date - datetime.date.today()).days
+        if delta < 0:
+            return "danger border border-white"
+        elif delta <= 1:
+            return "danger"
+        elif delta <= 3:
+            return "warning text-dark"
+        else:
+            return "success"
 
     def get_remaining_for_output(self, output):
         """Calcola quanti pezzi di un determinato output devono ancora essere versati a magazzino."""

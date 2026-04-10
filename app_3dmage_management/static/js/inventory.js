@@ -200,7 +200,49 @@ function initStaticModules() {
             .then(res => res.json())
             .then(data => {
                 if (data.status === 'ok') {
-                    window.location.reload();
+                    if (data.empty_stock_name) {
+                        const reprintModalEl = document.getElementById('reprintConfirmModal');
+                        if (reprintModalEl) {
+                            document.getElementById('reprintItemName').textContent = `${data.empty_stock_name}`;
+                            const reprintModal = new bootstrap.Modal(reprintModalEl, { backdrop: 'static' }); // Prevent closing without pressing
+                            reprintModal.show();
+                            
+                            const btn = document.getElementById('confirmReprintBtn');
+                            btn.onclick = () => {
+                                btn.disabled = true;
+                                btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>In Coda...';
+                                const createData = new FormData();
+                                if (data.project_id) {
+                                    createData.append('project_id', data.project_id);
+                                }
+                                createData.append('name', data.empty_stock_name);
+                                createData.append('quantity', 1);
+                                createData.append('priority', 'MEDIUM');
+                                createData.append('status', 'TODO');
+                                
+                                fetch('/project/add/', {
+                                    method: 'POST',
+                                    body: createData,
+                                    headers: { 
+                                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                                        'Accept': 'application/json'
+                                    }
+                                }).then(() => {
+                                    window.location.reload();
+                                }).catch(() => window.location.reload());
+                            };
+                            
+                            // If they dismiss
+                            const cancelBtn = document.getElementById('cancelReprintBtn');
+                            cancelBtn.onclick = () => {
+                                window.location.reload();
+                            };
+                        } else {
+                            window.location.reload();
+                        }
+                    } else {
+                        window.location.reload();
+                    }
                 } else {
                     alert(data.message || 'Errore durante la vendita');
                 }

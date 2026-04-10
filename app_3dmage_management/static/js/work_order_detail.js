@@ -971,9 +971,16 @@ document.addEventListener('DOMContentLoaded', async function () {
                 }
             });
 
-            if (outputsScroll.length === 0) {
+            const forceCloseCheckbox = document.getElementById('forceCloseOrder');
+            const isForceClose = forceCloseCheckbox && forceCloseCheckbox.checked;
+
+            if (outputsScroll.length === 0 && !isForceClose) {
                 e.preventDefault();
-                alert("Inserisci almeno una quantità valida per completare l'ordine.");
+                if (typeof showToast === 'function') {
+                    showToast("Inserisci almeno una quantità valida per completare l'ordine.", 'error');
+                } else {
+                    alert("Inserisci almeno una quantità valida per completare l'ordine.");
+                }
                 return;
             }
 

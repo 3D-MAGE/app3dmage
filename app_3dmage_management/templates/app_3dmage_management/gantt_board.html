@@ -1,0 +1,97 @@
+{% extends "app_3dmage_management/base.html" %}
+{% load static l10n %}
+{% block title %}Gantt Ordini - 3DMAGE MANAGEMENT{% endblock %}
+
+{% block content %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/frappe-gantt/0.6.1/frappe-gantt.min.css">
+<style>
+    /* Dark theme overrides for Frappe Gantt */
+    .gantt-container {
+        background: #1e1e1e;
+        border-radius: 8px;
+    }
+    .gantt .grid-header, .gantt .grid-row { stroke: #444; }
+    .gantt .grid-row:nth-child(even) { fill: #222; }
+    .gantt .grid-row:nth-child(odd) { fill: #1a1a1a; }
+    .gantt .tick { stroke: #555; }
+    .gantt .upper-text, .gantt .lower-text { fill: #ccc; font-family: inherit; font-size: 13px; }
+    
+    .gantt .bar-wrapper .bar { fill: #0d6efd; stroke: transparent; }
+    .gantt .bar-wrapper .bar-progress { fill: #ffa500; }
+    
+    .gantt .bar-wrapper.bar-todo .bar { fill: #6c757d; }
+    .gantt .bar-wrapper.bar-printing .bar { fill: #0d6efd; }
+    .gantt .bar-wrapper.bar-urgent .bar { fill: #dc3545; }
+    
+    .gantt .bar-label { fill: #fff; font-weight: bold; font-family: inherit; font-size: 13px; }
+</style>
+
+<div class="d-flex justify-content-between align-items-center mb-4 mobile-stack">
+    <h2 class="text-white mb-0">
+        <i class="bi bi-bar-chart-steps me-2"></i>Vista Gantt Ordini
+    </h2>
+    <div class="btn-group-mobile">
+        <a href="{% url 'project_kanban_board' %}" class="btn btn-sm btn-outline-light"><i class="bi bi-kanban-fill me-1"></i>Vista Kanban</a>
+        <a href="{% url 'project_dashboard' %}" class="btn btn-sm btn-outline-light"><i class="bi bi-list-task me-1"></i>Vista Tabella</a>
+    </div>
+</div>
+
+<div class="card bg-dark-card border-secondary mt-3">
+    <div class="card-body" style="overflow-x: auto;">
+        <svg id="gantt"></svg>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/frappe-gantt/0.6.1/frappe-gantt.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        var tasksData = {{ gantt_tasks_json|safe }};
+        if (!tasksData || tasksData.length === 0) {
+            document.getElementById('gantt').outerHTML = '<p class="text-white text-center py-5">Nessun ordine attivo da mostrare.</p>';
+            return;
+        }
+        
+        var gantt = new Gantt("#gantt", tasksData, {
+            header_height: 50,
+            column_width: 30,
+            step: 24,
+            view_modes: ['Quarter Day', 'Half Day', 'Day', 'Week', 'Month'],
+            bar_height: 35,
+            bar_corner_radius: 6,
+            arrow_curve: 5,
+            padding: 18,
+            view_mode: 'Day',   
+            custom_popup_html: function(task) {
+                // The end date shown is mathematically parsed by the library instance end
+                const _end = new Date(task.end);
+                // Frappe gantt extends end date by +1 day internally for visual matching, so we subtract it for display
+                _end.setDate(_end.getDate() - 1);
+                const end_date_str = _end.toLocaleDateString('it-IT');
+                
+                return `
+                <div class="p-3 bg-dark border border-secondary rounded shadow-lg text-white" style="min-width: 200px; z-index: 9999;">
+                    <h6 class="mb-2 text-warning fw-bold">${task.name}</h6>
+                    <div class="small mb-1"><i class="bi bi-calendar-event me-1"></i>Scadenza: ${end_date_str}</div>
+                    <div class="small">
+                        <i class="bi bi-check-circle me-1"></i>Progresso: ${task.progress}%
+                        <div class="progress mt-1" style="height: 6px;">
+                            <div class="progress-bar bg-warning" style="width: ${task.progress}%"></div>
+                        </div>
+                    </div>
+                </div>`;
+            }
+        });
+        
+        // Event listeners for interactivity
+        gantt.$svg.addEventListener('click', function(e) {
+            let item = e.target.closest('.bar-wrapper');
+            if (item) {
+                let taskId = item.getAttribute('data-id');
+                if (taskId) {
+                    window.location.href = '/project/' + taskId + '/?from=kanban';
+                }
+            }
+        });
+    });
+</script>
+{% endblock %}

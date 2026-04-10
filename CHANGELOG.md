@@ -1,6 +1,22 @@
-# Changelog
-
 Tutte le modifiche notevoli a questo progetto saranno documentate in questo file.
+
+## [2.3.0] - 2026-04-10
+
+### Nuove Funzionalità (Gantt & Consegne)
+- **Vista Gantt**: Introdotta una nuova visualizzazione a calendario/timeline (Gantt) degli ordini di lavoro tramite libreria Frappe Gantt. Permette di monitorare visivamente lo stato di avanzamento e le scadenze su una barra temporale dinamica.
+- **Tracciamento Data Consegna**: Aggiunto il campo "Data Consegna" agli ordini. Le date sono ora visibili nella dashboard con badge colorati dinamicamente in base all'urgenza (Rosso: Scaduto/Oggi, Giallo: <3 giorni, Verde: >3 giorni).
+- **Editing Inline**: La data di consegna può essere modificata al volo direttamente dalla tabella o dal dettaglio ordine senza ricaricare la pagina.
+- **Ordinamento per Urgenza**: Introdotta la possibilità di ordinare la tabella ordini per data di consegna. Il sistema posiziona automaticamente gli ordini con scadenza imminente in alto, lasciando quelli senza data in fondo alla lista.
+
+### Magazzino e Workflow Intelligente (Auto-Reprint)
+- **Ristampa Automatica (Full Clone)**: Implementata la logica di prompt alla vendita dell'ultimo pezzo a magazzino. Se un oggetto va out-of-stock, il sistema propone all'utente di metterlo immediatamente in ristampa.
+- **Clonazione Master**: A differenza di un ordine generico, la ristampa automatica clona ora integralmente il **Progetto Master** sorgente, pre-configurando tutti i file di stampa (G-code) e selezionando automaticamente le bobine di filamento più adatte (privilegiando quelle parzialmente usate).
+- **UX Migliorata**: Sostituito il vecchio alert del browser con un modale Bootstrap coordinato al tema dark dell'app.
+
+### Bug Fix e Pulizia Grafica
+- **Progress Bar**: Rimossa la dicitura testuale "Progresso X/Y" ridondante sopra la barra, lasciando una visualizzazione più pulita e centrata.
+- **Dark Mode Fix**: Risolto un problema di visibilità dell'icona calendario nei selettori di data (date-picker) su sfondo scuro.
+- **Backend Stability**: Aggiornato l'endpoint di aggiunta progetto per supportare correttamente le chiamate AJAX/HTMX con ricaricamento parziale.
 
 ## [2.2.0] - 2026-01-09
 

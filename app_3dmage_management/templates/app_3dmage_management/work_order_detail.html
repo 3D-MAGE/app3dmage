@@ -77,6 +77,16 @@
     .table-custom-padding td {
         padding: 0.6rem 0.75rem !important;
     }
+
+    /* Fix per l'icona del calendario in dark mode */
+    input[type="date"]::-webkit-calendar-picker-indicator {
+        filter: invert(1);
+        opacity: 0.6;
+        cursor: pointer;
+    }
+    input[type="date"]::-webkit-calendar-picker-indicator:hover {
+        opacity: 1;
+    }
 </style>
 
 <div class="d-flex justify-content-between align-items-center mb-4 mobile-stack">
@@ -184,6 +194,15 @@
                 </div>
             </div>
             <div class="col">
+                <div class="info-label">Data Consegna</div>
+                <div class="info-value">
+                    <input type="date" class="form-control form-control-sm bg-dark text-white border-secondary form-select-inline" 
+                           style="width: auto; color-scheme: dark;"
+                           data-field="delivery_date" data-project-id="{{ project.id }}" 
+                           value="{{ project.delivery_date|date:'Y-m-d' }}">
+                </div>
+            </div>
+            <div class="col">
                 <div class="info-label">Categoria</div>
                 <div class="info-value text-truncate">{{ project.category.name|default:"N/D" }}</div>
             </div>
@@ -204,12 +223,6 @@
             <div class="col">
                 <div class="info-label">Costo Stimato</div>
                 <div class="info-value text-warning fw-bold">{{ total_project_cost|floatformat:2 }}€</div>
-            </div>
-            <div class="col">
-                <div class="info-label">Progresso</div>
-                <div class="info-value">
-                    <span id="progress-text-label">{{ project.progress }}</span>
-                </div>
             </div>
         </div>
 
@@ -382,7 +395,7 @@
                             <div class="col-5">
                                 <label class="small text-white-50 d-block">Quantità</label>
                                 <input type="number" class="form-control bg-dark text-white output-qty-input"
-                                    value="{{ project.remaining_objects }}" min="1">
+                                    value="{{ project.remaining_objects }}" min="0">
                             </div>
                         </div>
                         {% endfor %}
@@ -391,6 +404,13 @@
                     <div class="mb-3">
                         <label class="form-label">Costo Manopera Totale (€)</label>
                         {{ completion_form.labor_cost }}
+                    </div>
+
+                    <div class="mb-3 form-check mt-3 border border-secondary p-3 rounded bg-dark d-flex align-items-center">
+                        <input class="form-check-input bg-dark border-secondary m-0 me-3" type="checkbox" id="forceCloseOrder" name="force_close_order" value="true" style="transform: scale(1.3);">
+                        <label class="form-check-label text-warning small m-0 pt-0" for="forceCloseOrder">
+                            <i class="bi bi-exclamation-triangle me-1"></i> Chiudi l'ordine definitivamente anche se incompleto o fallito
+                        </label>
                     </div>
 
                     <div class="alert alert-warning py-2 small" id="completion-qty-warning" style="display: none;">

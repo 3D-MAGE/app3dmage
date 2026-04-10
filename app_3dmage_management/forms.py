@@ -5,12 +5,13 @@ import datetime
 class WorkOrderForm(forms.ModelForm):
     class Meta:
         model = WorkOrder
-        fields = ['name', 'category', 'priority', 'quantity', 'notes']
+        fields = ['name', 'category', 'priority', 'quantity', 'delivery_date', 'notes']
         widgets = {
             'name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Es. Scatola Drone Ike'}),
             'category': forms.Select(attrs={'class': 'form-select', 'placeholder': 'Scegliere una categoria'}),
             'priority': forms.Select(attrs={'class': 'form-select'}),
             'quantity': forms.NumberInput(attrs={'class': 'form-control', 'min': 1}),
+            'delivery_date': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
             'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
         }
         labels = {
@@ -19,6 +20,7 @@ class WorkOrderForm(forms.ModelForm):
             'priority': 'Priorità',
             'status': 'Status',
             'quantity': 'N° Set da produrre (Master Unit)',
+            'delivery_date': 'Data di Consegna Prevista',
             'notes': 'Annotazioni',
         }
 

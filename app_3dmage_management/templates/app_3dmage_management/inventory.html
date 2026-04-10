@@ -213,8 +213,29 @@
     </div>
 </div>
 
+<!-- Modale di Conferma Ristampa -->
+<div class="modal fade" id="reprintConfirmModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-dark-card text-white">
+            <div class="modal-header border-warning" style="background: linear-gradient(45deg, #3b3014, #1a1a1a);">
+                <h5 class="modal-title text-warning"><i class="bi bi-exclamation-triangle-fill me-2"></i>Scorta Esaurita</h5>
+            </div>
+            <div class="modal-body py-4">
+                <p class="fs-5">Hai venduto l'ultimo oggetto in magazzino per <strong class="text-warning" id="reprintItemName"></strong>.</p>
+                <p class="text-light mb-0">Vuoi inviare immediatamente un nuovo ordine in <strong>Coda di Stampa</strong> per reintegrarlo?</p>
+            </div>
+            <div class="modal-footer border-secondary bg-dark">
+                <button type="button" class="btn btn-outline-secondary px-4" data-bs-dismiss="modal" id="cancelReprintBtn">No, grazie</button>
+                <button type="button" class="btn btn-warning text-dark fw-bold px-4" id="confirmReprintBtn">
+                    <i class="bi bi-printer-fill me-2"></i>Sì, Metti in Coda
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block scripts %}
-<script src="{% static 'js/inventory.js' %}" defer></script>
+<script src="{% static 'js/inventory.js' %}?v={{ server_version }}" defer></script>
 {% endblock %}

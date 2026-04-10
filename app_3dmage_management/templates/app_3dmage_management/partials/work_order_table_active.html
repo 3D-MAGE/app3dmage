@@ -30,6 +30,7 @@
                         <tr>
                             <th><a href="?view=active&sort_active=name&order_active={% if sort_active == 'name' and order_active == 'asc' %}desc{% else %}asc{% endif %}&q={{ search_query }}&status={{ status_filter }}&category={{ category_filter }}">Nome Ordine {% if sort_active == 'name' %}<i class="bi bi-caret-{% if order_active == 'asc' %}up{% else %}down{% endif %}-fill"></i>{% endif %}</a></th>
                             <th class="text-center"><a href="?view=active&sort_active=priority&order_active={% if sort_active == 'priority' and order_active == 'asc' %}desc{% else %}asc{% endif %}&q={{ search_query }}&status={{ status_filter }}&category={{ category_filter }}">Priorità {% if sort_active == 'priority' %}<i class="bi bi-caret-{% if order_active == 'asc' %}up{% else %}down{% endif %}-fill"></i>{% endif %}</a></th>
+                            <th class="text-center"><a href="?view=active&sort_active=delivery_date&order_active={% if sort_active == 'delivery_date' and order_active == 'asc' %}desc{% else %}asc{% endif %}&q={{ search_query }}&status={{ status_filter }}&category={{ category_filter }}">Consegna {% if sort_active == 'delivery_date' %}<i class="bi bi-caret-{% if order_active == 'asc' %}up{% else %}down{% endif %}-fill"></i>{% endif %}</a></th>
                             <th class="text-center"><a href="?view=active&sort_active=status&order_active={% if sort_active == 'status' and order_active == 'asc' %}desc{% else %}asc{% endif %}&q={{ search_query }}&status={{ status_filter }}&category={{ category_filter }}">Status {% if sort_active == 'status' %}<i class="bi bi-caret-{% if order_active == 'asc' %}up{% else %}down{% endif %}-fill"></i>{% endif %}</a></th>
                             <th class="text-center">Tempo Rimanente</th>
                             <th class="text-center" style="color: var(--primary-color);"><a href="?view=active&sort_active=progress&order_active={% if sort_active == 'progress' and order_active == 'asc' %}desc{% else %}asc{% endif %}&q={{ search_query }}&status={{ status_filter }}&category={{ category_filter }}" style="color: var(--primary-color);">Progresso {% if sort_active == 'progress' %}<i class="bi bi-caret-{% if order_active == 'asc' %}up{% else %}down{% endif %}-fill"></i>{% endif %}</a></th>
@@ -49,6 +50,13 @@
                                 {% endif %}
                             </td>
                             <td class="text-center"><span class="badge bg-priority-{{ project.priority|lower }}">{{ project.get_priority_display }}</span></td>
+                            <td class="text-center">
+                                {% if project.delivery_date %}
+                                <span class="badge bg-{{ project.delivery_status_color }}">{{ project.delivery_date|date:"d/m/y" }}</span>
+                                {% else %}
+                                <span class="text-muted small">N/D</span>
+                                {% endif %}
+                            </td>
                             <td class="text-center"><span class="badge bg-status-{{ project.status|lower }}">{{ project.get_status_display }}</span></td>
                             <td class="text-center">{{ project.remaining_print_time }}</td>
                             <td style="position: relative; min-width: 120px;">

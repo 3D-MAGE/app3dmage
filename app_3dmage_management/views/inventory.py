@@ -239,7 +239,18 @@ def update_stock_item(request, item_id):
             newly_sold_item.payment_method.balance += net_revenue
             newly_sold_item.payment_method.save()
 
-    return JsonResponse({'status': 'ok', 'message': 'Oggetto venduto con successo!'})
+    has_stock = StockItem.objects.filter(
+        name=item_to_process.name, 
+        quantity__gt=0
+    ).exclude(status='SOLD').exists()
+
+    response_data = {'status': 'ok', 'message': 'Oggetto venduto con successo!'}
+    if not has_stock:
+        response_data['empty_stock_name'] = item_to_process.name
+        if item_to_process.work_order and item_to_process.work_order.project:
+            response_data['project_id'] = item_to_process.work_order.project.id
+
+    return JsonResponse(response_data)
 
 
 @require_POST

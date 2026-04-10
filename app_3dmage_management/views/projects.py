@@ -66,9 +66,35 @@ def project_detail(request, project_id):
 @require_POST
 @login_required
 def add_project(request):
+    # Se viene passato un project_id, usiamo la logica di clonazione master
+    project_id = request.POST.get('project_id')
+    if project_id:
+        project = get_object_or_404(Project, id=project_id)
+        quantity = int(request.POST.get('quantity', 1))
+        priority = request.POST.get('priority', 'MEDIUM')
+        status = request.POST.get('status', 'TODO')
+        work_order = project.create_work_order(quantity=quantity, priority=priority, status=status)
+        
+        if request.headers.get('HX-Request') or request.headers.get('Accept') == 'application/json':
+            return JsonResponse({'status': 'ok', 'id': work_order.id})
+        return redirect('project_detail', project_id=work_order.id)
+
     form = WorkOrderForm(request.POST)
     if form.is_valid():
-        form.save()
+        work_order = form.save(commit=False)
+        # If status is provided in POST (e.g. from quick reprint), use it
+        if 'status' in request.POST:
+            work_order.status = request.POST.get('status')
+        work_order.save()
+        
+        if request.headers.get('HX-Request') or request.headers.get('Accept') == 'application/json':
+            return JsonResponse({'status': 'ok', 'id': work_order.id})
+            
+        return redirect(request.META.get('HTTP_REFERER', 'project_dashboard'))
+    
+    if request.headers.get('HX-Request') or request.headers.get('Accept') == 'application/json':
+        return JsonResponse({'status': 'error', 'errors': form.errors.as_json()}, status=400)
+        
     return redirect(request.META.get('HTTP_REFERER', 'project_dashboard'))
 
 @require_POST
@@ -167,8 +193,9 @@ def complete_project(request, project_id):
         return JsonResponse({'status': 'error', 'message': 'Dati output non validi.'}, status=400)
 
     labor_cost_total = Decimal(request.POST.get('labor_cost', '0.00') or '0.00')
-    
-    if not outputs_data:
+    force_close = request.POST.get('force_close_order') == 'true'
+
+    if not outputs_data and not force_close:
         # Fallback per compatibilità col vecchio form se non c'è JSON
         stock_item_quantity = int(request.POST.get('stock_item_quantity', 0))
         if stock_item_quantity > 0:
@@ -178,7 +205,7 @@ def complete_project(request, project_id):
                 'is_default': True
             }]
 
-    if not outputs_data:
+    if not outputs_data and not force_close:
         return redirect('project_detail', project_id=work_order.id)
 
     # NUOVO: Generiamo il custom_id se non esiste
@@ -249,10 +276,14 @@ def complete_project(request, project_id):
     # Aggiorniamo la quantità prodotta dell'ordine in pezzi totali
     work_order.produced_quantity = StockItem.objects.filter(work_order=work_order).aggregate(Sum('quantity'))['quantity__sum'] or 0
     
-    # L'ordine è DONE solo se ALL pezzi (tutti gli output) sono a magazzino.
-    if work_order.produced_quantity >= total_expected_pieces:
+    # L'ordine è DONE solo se ALL pezzi (tutti gli output) sono a magazzino, oppure se forzato
+    if force_close or work_order.produced_quantity >= total_expected_pieces:
         work_order.status = WorkOrder.Status.DONE
         work_order.completed_at = timezone.now()
+        
+        if force_close and work_order.produced_quantity == 0:
+            if "STAMPA FALLITA" not in work_order.name:
+                work_order.name = f"{work_order.name} - STAMPA FALLITA"
     else:
         # Se non è ancora finito, sincronizziamo lo stato (potrebbe passare a PRINTED o restare in PRINTING/TODO)
         work_order.sync_status() 
@@ -586,8 +617,11 @@ def update_project_inline(request, project_id):
 
         work_order = get_object_or_404(WorkOrder, id=project_id)
 
-        if field not in ['status', 'priority']:
+        if field not in ['status', 'priority', 'delivery_date']:
             return JsonResponse({'status': 'error', 'message': 'Campo non valido.'}, status=400)
+
+        if field == 'delivery_date' and not value:
+            value = None
 
         setattr(work_order, field, value)
         work_order.save()

@@ -508,28 +508,49 @@ document.addEventListener('DOMContentLoaded', function () {
 
                     if (result.status === 'warning') {
                         const newReplacements = {};
-                        let confirmMsg = "Attenzione: i seguenti filamenti consigliati non hanno bobine attive:\n\n";
+                        let missingList = "";
                         let hasAlternatives = false;
 
                         result.missing.forEach(item => {
-                            confirmMsg += `• ${item.name}`;
                             if (item.alternative) {
-                                confirmMsg += ` -> Alternativa trovata: ${item.alternative}`;
+                                missingList += `<li class="mb-2"><strong>${item.name}</strong><br><span class="text-success"><i class="bi bi-arrow-return-right"></i> Alternativa: ${item.alternative}</span></li>`;
                                 hasAlternatives = true;
                             } else {
-                                confirmMsg += " (Nessuna alternativa trovata)";
+                                missingList += `<li class="mb-2"><strong>${item.name}</strong><br><span class="text-danger"><i class="bi bi-exclamation-triangle"></i> Nessuna alternativa trovata</span></li>`;
                             }
-                            confirmMsg += "\n";
                         });
 
-                        confirmMsg += "\n";
-                        if (hasAlternatives) {
-                            confirmMsg += "Vuoi usare le alternative suggerite e procedere con la creazione dell'ordine?";
-                        } else {
-                            confirmMsg += "Vuoi procedere comunque senza assegnare bobine a questi filamenti?";
-                        }
+                        let warningModalHtml = `
+                        <div class="modal fade" id="missingFilamentModal" tabindex="-1">
+                            <div class="modal-dialog modal-dialog-centered">
+                                <div class="modal-content bg-dark-card text-white border-warning">
+                                    <div class="modal-header border-secondary border-bottom-0 pb-0">
+                                        <h5 class="modal-title text-warning"><i class="bi bi-exclamation-triangle-fill me-2"></i>Filamenti Mancanti</h5>
+                                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                                    </div>
+                                    <div class="modal-body">
+                                        <p>I seguenti filamenti consigliati non hanno bobine attive al momento:</p>
+                                        <ul class="list-unstyled bg-dark p-3 rounded mb-3 border border-secondary" style="font-size: 0.9em;">
+                                            ${missingList}
+                                        </ul>
+                                        <p class="mb-0">${hasAlternatives ? "Vuoi usare le alternative suggerite e procedere con la creazione dell'ordine?" : "Vuoi procedere comunque senza assegnare bobine a questi filamenti?"}</p>
+                                    </div>
+                                    <div class="modal-footer border-secondary border-top-0 pt-0">
+                                        <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">Annulla</button>
+                                        <button type="button" class="btn btn-warning" id="confirmMissingFilamentBtn">Procedi</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>`;
 
-                        if (confirm(confirmMsg)) {
+                        const existingMod = document.getElementById('missingFilamentModal');
+                        if (existingMod) existingMod.remove();
+
+                        document.body.insertAdjacentHTML('beforeend', warningModalHtml);
+                        const warningModalEl = document.getElementById('missingFilamentModal');
+                        const warningModal = new bootstrap.Modal(warningModalEl);
+
+                        document.getElementById('confirmMissingFilamentBtn').addEventListener('click', function() {
                             if (hasAlternatives) {
                                 result.missing.forEach(item => {
                                     if (item.alternative_id) {
@@ -537,8 +558,11 @@ document.addEventListener('DOMContentLoaded', function () {
                                     }
                                 });
                             }
+                            warningModal.hide();
                             submitOrder(true, newReplacements);
-                        }
+                        });
+
+                        warningModal.show();
                     } else if (result.status === 'ok') {
                         if (result.redirect_url) {
                             window.location.href = result.redirect_url;

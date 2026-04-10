@@ -79,7 +79,7 @@ def project_dashboard(request):
         if category_filter:
             active_projects_query = active_projects_query.filter(category_id=category_filter)
 
-        valid_sort_fields_active = ['name', 'priority', 'status', 'progress', 'remaining_print_time_seconds', 'total_print_time_seconds', 'category__name']
+        valid_sort_fields_active = ['name', 'priority', 'status', 'progress', 'remaining_print_time_seconds', 'total_print_time_seconds', 'category__name', 'delivery_date']
         if sort_active not in valid_sort_fields_active:
             sort_active = 'name'
         
@@ -89,6 +89,11 @@ def project_dashboard(request):
         elif sort_active == 'progress':
             # Sort by progress percentage (done files / total files)
             sort_field = f'{order_prefix_active}progress_percentage_value'
+        elif sort_active == 'delivery_date':
+            if order_active == 'asc':
+                sort_field = F('delivery_date').asc(nulls_last=True)
+            else:
+                sort_field = F('delivery_date').desc(nulls_last=True)
             
         active_projects = active_projects_query.order_by(sort_field).distinct()
 
@@ -204,3 +209,44 @@ def project_kanban_board(request):
         kanban_columns.append({'status_id': status_id, 'status_name': status_name, 'projects': projects_in_status})
     context = {'kanban_columns': kanban_columns, 'project_form': WorkOrderForm(), 'print_file_form': PrintFileForm(), 'page_title': 'Ordini di Lavoro', 'current_view': 'kanban'}
     return render(request, 'app_3dmage_management/kanban_board.html', context)
+
+@login_required
+def project_gantt_board(request):
+    import json
+    import datetime
+    
+    active_orders = WorkOrder.objects.filter(status__in=[WorkOrder.Status.TODO, WorkOrder.Status.PRINTING]).order_by('created_at')
+    
+    gantt_tasks = []
+    for order in active_orders:
+        start_date = order.created_at.strftime('%Y-%m-%d')
+        
+        if order.delivery_date:
+            end_date = order.delivery_date.strftime('%Y-%m-%d')
+        else:
+            end_date = (order.created_at + datetime.timedelta(days=3)).strftime('%Y-%m-%d')
+            
+        progress = order.progress_percentage
+        
+        css_class = 'bar-todo'
+        if order.status == WorkOrder.Status.PRINTING:
+             css_class = 'bar-printing'
+             
+        if order.priority == WorkOrder.Priority.URGENT:
+             css_class += ' bar-urgent'
+             
+        gantt_tasks.append({
+            'id': str(order.id),
+            'name': order.name,
+            'start': start_date,
+            'end': end_date,
+            'progress': float(progress),
+            'custom_class': css_class
+        })
+        
+    context = {
+        'page_title': 'Gantt Ordini',
+        'current_view': 'gantt',
+        'gantt_tasks_json': json.dumps(gantt_tasks),
+    }
+    return render(request, 'app_3dmage_management/gantt_board.html', context)

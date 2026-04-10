@@ -8,6 +8,7 @@ urlpatterns = [
     # Progetti
     path('', views.project_dashboard, name='project_dashboard'),
     path('projects/kanban/', views.project_kanban_board, name='project_kanban_board'),
+    path('projects/gantt/', views.project_gantt_board, name='project_gantt_board'),
     path('project/add/', views.add_project, name='add_project'),
     path('project/<int:project_id>/', views.project_detail, name='project_detail'),
     path('project/<int:project_id>/edit/', views.edit_project, name='edit_project'),
