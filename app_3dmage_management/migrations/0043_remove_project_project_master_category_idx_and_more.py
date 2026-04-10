@@ -20,9 +20,14 @@ class Migration(migrations.Migration):
             name='delivery_date',
             field=models.DateField(blank=True, null=True, verbose_name='Data Consegna Prevista'),
         ),
-        migrations.AlterField(
-            model_name='project',
-            name='category',
-            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, to='app_3dmage_management.category', verbose_name='Categoria'),
+        migrations.SeparateDatabaseAndState(
+            state_operations=[
+                migrations.AlterField(
+                    model_name='project',
+                    name='category',
+                    field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, to='app_3dmage_management.category', verbose_name='Categoria'),
+                ),
+            ],
+            database_operations=[],
         ),
     ]
