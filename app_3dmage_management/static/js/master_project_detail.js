@@ -656,4 +656,338 @@ document.addEventListener('DOMContentLoaded', function () {
             });
         }
     }
+
+    // 2b. Logic for Add to Order Modal (Enhanced with Split Prints/Batches)
+    const addToOrderModal = document.getElementById('addToOrderModal');
+    if (addToOrderModal) {
+        const addToOrderForm = document.getElementById('addToOrderForm');
+        const batchContainer = document.getElementById('add-to-order-batches-container');
+        const btnAddBatch = document.getElementById('btn-add-to-order-batch');
+        const batchDataInput = document.getElementById('add_to_order_batch_data_input');
+        const addToOrderText = document.getElementById('addToOrderText');
+        const summaryContainer = document.getElementById('add-to-order-creation-summary');
+        const summaryList = document.getElementById('add-to-order-summary-list');
+
+        let projectName = '';
+        let baseQty = 1;
+        let partsInfo = []; // Array di {id, name, printers: [{id, name, tag}]}
+
+        addToOrderModal.addEventListener('show.bs.modal', function (event) {
+            const createBtn = document.querySelector('button[data-bs-target="#createOrderModal"]');
+            const projectId = createBtn ? createBtn.getAttribute('data-project-id') : '';
+            projectName = createBtn ? createBtn.getAttribute('data-project-name') : '';
+            baseQty = createBtn ? parseInt(createBtn.getAttribute('data-base-qty')) || 1 : 1;
+
+            addToOrderForm.action = `/library/${projectId}/add_to_order/`;
+            addToOrderText.innerHTML = `Stai configurando l'aggiunta di parti del progetto <strong>${projectName}</strong> ad un ordine in corso. Puoi dividere la produzione su più stampanti aggiungendo ulteriori set.`;
+
+            // 1. Esplora le parti e le stampanti disponibili nella pagina
+            partsInfo = [];
+            document.querySelectorAll('.part-section').forEach(section => {
+                const partId = section.getAttribute('data-part-id');
+                const partName = section.querySelector('h6').textContent.trim();
+                const printersInPartMap = new Map();
+
+                section.querySelectorAll('.master-file-row').forEach(row => {
+                    const id = row.getAttribute('data-printer-id');
+                    const tag = row.getAttribute('data-printer');
+                    const name = row.getAttribute('data-printer-name');
+                    if (id && id !== 'none') {
+                        printersInPartMap.set(id, { id, name: name || tag, tag: tag });
+                    }
+                });
+
+                if (printersInPartMap.size > 0) {
+                    partsInfo.push({
+                        id: partId,
+                        name: partName,
+                        printers: Array.from(printersInPartMap.values())
+                    });
+                }
+            });
+
+            // 2. Resetta e aggiungi il primo set
+            batchContainer.innerHTML = '';
+            addBatch(baseQty);
+            updateOrderSummary();
+        });
+
+        function addBatch(qty = 1) {
+            const batchIndex = batchContainer.querySelectorAll('.order-batch-item').length;
+            const batchId = Date.now() + "_" + batchIndex; // ID temporaneo univoco per i radio button
+            const batchDiv = document.createElement('div');
+            batchDiv.className = 'order-batch-item card bg-dark border-secondary mb-3 p-3';
+            batchDiv.setAttribute('data-batch-index', batchIndex);
+
+            let partsHtml = '';
+            partsInfo.forEach(part => {
+                let printerOptionsHtml = `
+                    <div class="d-flex flex-wrap gap-2">
+                        <div class="printer-box-wrapper">
+                            <input type="radio" class="btn-check" name="printer_part_${part.id}_addtoorder_${batchId}" id="add_to_order_skip_${part.id}_${batchId}" value="skip" autocomplete="off">
+                            <label class="btn btn-outline-secondary btn-xs" for="add_to_order_skip_${part.id}_${batchId}">Salta</label>
+                        </div>
+                `;
+
+                part.printers.forEach((printer, pIdx) => {
+                    const uniqueId = `add_to_order_b${batchId}_p${part.id}_pr${printer.id}`;
+                    const isChecked = pIdx === 0 ? 'checked' : '';
+                    printerOptionsHtml += `
+                        <div class="printer-box-wrapper">
+                            <input type="radio" class="btn-check" name="printer_part_${part.id}_addtoorder_${batchId}" id="${uniqueId}" value="${printer.id}" autocomplete="off" ${isChecked}>
+                            <label class="btn btn-outline-orange btn-xs" for="${uniqueId}">${printer.name}</label>
+                        </div>
+                    `;
+                });
+                printerOptionsHtml += '</div>';
+
+                partsHtml += `
+                    <div class="mb-3 part-selection-row" data-part-id="${part.id}">
+                        <label class="small text-white-50 d-block mb-1">${part.name}</label>
+                        ${printerOptionsHtml}
+                    </div>
+                `;
+            });
+
+            const showRemove = batchIndex > 0;
+            batchDiv.innerHTML = `
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h6 class="text-success mb-0"><i class="bi bi-box-seam me-2"></i>Set #${batchIndex + 1}</h6>
+                    ${showRemove ? '<button type="button" class="btn btn-link btn-sm text-danger p-0 btn-remove-batch"><i class="bi bi-trash"></i> Rimuovi</button>' : ''}
+                </div>
+                <div class="row mb-1">
+                    <div class="col-12">
+                        <span class="badge bg-dark border border-secondary text-white-50 p-2">
+                             <i class="bi bi-stack me-1"></i>Quantità: <strong>${qty} pezzi</strong>
+                        </span>
+                        <input type="hidden" class="batch-qty-input" value="${qty}">
+                    </div>
+                </div>
+                <div class="batch-parts-selection">
+                    ${partsHtml}
+                </div>
+            `;
+
+            batchContainer.appendChild(batchDiv);
+
+            // Listeners
+            if (showRemove) {
+                batchDiv.querySelector('.btn-remove-batch').addEventListener('click', () => {
+                    batchDiv.remove();
+                    reindexBatches();
+                    updateOrderSummary();
+                });
+            }
+
+            batchDiv.querySelector('.batch-qty-input').addEventListener('input', updateOrderSummary);
+            batchDiv.querySelectorAll('input[type="radio"]').forEach(rad => {
+                rad.addEventListener('change', updateOrderSummary);
+            });
+        }
+
+        function reindexBatches() {
+            batchContainer.querySelectorAll('.order-batch-item').forEach((item, idx) => {
+                item.setAttribute('data-batch-index', idx);
+                const title = item.querySelector('h6');
+                if (title) title.innerHTML = `<i class="bi bi-box-seam me-2"></i>Set #${idx + 1}`;
+            });
+        }
+
+        btnAddBatch.addEventListener('click', () => {
+            addBatch(baseQty);
+            updateOrderSummary();
+        });
+
+        function updateOrderSummary() {
+            let totalQty = 0;
+            let totalFilesCount = 0;
+            const batchSummaries = [];
+
+            const batches = batchContainer.querySelectorAll('.order-batch-item');
+            batches.forEach((batchDiv, idx) => {
+                const qty = parseInt(batchDiv.querySelector('.batch-qty-input').value) || 0;
+                totalQty += qty;
+
+                const selectedPrinters = {}; // partId -> printerId
+                batchDiv.querySelectorAll('input[type="radio"]:checked').forEach(rad => {
+                    const name = rad.name;
+                    const partId = name.split('_')[2]; // printer_part_ID_addtoorder_...
+                    selectedPrinters[partId] = rad.value;
+                });
+
+                let batchFiles = 0;
+                document.querySelectorAll('.part-section').forEach(section => {
+                    const partId = section.getAttribute('data-part-id');
+                    const selectedPrinterId = selectedPrinters[partId];
+                    if (selectedPrinterId === 'skip') return;
+
+                    section.querySelectorAll('.master-file-row').forEach(row => {
+                        const filePrinterId = row.getAttribute('data-printer-id');
+                        const producedQty = parseInt(row.getAttribute('data-produced-qty')) || 1;
+
+                        if (selectedPrinterId && filePrinterId === selectedPrinterId) {
+                            batchFiles += Math.ceil(qty / producedQty);
+                        } else if (!selectedPrinterId && filePrinterId === 'none') {
+                            batchFiles += Math.ceil(qty / producedQty);
+                        }
+                    });
+                });
+                totalFilesCount += batchFiles;
+                if (qty > 0) {
+                    batchSummaries.push(`Set #${idx + 1}: <strong>${qty} pezzi</strong> (${batchFiles} file)`);
+                }
+            });
+
+            if (totalQty > 0) {
+                summaryContainer.classList.remove('d-none');
+                summaryList.innerHTML = `
+                    <li>Progetto: <strong>${projectName}</strong></li>
+                    <li>Quantità Totale Aggiunta: <strong>${totalQty}</strong></li>
+                    ${batchSummaries.map(s => `<li>${s}</li>`).join('')}
+                    <hr class="my-2 border-secondary">
+                    <p class="mt-2 text-muted mb-0"><i class="bi bi-info-circle me-1 text-muted"></i>Verranno aggiunti <strong>${totalFilesCount}</strong> File di Stampa in totale.</p>
+                `;
+            } else {
+                summaryContainer.classList.add('d-none');
+            }
+        }
+
+        addToOrderForm.addEventListener('submit', function (e) {
+            e.preventDefault();
+
+            const selectEl = document.getElementById('addToOrderSelect');
+            if (!selectEl || !selectEl.value) {
+                alert("Seleziona un ordine di destinazione valido.");
+                return;
+            }
+
+            const batches = [];
+            batchContainer.querySelectorAll('.order-batch-item').forEach(batchDiv => {
+                const qty = parseInt(batchDiv.querySelector('.batch-qty-input').value) || 0;
+                const printerSelection = {};
+                batchDiv.querySelectorAll('input[type="radio"]:checked').forEach(rad => {
+                    const name = rad.name;
+                    const partId = name.split('_')[2]; // printer_part_ID_addtoorder_...
+                    printerSelection[partId] = rad.value;
+                });
+                if (qty > 0) {
+                    batches.push({ quantity: qty, printers: printerSelection });
+                }
+            });
+
+            if (batches.length === 0) {
+                alert("Aggiungi almeno un set con quantità valida.");
+                return;
+            }
+
+            const submitOrder = async (ignoreWarnings = false, replacements = {}) => {
+                const formData = new FormData(addToOrderForm);
+                formData.set('batch_data', JSON.stringify(batches));
+                formData.set('is_ajax', 'true');
+                if (ignoreWarnings) formData.set('ignore_warnings', 'true');
+                if (Object.keys(replacements).length > 0) {
+                    formData.set('replacements', JSON.stringify(replacements));
+                }
+
+                if (typeof showLoader === 'function') showLoader();
+                
+                try {
+                    const response = await fetch(addToOrderForm.action, {
+                        method: 'POST',
+                        body: formData,
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'X-CSRFToken': getCookie('csrftoken')
+                        }
+                    });
+
+                    if (!response.ok) {
+                        const err = await response.json();
+                        throw new Error(err.message || "Errore del server");
+                    }
+
+                    const result = await response.json();
+                    if (typeof hideLoader === 'function') hideLoader();
+
+                    if (result.status === 'warning') {
+                        const newReplacements = {};
+                        let missingList = "";
+                        let hasAlternatives = false;
+
+                        result.missing.forEach(item => {
+                            if (item.alternative) {
+                                missingList += `<li class="mb-2"><strong>${item.name}</strong><br><span class="text-success"><i class="bi bi-arrow-return-right"></i> Alternativa: ${item.alternative}</span></li>`;
+                                hasAlternatives = true;
+                            } else {
+                                missingList += `<li class="mb-2"><strong>${item.name}</strong><br><span class="text-danger"><i class="bi bi-exclamation-triangle"></i> Nessuna alternativa trovata</span></li>`;
+                            }
+                        });
+
+                        let warningModalHtml = `
+                        <div class="modal fade" id="addToOrderMissingFilamentModal" tabindex="-1">
+                            <div class="modal-dialog modal-dialog-centered">
+                                <div class="modal-content bg-dark-card text-white border-warning">
+                                    <div class="modal-header border-secondary border-bottom-0 pb-0">
+                                        <h5 class="modal-title text-warning"><i class="bi bi-exclamation-triangle-fill me-2"></i>Filamenti Mancanti</h5>
+                                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                                    </div>
+                                    <div class="modal-body">
+                                        <p>I seguenti filamenti consigliati non hanno bobine attive al momento:</p>
+                                        <ul class="list-unstyled bg-dark p-3 rounded mb-3 border border-secondary" style="font-size: 0.9em;">
+                                            ${missingList}
+                                        </ul>
+                                        <p class="mb-0">${hasAlternatives ? "Vuoi usare le alternative suggerite e procedere con l'aggiunta?" : "Vuoi procedere comunque senza assegnare bobine a questi filamenti?"}</p>
+                                    </div>
+                                    <div class="modal-footer border-secondary border-top-0 pt-0">
+                                        <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">Annulla</button>
+                                        <button type="button" class="btn btn-warning" id="confirmAddToOrderMissingFilamentBtn">Procedi</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>`;
+
+                        const existingMod = document.getElementById('addToOrderMissingFilamentModal');
+                        if (existingMod) existingMod.remove();
+
+                        document.body.insertAdjacentHTML('beforeend', warningModalHtml);
+                        const warningModalEl = document.getElementById('addToOrderMissingFilamentModal');
+                        const warningModal = new bootstrap.Modal(warningModalEl);
+
+                        document.getElementById('confirmAddToOrderMissingFilamentBtn').addEventListener('click', function() {
+                            if (hasAlternatives) {
+                                result.missing.forEach(item => {
+                                    if (item.alternative_id) {
+                                        newReplacements[item.id] = item.alternative_id;
+                                    }
+                                });
+                            }
+                            warningModal.hide();
+                            submitOrder(true, newReplacements);
+                        });
+
+                        warningModal.show();
+                    } else if (result.status === 'ok') {
+                        if (result.redirect_url) {
+                            window.location.href = result.redirect_url;
+                        } else {
+                            if (typeof showToast === 'function') showToast(result.message || "Parti aggiunte!");
+                            const bootstrapModal = bootstrap.Modal.getInstance(addToOrderModal);
+                            if (bootstrapModal) bootstrapModal.hide();
+                            setTimeout(() => window.location.reload(), 1000);
+                        }
+                    } else {
+                        if (typeof showToast === 'function') showToast(result.message || "Errore sconosciuto", 'danger');
+                        else alert(result.message || "Errore durante l'aggiunta");
+                    }
+                } catch (error) {
+                    if (typeof hideLoader === 'function') hideLoader();
+                    console.error("Errore aggiunta ordine:", error);
+                    if (typeof showToast === 'function') showToast(error.message || "Errore di connessione", 'danger');
+                    else alert("Errore durante l'invio della richiesta.");
+                }
+            };
+
+            submitOrder();
+        });
+    }
 });

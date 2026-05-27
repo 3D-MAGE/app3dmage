@@ -44,7 +44,7 @@
                     <tr>
                         <th><a href="?sort=material&order={% if sort_by == 'material' and order == 'asc' %}desc{% else %}asc{% endif %}">Filamento</a></th>
                         <th><a href="?sort=color_name&order={% if sort_by == 'color_name' and order == 'asc' %}desc{% else %}asc{% endif %}">Nome Colore</a></th>
-                        <th style="width: 40%;"><a href="?sort=annotated_remaining_weight&order={% if sort_by == 'annotated_remaining_weight' and order == 'asc' %}desc{% else %}asc{% endif %}">Grammi Rimanenti (Attivi)</a></th>
+                        <th style="width: 40%;"><a href="?sort=annotated_remaining_weight&order={% if sort_by == 'annotated_remaining_weight' and order == 'asc' %}desc{% else %}asc{% endif %}">Grammi (Fisici / Virtuali)</a></th>
                         {# NUOVA FUNZIONALITÀ: Aggiunta colonna Bobine con ordinamento #}
                         <th class="text-center"><a href="?sort=annotated_active_spool_count&order={% if sort_by == 'annotated_active_spool_count' and order == 'asc' %}desc{% else %}asc{% endif %}">Bobine</a></th>
                         <th class="text-end"><a href="?sort=annotated_total_used_weight&order={% if sort_by == 'annotated_total_used_weight' and order == 'asc' %}desc{% else %}asc{% endif %}">Usato (da Attivi)</a></th>
@@ -62,7 +62,9 @@
                             <td style="position: relative; min-width: 200px;">
                                 <div class="progress" style="height: 25px; background-color: #444;" title="{% if total_weight > 0 %}{{ remaining_percentage|floatformat:1 }}{% else %}0{% endif %}%">
                                     <div class="progress-bar" role="progressbar" style="width: {% if total_weight > 0 %}{{ remaining_percentage }}{% else %}0{% endif %}%; background-color: {{ filament.color_hex }};"></div>
-                                    <strong class="justify-content-center align-items-center d-flex position-absolute w-100 h-100 top-0 start-0 text-white" style="text-shadow: 1px 1px 2px black;">{{ filament.annotated_remaining_weight|floatformat:2 }}g</strong>
+                                    <strong class="justify-content-center align-items-center d-flex position-absolute w-100 h-100 top-0 start-0 text-white" style="text-shadow: 1px 1px 2px black;">
+                                        {{ filament.annotated_remaining_weight|floatformat:1 }}g fisici &nbsp;(&nbsp;{{ filament.annotated_available_weight|floatformat:1 }}g virtuali&nbsp;)
+                                    </strong>
                                 </div>
                             </td>
                             {# NUOVA FUNZIONALITÀ: Visualizzazione del conteggio delle bobine attive #}
@@ -255,5 +257,5 @@
     data-api-filaments-url="{% url 'api_get_all_filaments' %}"
 ></script>
 
-<script src="{% static 'js/filaments.js' %}"></script>
+<script src="{% static 'js/filaments.js' %}?v={% now 'U' %}"></script>
 {% endblock %}

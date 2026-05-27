@@ -93,8 +93,11 @@
                 <div class="modal-footer border-secondary">
                     <button type="button" class="btn btn-danger me-auto" id="delete-print-file-btn"
                         style="display: none;">Elimina</button>
-                    <button type="button" class="btn btn-outline-info" id="clone-print-file-btn"
-                        style="display: none;">Clona File</button>
+                    <div class="input-group me-2" id="clone-print-file-wrapper" style="display: none; width: auto; max-width: 180px;">
+                        <button type="button" class="btn btn-outline-info" id="clone-print-file-btn">Clona</button>
+                        <input type="number" class="form-control text-center bg-dark text-white border-info" 
+                               id="clone-print-file-count" value="1" min="1" step="1" style="width: 60px;">
+                    </div>
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button>
                     <button type="submit" class="btn btn-primary-custom">Salva</button>
                 </div>

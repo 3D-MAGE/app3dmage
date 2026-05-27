@@ -90,13 +90,15 @@ def add_manual_income(request):
 
 @require_POST
 @login_required
+@transaction.atomic
 def add_expense(request):
     form = ExpenseForm(request.POST)
     if form.is_valid():
         expense = form.save(commit=False)
         if expense.payment_method and expense.amount:
-            expense.payment_method.balance -= expense.amount
-            expense.payment_method.save()
+            payment_method = PaymentMethod.objects.select_for_update().get(id=expense.payment_method.id)
+            payment_method.balance -= expense.amount
+            payment_method.save()
         expense.save()
     return redirect('accounting_dashboard')
 
@@ -141,6 +143,7 @@ def get_expense_details(request, expense_id):
 
 @require_POST
 @login_required
+@transaction.atomic
 def edit_expense(request, expense_id):
     expense = get_object_or_404(Expense, id=expense_id)
     old_amount = expense.amount
@@ -149,24 +152,29 @@ def edit_expense(request, expense_id):
     form = ExpenseForm(request.POST, instance=expense)
     if form.is_valid():
         if old_payment_method and old_amount:
-            old_payment_method.balance += old_amount
-            old_payment_method.save()
+            old_pm = PaymentMethod.objects.select_for_update().get(id=old_payment_method.id)
+            old_pm.balance += old_amount
+            old_pm.save()
 
         updated_expense = form.save()
 
         if updated_expense.payment_method and updated_expense.amount:
-            updated_expense.payment_method.balance -= updated_expense.amount
-            updated_expense.payment_method.save()
+            new_pm = PaymentMethod.objects.select_for_update().get(id=updated_expense.payment_method.id)
+            new_pm.balance -= updated_expense.amount
+            new_pm.save()
 
         return JsonResponse({'status': 'ok'})
     return JsonResponse({'status': 'error', 'errors': form.errors.as_json()}, status=400)
 
+
 @require_POST
 @login_required
+@transaction.atomic
 def delete_expense(request, expense_id):
     expense = get_object_or_404(Expense, id=expense_id)
     if expense.payment_method and expense.amount:
-        expense.payment_method.balance += expense.amount
-        expense.payment_method.save()
+        pm = PaymentMethod.objects.select_for_update().get(id=expense.payment_method.id)
+        pm.balance += expense.amount
+        pm.save()
     expense.delete()
     return JsonResponse({'status': 'ok'})

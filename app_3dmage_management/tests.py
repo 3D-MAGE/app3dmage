@@ -44,3 +44,53 @@ class WorkOrderModelTests(TestCase):
 
         # 3. Verifica
         self.assertEqual(progress, 100)
+
+
+from .models import PaymentMethod, Expense, ExpenseCategory
+from django.utils import timezone
+from django.urls import reverse
+
+class ExpenseAccountingTests(TestCase):
+    def setUp(self):
+        from django.contrib.auth.models import User
+        self.user = User.objects.create_user(username='testuser', password='password')
+        self.client.force_login(self.user)
+        self.category = ExpenseCategory.objects.create(name="Materiali")
+        self.payment_method = PaymentMethod.objects.create(name="Cassa", balance=100.00)
+
+
+    def test_add_expense_deducts_balance(self):
+        response = self.client.post(reverse('add_expense'), {
+            'description': 'Spesa 1',
+            'amount': '20.00',
+            'category': self.category.id,
+            'payment_method': self.payment_method.id,
+            'expense_date': timezone.now().date().strftime('%Y-%m-%d'),
+        })
+        self.payment_method.refresh_from_db()
+        self.assertEqual(float(self.payment_method.balance), 80.00)
+
+
+
+    def test_edit_expense_adjusts_balance(self):
+        expense = Expense.objects.create(
+            description='Spesa 1',
+            amount=20.00,
+            category=self.category,
+            payment_method=self.payment_method,
+            expense_date=timezone.now().date()
+        )
+        self.payment_method.balance = 80.00
+        self.payment_method.save()
+
+        response = self.client.post(reverse('edit_expense', args=[expense.id]), {
+            'description': 'Spesa 1 Modificata',
+            'amount': '30.00',
+            'category': self.category.id,
+            'payment_method': self.payment_method.id,
+            'expense_date': timezone.now().date().strftime('%Y-%m-%d'),
+        })
+        
+        self.payment_method.refresh_from_db()
+        self.assertEqual(float(self.payment_method.balance), 70.00)
+

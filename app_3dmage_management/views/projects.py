@@ -834,6 +834,10 @@ def project_master_detail(request, pk):
             'display_name': "File non assegnati"
         })
 
+    active_work_orders = WorkOrder.objects.filter(
+        status__in=[WorkOrder.Status.QUOTE, WorkOrder.Status.TODO, WorkOrder.Status.PRINTING, WorkOrder.Status.PRINTED]
+    ).order_by('name', '-created_at')
+
     context = {
         'project': project,
         'category_name': project.category.name if project.category else "Senza Categoria",
@@ -846,6 +850,7 @@ def project_master_detail(request, pk):
             {'id': f.id, 'name': f"{f.material}-{f.color_code}-{f.brand}", 'color_hex': f.color_hex or '#555'}
             for f in Filament.objects.all().order_by('material', 'color_code')
         ],
+        'active_work_orders': active_work_orders,
     }
     return render(request, 'app_3dmage_management/master_project_detail.html', context)
 
@@ -1363,3 +1368,182 @@ def manage_project_outputs(request, pk):
             ProjectOutput.objects.create(project=project, name=o_name, quantity=qty)
             
     return redirect('project_master_detail', pk=project.id)
+
+
+@require_POST
+@login_required
+@transaction.atomic
+def add_parts_to_order(request, pk):
+    master_project = get_object_or_404(Project.objects.prefetch_related('master_print_files__filament_usages'), pk=pk)
+    work_order_id = request.POST.get('work_order_id')
+    work_order = get_object_or_404(WorkOrder, id=work_order_id)
+
+    # --- CONTROLLO FILAMENTI ATTIVI ---
+    ignore_warnings = request.POST.get('ignore_warnings') == 'true'
+    is_ajax = request.headers.get('x-requested-with') == 'XMLHttpRequest' or request.POST.get('is_ajax') == 'true'
+
+    if not ignore_warnings:
+        missing_filaments = []
+        for mpf in master_project.master_print_files.all():
+            for usage in mpf.filament_usages.all():
+                if not usage.filament.has_active_spools():
+                    alt = usage.filament.find_alternative()
+                    missing_filaments.append({
+                        'id': usage.filament.id,
+                        'name': str(usage.filament),
+                        'alternative': str(alt) if alt else None,
+                        'alternative_id': alt.id if alt else None
+                    })
+        
+        if missing_filaments:
+            unique_missing = {f['id']: f for f in missing_filaments}.values()
+            if is_ajax:
+                return JsonResponse({
+                    'status': 'warning',
+                    'message': 'Alcuni filamenti consigliati non hanno bobine attive.',
+                    'missing': list(unique_missing)
+                })
+
+    import json
+    batch_data_str = request.POST.get('batch_data')
+    
+    if batch_data_str:
+        try:
+            batches = json.loads(batch_data_str)
+        except json.JSONDecodeError:
+            batches = []
+    else:
+        try:
+            requested_quantity = int(request.POST.get('quantity', 1))
+        except (ValueError, TypeError):
+            requested_quantity = 1
+        
+        single_printers = {}
+        for key, value in request.POST.items():
+            if key.startswith('printer_for_part_'):
+                part_id = key.split('_')[-1]
+                single_printers[part_id] = value
+        
+        batches = [{'quantity': requested_quantity, 'printers': single_printers}]
+
+    if not batches:
+        if is_ajax:
+            return JsonResponse({'status': 'error', 'message': 'Nessun lotto specificato.'}, status=400)
+        return redirect('project_master_detail', pk=pk)
+
+    total_added_quantity = sum(b.get('quantity', 0) for b in batches)
+
+    # 1. Incrementa la quantità dell'ordine
+    work_order.quantity += total_added_quantity
+    work_order.save()
+
+    replacements = {}
+    if request.POST.get('replacements'):
+        try:
+            replacements = json.loads(request.POST.get('replacements'))
+        except (json.JSONDecodeError, TypeError):
+            replacements = {}
+
+    # 2. Crea i PrintFile per ogni lotto
+    import math
+    import re
+    for batch_idx, batch in enumerate(batches):
+        batch_qty = batch.get('quantity', 0)
+        if batch_qty <= 0:
+            continue
+            
+        part_printer_map = batch.get('printers', {})
+        
+        for mpf in master_project.master_print_files.all():
+            file_parts = list(mpf.project_parts.all())
+            if not file_parts:
+                file_parts = [None]
+                
+            for part in file_parts:
+                part_id_str = str(part.id) if part else 'None'
+                selected_printer_id = part_printer_map.get(part_id_str)
+                
+                if selected_printer_id == 'skip':
+                    continue
+                
+                if selected_printer_id:
+                    if mpf.printer and str(mpf.printer_id) != str(selected_printer_id):
+                        continue
+                elif mpf.printer:
+                    continue
+
+                file_multiplier = math.ceil(batch_qty / mpf.produced_quantity) if mpf.produced_quantity > 0 else 1
+
+                # Trova max_num per non sovrascrivere o collidere coi nomi
+                base_name = mpf.name
+                existing_files = PrintFile.objects.filter(
+                    work_order=work_order,
+                    name__startswith=base_name
+                )
+                max_num = 0
+                for f in existing_files:
+                    match = re.search(r'\((\d+)\)$', f.name)
+                    if match:
+                        num = int(match.group(1))
+                        if num > max_num:
+                            max_num = num
+                
+                start_num = max_num + 1
+
+                for i in range(file_multiplier):
+                    batch_suffix = f" (Set {batch_idx + 1})" if len(batches) > 1 else ""
+                    multiplier_suffix = f" ({start_num + i})"
+                    pf_name = f"{mpf.name}{batch_suffix} {multiplier_suffix}"
+                    
+                    actual_printer_id = selected_printer_id if selected_printer_id and selected_printer_id != 'skip' else mpf.printer_id
+                    
+                    pf = PrintFile.objects.create(
+                        work_order=work_order,
+                        master_print_file=mpf,
+                        project_part=part,
+                        name=pf_name,
+                        print_time_seconds=mpf.estimated_time_seconds,
+                        printer_id=actual_printer_id,
+                        plate=mpf.plate,
+                        produced_quantity=mpf.produced_quantity,
+                        status=PrintFile.Status.TODO
+                    )
+                    
+                    for master_usage in mpf.filament_usages.all():
+                        target_filament = master_usage.filament
+                        if str(target_filament.id) in replacements:
+                            try:
+                                target_filament = Filament.objects.get(id=replacements[str(target_filament.id)])
+                            except Filament.DoesNotExist:
+                                pass
+
+                        spools = Spool.objects.filter(filament=target_filament, is_active=True)
+                        suitable_spools = sorted(
+                            [s for s in spools if s.available_weight >= master_usage.grams_used],
+                            key=lambda x: x.available_weight
+                        )
+                        
+                        spool = None
+                        if suitable_spools:
+                            spool = suitable_spools[0]
+                        else:
+                            spool = sorted(list(spools), key=lambda x: x.available_weight, reverse=True)[0] if spools.exists() else None
+                        
+                        if spool:
+                            FilamentUsage.objects.create(
+                                print_file=pf,
+                                spool=spool,
+                                grams_used=master_usage.grams_used
+                            )
+
+    work_order.sync_status()
+    
+    if is_ajax:
+        return JsonResponse({
+            'status': 'ok',
+            'message': f"Parti aggiunte con successo all'ordine '{work_order.name}'.",
+            'redirect_url': reverse('project_detail', args=[work_order.id])
+        })
+
+    messages.success(request, f"Parti di '{master_project.name}' aggiunte con successo all'ordine '{work_order.name}'.")
+    return redirect('project_detail', project_id=work_order.id)

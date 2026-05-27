@@ -57,6 +57,11 @@
             data-base-qty="{{ project.outputs.all|sum_quantities }}">
             <i class="bi bi-rocket-takeoff-fill me-1"></i> Crea Ordine di Lavoro
         </button>
+        {% if active_work_orders %}
+        <button class="btn btn-outline-success" data-bs-toggle="modal" data-bs-target="#addToOrderModal">
+            <i class="bi bi-plus-circle-fill me-1"></i> Aggiungi ad Ordine in Corso
+        </button>
+        {% endif %}
         <button class="btn btn-primary-custom" data-bs-toggle="modal" data-bs-target="#editMasterModal">
             <i class="bi bi-pencil-fill me-2"></i>Modifica
         </button>
@@ -541,6 +546,59 @@
                 <div class="modal-footer border-secondary">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button>
                     <button type="submit" class="btn btn-primary-custom">Salva Note</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Aggiungi ad Ordine Esistente -->
+<div class="modal fade" id="addToOrderModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content bg-dark-card text-white border-success">
+            <div class="modal-header border-success">
+                <h5 class="modal-title"><i class="bi bi-plus-circle-fill me-2 text-success"></i>Configura Aggiunta ad Ordine in Corso</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="addToOrderForm" method="post">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <!-- Dropdown Ordine di destinazione -->
+                    <div class="mb-4 card bg-dark p-3 border-secondary">
+                        <label class="form-label small text-light fw-bold">Seleziona Ordine in Corso di destinazione</label>
+                        <select name="work_order_id" id="addToOrderSelect" class="form-select bg-dark text-white border-secondary" required>
+                            <option value="">Seleziona un ordine...</option>
+                            {% for wo in active_work_orders %}
+                            <option value="{{ wo.id }}" {% if wo.name == project.name %}selected{% endif %}>
+                                {{ wo.name }} (#{{ wo.custom_id|default:wo.id }})
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text text-muted small mt-1">L'ordine con lo stesso nome del progetto è preselezionato se esistente.</div>
+                    </div>
+
+                    <p id="addToOrderText" class="text-white-50 mb-4"></p>
+
+                    <div id="add-to-order-batches-container">
+                        <!-- Popolato via JS -->
+                    </div>
+
+                    <div class="text-center mb-4">
+                        <button type="button" class="btn btn-outline-primary btn-sm" id="btn-add-to-order-batch">
+                            <i class="bi bi-plus-circle me-1"></i> Dividi Stampe (Aggiungi Set)
+                        </button>
+                    </div>
+
+                    <div id="add-to-order-creation-summary" class="alert alert-info bg-dark-card border-info d-none">
+                        <h6 class="alert-heading small text-muted fw-bold">Riepilogo Totale Aggiunta:</h6>
+                        <ul class="mb-0 small" id="add-to-order-summary-list"></ul>
+                    </div>
+
+                    <input type="hidden" name="batch_data" id="add_to_order_batch_data_input">
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button>
+                    <button type="submit" class="btn btn-success" id="btn-submit-add-to-order">Conferma e Aggiungi</button>
                 </div>
             </form>
         </div>

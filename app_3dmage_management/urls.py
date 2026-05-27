@@ -28,6 +28,7 @@ urlpatterns = [
     path('library/<int:pk>/edit/', views.edit_master_project, name='edit_master_project'),
     path('library/<int:pk>/delete/', views.delete_master_project, name='delete_master_project'),
     path('library/<int:pk>/create_order/', views.create_from_template, name='create_from_template'),
+    path('library/<int:pk>/add_to_order/', views.add_parts_to_order, name='add_parts_to_order'),
     path('library/<int:pk>/add_file/', views.add_master_print_file, name='add_master_print_file'),
     path('library/<int:pk>/outputs/manage/', views.manage_project_outputs, name='manage_project_outputs'),
     path('library/<int:pk>/notes/edit/', views.edit_master_notes, name='edit_master_notes'),

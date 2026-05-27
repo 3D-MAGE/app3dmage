@@ -5,7 +5,7 @@ from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
-from django.db.models import Sum, Count, F, OuterRef, Subquery, IntegerField, DecimalField, ExpressionWrapper
+from django.db.models import Sum, Count, F, OuterRef, Subquery, IntegerField, DecimalField, ExpressionWrapper, Case, When
 from django.db.models.functions import Coalesce
 from django.forms.models import model_to_dict
 
@@ -41,13 +41,27 @@ def filament_dashboard(request):
         filament=OuterRef('pk'), is_active=True
     ).values('filament').annotate(s=Sum('weight_adjustment')).values('s')
 
+    active_pending_weight_subquery = FilamentUsage.objects.filter(
+        spool__filament=OuterRef('pk'), spool__is_active=True, print_file__status__in=['TODO', 'PRINTING']
+    ).values('spool__filament').annotate(s=Sum('grams_used')).values('s')
+
     active_filaments_query = active_filaments_query.annotate(
         annotated_total_initial_weight=Coalesce(Subquery(active_initial_weight_subquery, output_field=DecimalField()), Decimal('0.00')),
         annotated_total_used_weight=Coalesce(Subquery(active_used_weight_subquery, output_field=DecimalField()), Decimal('0.00')),
-        annotated_total_adjustment=Coalesce(Subquery(active_adjustment_subquery, output_field=DecimalField()), Decimal('0.00'))
+        annotated_total_adjustment=Coalesce(Subquery(active_adjustment_subquery, output_field=DecimalField()), Decimal('0.00')),
+        annotated_total_pending_weight=Coalesce(Subquery(active_pending_weight_subquery, output_field=DecimalField()), Decimal('0.00'))
     ).annotate(
         annotated_remaining_weight=ExpressionWrapper(
             F('annotated_total_initial_weight') + F('annotated_total_adjustment') - F('annotated_total_used_weight'),
+            output_field=DecimalField()
+        )
+    ).annotate(
+        annotated_available_weight=Case(
+            When(
+                annotated_remaining_weight__gt=F('annotated_total_pending_weight'),
+                then=F('annotated_remaining_weight') - F('annotated_total_pending_weight')
+            ),
+            default=Decimal('0.00'),
             output_field=DecimalField()
         )
     )
@@ -255,12 +269,13 @@ def api_get_filament_spools(request, filament_id):
 
     for spool in spools:
         # Usiamo le nuove proprietà del modello
-        remaining = spool.available_weight
+        remaining = spool.remaining_weight
 
         spool_data = {
             'id': spool.id,
             'text': str(spool),
-            'remaining': remaining,
+            'remaining': float(spool.remaining_weight),
+            'available': float(spool.available_weight),
             'cost': f"{spool.cost}€",
             'purchase_link': spool.purchase_link,
             'is_active': spool.is_active
@@ -272,9 +287,16 @@ def api_get_filament_spools(request, filament_id):
              inactive_spools_data.append(spool_data)
 
 
+    filament = get_object_or_404(Filament, id=filament_id)
+    active_spools = Spool.objects.filter(filament=filament, is_active=True)
+    total_physical = sum(s.remaining_weight for s in active_spools)
+    total_pending = sum(s.pending_weight for s in active_spools)
+    filament_available = max(Decimal('0.00'), total_physical - total_pending)
+
     return JsonResponse({
         'active_spools': active_spools_data,
-        'inactive_spools': inactive_spools_data
+        'inactive_spools': inactive_spools_data,
+        'filament_available': float(filament_available)
     })
 
 @require_POST

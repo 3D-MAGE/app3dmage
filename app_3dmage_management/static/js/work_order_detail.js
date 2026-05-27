@@ -182,20 +182,22 @@ document.addEventListener('DOMContentLoaded', async function () {
 
     const createFilamentRow = () => {
         const row = document.createElement('div');
-        row.className = 'row align-items-center filament-row mb-2';
+        row.className = 'filament-row mb-3';
         row.innerHTML = `
-            <div class="col-md-5">
-                <select class="form-select tom-select-filament" placeholder="Seleziona Filamento..."></select>
+            <div class="row align-items-center">
+                <div class="col-md-5">
+                    <select class="form-select tom-select-filament" placeholder="Seleziona Filamento..."></select>
+                </div>
+                <div class="col-md-4">
+                    <select class="form-select spool-select" disabled>
+                        <option value="">Scegli un filamento</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <input type="number" class="form-control grams-input" placeholder="grammi" min="0.01" step="0.01">
+                </div>
             </div>
-            <div class="col-md-4">
-                <select class="form-select spool-select" disabled>
-                    <option value="">Scegli un filamento</option>
-                </select>
-            </div>
-            <div class="col-md-3">
-                <input type="number" class="form-control grams-input" placeholder="grammi" min="0.01" step="0.01">
-                <div class="form-text text-warning warning-message small" style="display: none;">Scorta insufficiente!</div>
-            </div>`;
+            <div class="form-text warning-message small mt-1 ps-1" style="display: none;"></div>`;
         return row;
     };
 
@@ -258,7 +260,32 @@ document.addEventListener('DOMContentLoaded', async function () {
     };
 
     const setActiveStatus = (statusValue) => { const sHidden = printFileModalEl.querySelector('#id_status_hidden'); const sContainer = printFileModalEl.querySelector('#status-btn-container'); if (sHidden && sContainer) { sHidden.value = statusValue; sContainer.querySelectorAll('.status-btn').forEach(b => { b.classList.remove('active'); if (b.dataset.status === statusValue) b.classList.add('active'); }); } };
-    const checkWeightAndWarn = (gramsInput) => { const r = gramsInput.closest('.row'); if (!r) return; const s = r.querySelector('.spool-select'); const w = r.querySelector('.warning-message'); const opt = s.options[s.selectedIndex]; if (!opt || !opt.value || !opt.dataset.remaining) { w.style.display = 'none'; return; } const g = parseFloat(gramsInput.value) || 0; const a = parseFloat(opt.dataset.remaining); w.style.display = g > a ? 'block' : 'none'; };
+    const checkWeightAndWarn = (gramsInput) => {
+        const r = gramsInput.closest('.filament-row');
+        if (!r) return;
+        const s = r.querySelector('.spool-select');
+        const w = r.querySelector('.warning-message');
+        const opt = s.options[s.selectedIndex];
+        if (!opt || !opt.value || !opt.dataset.remaining || !s.dataset.filamentAvailable) {
+            w.style.display = 'none';
+            return;
+        }
+        const g = parseFloat(gramsInput.value) || 0;
+        const remaining = parseFloat(opt.dataset.remaining);
+        const filamentAvailable = parseFloat(s.dataset.filamentAvailable);
+
+        if (g > remaining) {
+            w.textContent = `Filamento insufficiente in questa bobina! (Rimasti solo ${remaining.toFixed(0)}g fisici)`;
+            w.className = "form-text text-danger warning-message small mt-1 ps-1";
+            w.style.display = 'block';
+        } else if (g > filamentAvailable) {
+            w.textContent = `Scorta virtuale insufficiente per questo filamento! (Disponibili in totale ${filamentAvailable.toFixed(0)}g virt. al netto della coda)`;
+            w.className = "form-text text-warning warning-message small mt-1 ps-1";
+            w.style.display = 'block';
+        } else {
+            w.style.display = 'none';
+        }
+    };
     const toggleWastedGrams = (status) => {
         const wastedWrapper = printFileModalEl.querySelector('#wasted-grams-wrapper');
         if (status === 'FAILED') {
@@ -289,7 +316,10 @@ document.addEventListener('DOMContentLoaded', async function () {
         form.action = URLS.addFile;
         printFileModalEl.querySelector('#status-field-wrapper').style.display = 'none';
         printFileModalEl.querySelector('#delete-print-file-btn').style.display = 'none';
-        printFileModalEl.querySelector('#clone-print-file-btn').style.display = 'none';
+        const cloneWrapper = printFileModalEl.querySelector('#clone-print-file-wrapper');
+        if (cloneWrapper) cloneWrapper.style.display = 'none';
+        const cloneCountInput = printFileModalEl.querySelector('#clone-print-file-count');
+        if (cloneCountInput) cloneCountInput.value = 1;
 
         const wastedWrapper = printFileModalEl.querySelector('#wasted-grams-wrapper');
         if (wastedWrapper) wastedWrapper.style.display = 'none';
@@ -345,9 +375,15 @@ document.addEventListener('DOMContentLoaded', async function () {
         const deleteBtn = printFileModalEl.querySelector('#delete-print-file-btn');
         deleteBtn.style.display = 'block';
         deleteBtn.dataset.fileId = fileId;
+        const cloneWrapper = printFileModalEl.querySelector('#clone-print-file-wrapper');
+        if (cloneWrapper) {
+            cloneWrapper.style.display = 'flex';
+        } else {
+            const cloneBtn = printFileModalEl.querySelector('#clone-print-file-btn');
+            if (cloneBtn) cloneBtn.style.display = 'block';
+        }
         const cloneBtn = printFileModalEl.querySelector('#clone-print-file-btn');
-        cloneBtn.style.display = 'block';
-        cloneBtn.dataset.fileId = fileId;
+        if (cloneBtn) cloneBtn.dataset.fileId = fileId;
         const response = await fetch(`${URLS.fileBase}${fileId}/details/`);
         const data = await response.json();
         form.querySelector('input[name="name"]').value = data.name;
@@ -397,8 +433,14 @@ document.addEventListener('DOMContentLoaded', async function () {
             const spools = spoolsData.active_spools || [];
             spoolSelect.innerHTML = '<option value="">Seleziona Bobina...</option>';
             if (spools.length > 0) {
+                spoolSelect.dataset.filamentAvailable = spoolsData.filament_available;
                 spools.forEach(spool => {
-                    spoolSelect.innerHTML += `<option value="${spool.id}" data-remaining="${spool.remaining}">${spool.text}</option>`;
+                    const parts = spool.text.split(' - ');
+                    if (parts.length >= 3) {
+                        parts[parts.length - 1] = `${parseFloat(spool.remaining).toFixed(0)}g rim.`;
+                    }
+                    const spoolDisplayText = parts.join(' - ');
+                    spoolSelect.innerHTML += `<option value="${spool.id}" data-remaining="${spool.remaining}" data-available="${spool.available}">${spoolDisplayText}</option>`;
                 });
                 spoolSelect.disabled = false;
                 spoolSelect.value = usage.spool_id;
@@ -657,10 +699,13 @@ document.addEventListener('DOMContentLoaded', async function () {
         printFileModal.hide();
 
         try {
+            const countInput = document.getElementById('clone-print-file-count');
+            const count = countInput ? parseInt(countInput.value, 10) || 1 : 1;
+
             const response = await fetch(URLS.cloneFile, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
-                body: JSON.stringify({ file_id: fileId, count: 1 })
+                body: JSON.stringify({ file_id: fileId, count: count })
             });
             const data = await response.json();
             showToast(data.message || 'Errore', data.status === 'ok' ? 'success' : 'error');
@@ -703,8 +748,14 @@ document.addEventListener('DOMContentLoaded', async function () {
                         spoolSelect.innerHTML = '<option value="">Seleziona Bobina...</option>';
                         const spools = data.active_spools || [];
                         if (spools.length > 0) {
+                            spoolSelect.dataset.filamentAvailable = data.filament_available;
                             spools.forEach(spool => {
-                                spoolSelect.innerHTML += `<option value="${spool.id}" data-remaining="${spool.remaining}">${spool.text}</option>`;
+                                const parts = spool.text.split(' - ');
+                                if (parts.length >= 3) {
+                                    parts[parts.length - 1] = `${parseFloat(spool.remaining).toFixed(0)}g rim.`;
+                                }
+                                const spoolDisplayText = parts.join(' - ');
+                                spoolSelect.innerHTML += `<option value="${spool.id}" data-remaining="${spool.remaining}" data-available="${spool.available}">${spoolDisplayText}</option>`;
                             });
                             spoolSelect.disabled = false;
                             spoolSelect.value = spools[0].id;
