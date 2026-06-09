@@ -229,7 +229,7 @@ class SpoolForm(forms.ModelForm):
         widget=forms.Select(attrs={'class': 'form-select'})
     )
     purchase_date = forms.DateField(
-        widget=forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
+        widget=forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}, format='%Y-%m-%d'),
         label="Data Acquisto",
         initial=datetime.date.today
         )

@@ -1,0 +1,323 @@
+{% extends "app_3dmage_management/base.html" %}
+{% load static %}
+{% block title %}Statistiche - 3DMAGE MANAGEMENT{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="text-white"><i class="bi bi-bar-chart-fill me-2 text-primary-custom"></i>Statistiche di Stampa</h2>
+</div>
+
+<!-- Filtri -->
+<div class="card bg-dark-card-lighter mb-4">
+    <div class="card-body py-3">
+        <form method="get" class="row g-3 align-items-center">
+            <div class="col-auto">
+                <label for="year-filter" class="form-label mb-0 text-white-50">Anno:</label>
+            </div>
+            <div class="col-auto">
+                <select name="year" id="year-filter" class="form-select form-select-sm" style="min-width: 120px;">
+                    <option value="">Tutti gli anni</option>
+                    {% for year in available_years %}
+                    <option value="{{ year }}" {% if selected_year == year %}selected{% endif %}>{{ year }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="col-auto">
+                <label for="printer-filter" class="form-label mb-0 text-white-50">Stampante:</label>
+            </div>
+            <div class="col-auto">
+                <select name="printer" id="printer-filter" class="form-select form-select-sm" style="min-width: 180px;">
+                    <option value="">Tutte le stampanti</option>
+                    {% for p in printers %}
+                    <option value="{{ p.id }}" {% if selected_printer == p.id %}selected{% endif %}>{{ p.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="col-auto">
+                <button type="submit" class="btn btn-sm btn-primary-custom"><i class="bi bi-filter me-1"></i>Filtra</button>
+                <a href="{% url 'statistics_dashboard' %}" class="btn btn-sm btn-outline-secondary ms-1">Reset</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- KPI Cards -->
+<div class="row g-3 mb-4">
+    <div class="col-md-3 col-sm-6">
+        <div class="card bg-dark-card p-3 h-100 text-center">
+            <div class="text-white-50 text-uppercase small mb-2"><i class="bi bi-printer-fill me-1 text-primary-custom"></i>Stampe Totali</div>
+            <h3 class="text-white fw-bold mb-0">{{ total_prints }}</h3>
+            <div class="text-muted small mt-1">{{ active_prints }} in corso o in coda</div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6">
+        <div class="card bg-dark-card p-3 h-100 text-center">
+            <div class="text-white-50 text-uppercase small mb-2"><i class="bi bi-check-circle-fill me-1 text-success"></i>Tasso Successo</div>
+            <h3 class="text-success fw-bold mb-0">{{ success_rate }}%</h3>
+            <div class="text-muted small mt-1">{{ successful_prints }} OK / {{ failed_prints }} fallite</div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6">
+        <div class="card bg-dark-card p-3 h-100 text-center">
+            <div class="text-white-50 text-uppercase small mb-2"><i class="bi bi-clock-fill me-1 text-info"></i>Tempo Stampa</div>
+            <h3 class="text-info fw-bold mb-0">{{ total_time_formatted }}</h3>
+            <div class="text-muted small mt-1">Solo per stampe completate</div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6">
+        <div class="card bg-dark-card p-3 h-100 text-center">
+            <div class="text-white-50 text-uppercase small mb-2"><i class="bi bi-recycle me-1 text-warning"></i>Filamento Usato</div>
+            <h3 class="text-warning fw-bold mb-0">{{ total_kg }} Kg</h3>
+            <div class="text-muted small mt-1">Pari a ca. {{ total_prints }} stampe</div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-4 col-sm-12">
+        <div class="card bg-dark-card p-3 h-100 text-center">
+            <div class="text-white-50 text-uppercase small mb-2"><i class="bi bi-currency-euro me-1 text-success"></i>Costo Totale Stimato</div>
+            <h3 class="text-success fw-bold mb-0">{{ total_cost }}€</h3>
+            <div class="text-muted small mt-1">Materiale + Energia + Usura</div>
+        </div>
+    </div>
+    <div class="col-md-8 col-sm-12">
+        <div class="card bg-dark-card p-3 h-100">
+            <div class="text-white-50 text-uppercase small mb-3 text-center">Dettaglio Costi Stimati</div>
+            <div class="row text-center">
+                <div class="col-4 border-end border-secondary">
+                    <h6 class="text-white-50 small">Materiali</h6>
+                    <p class="fs-5 fw-bold text-white mb-0">{{ total_material_cost }}€</p>
+                </div>
+                <div class="col-4 border-end border-secondary">
+                    <h6 class="text-white-50 small">Energia Elettrica</h6>
+                    <p class="fs-5 fw-bold text-white mb-0">{{ total_electricity_cost }}€</p>
+                </div>
+                <div class="col-4">
+                    <h6 class="text-white-50 small">Usura Stampanti</h6>
+                    <p class="fs-5 fw-bold text-white mb-0">{{ total_wear_tear_cost }}€</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Charts Grid -->
+<div class="row g-4">
+    <!-- Chart 1: Status Distribution -->
+    <div class="col-lg-4 col-md-6 col-sm-12">
+        <div class="card bg-dark-card h-100">
+            <div class="card-header bg-transparent border-0 text-white-50 pt-3 pb-0">
+                <h6 class="card-title mb-0"><i class="bi bi-pie-chart me-1"></i>Stato delle Stampe</h6>
+            </div>
+            <div class="card-body d-flex align-items-center justify-content-center" style="position: relative; min-height: 250px;">
+                <canvas id="statusChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chart 2: Material Distribution -->
+    <div class="col-lg-4 col-md-6 col-sm-12">
+        <div class="card bg-dark-card h-100">
+            <div class="card-header bg-transparent border-0 text-white-50 pt-3 pb-0">
+                <h6 class="card-title mb-0"><i class="bi bi-box-seam me-1"></i>Consumo Filamenti (Kg)</h6>
+            </div>
+            <div class="card-body d-flex align-items-center justify-content-center" style="position: relative; min-height: 250px;">
+                <canvas id="materialChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chart 3: Prints per Printer -->
+    <div class="col-lg-4 col-md-12 col-sm-12">
+        <div class="card bg-dark-card h-100">
+            <div class="card-header bg-transparent border-0 text-white-50 pt-3 pb-0">
+                <h6 class="card-title mb-0"><i class="bi bi-printer me-1"></i>Stampe per Stampante</h6>
+            </div>
+            <div class="card-body d-flex align-items-center justify-content-center" style="position: relative; min-height: 250px;">
+                <canvas id="printerChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chart 4: Monthly Trend -->
+    <div class="col-12">
+        <div class="card bg-dark-card">
+            <div class="card-header bg-transparent border-0 text-white-50 pt-3 pb-0">
+                <h6 class="card-title mb-0"><i class="bi bi-graph-up me-1"></i>Andamento Mensile Stampe e Costi</h6>
+            </div>
+            <div class="card-body" style="position: relative; min-height: 300px;">
+                <canvas id="monthlyChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const isLightTheme = document.documentElement.classList.contains('light-theme');
+        const textColor = isLightTheme ? '#333333' : '#e0e0e0';
+        const gridColor = isLightTheme ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)';
+
+        // Set defaults
+        Chart.defaults.color = textColor;
+        Chart.defaults.borderColor = gridColor;
+
+        // 1. Status Chart (Doughnut)
+        const ctxStatus = document.getElementById('statusChart').getContext('2d');
+        new Chart(ctxStatus, {
+            type: 'doughnut',
+            data: {
+                labels: ['Successo', 'Fallito', 'In coda/stampa'],
+                datasets: [{
+                    data: {{ chart_status_data|safe }},
+                    backgroundColor: [
+                        '#198754', // Green
+                        '#dc3545', // Red
+                        '#fd7e14'  // Orange
+                    ],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: { boxWidth: 12, padding: 15 }
+                    }
+                }
+            }
+        });
+
+        // 2. Material Chart (Pie)
+        const ctxMaterial = document.getElementById('materialChart').getContext('2d');
+        new Chart(ctxMaterial, {
+            type: 'pie',
+            data: {
+                labels: {{ chart_material_labels|safe }},
+                datasets: [{
+                    data: {{ chart_material_values|safe }},
+                    backgroundColor: [
+                        '#fd7e14', // PLA - Orange
+                        '#0d6efd', // PETG - Blue
+                        '#6f42c1', // ABS - Purple
+                        '#20c997', // TPU - Teal
+                        '#adb5bd'  // ASA - Gray
+                    ],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: { boxWidth: 12, padding: 15 }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return ` ${context.label}: ${context.raw} Kg`;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        // 3. Printer Chart (Bar)
+        const ctxPrinter = document.getElementById('printerChart').getContext('2d');
+        new Chart(ctxPrinter, {
+            type: 'bar',
+            data: {
+                labels: {{ chart_printer_labels|safe }},
+                datasets: [{
+                    label: 'Numero di Stampe',
+                    data: {{ chart_printer_values|safe }},
+                    backgroundColor: 'rgba(253, 126, 20, 0.75)',
+                    borderColor: '#fd7e14',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: { precision: 0 }
+                    }
+                },
+                plugins: {
+                    legend: { display: false }
+                }
+            }
+        });
+
+        // 4. Monthly Trend Chart (Combined Line & Bar)
+        const ctxMonthly = document.getElementById('monthlyChart').getContext('2d');
+        new Chart(ctxMonthly, {
+            type: 'bar',
+            data: {
+                labels: {{ chart_monthly_labels|safe }},
+                datasets: [
+                    {
+                        type: 'bar',
+                        label: 'Stampe Effettuate',
+                        data: {{ chart_monthly_print_counts|safe }},
+                        backgroundColor: 'rgba(13, 110, 253, 0.6)',
+                        borderColor: '#0d6efd',
+                        borderWidth: 1,
+                        yAxisID: 'y'
+                    },
+                    {
+                        type: 'line',
+                        label: 'Spesa Stimata (€)',
+                        data: {{ chart_monthly_costs|safe }},
+                        borderColor: '#198754',
+                        backgroundColor: 'rgba(25, 135, 84, 0.1)',
+                        borderWidth: 2,
+                        tension: 0.3,
+                        fill: true,
+                        yAxisID: 'y1'
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        type: 'linear',
+                        display: true,
+                        position: 'left',
+                        title: { display: true, text: 'N° Stampe' },
+                        ticks: { precision: 0 }
+                    },
+                    y1: {
+                        type: 'linear',
+                        display: true,
+                        position: 'right',
+                        title: { display: true, text: 'Costo (€)' },
+                        grid: { drawOnChartArea: false } // Only keep grid from left axis
+                    }
+                },
+                plugins: {
+                    legend: {
+                        position: 'top',
+                        labels: { padding: 15 }
+                    }
+                }
+            }
+        });
+    });
+</script>
+{% endblock %}

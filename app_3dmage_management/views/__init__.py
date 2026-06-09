@@ -9,3 +9,4 @@ from .settings import *
 from .quotes import *
 from .notifications import *
 from .sync import *
+from .statistics import *

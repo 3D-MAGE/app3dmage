@@ -111,6 +111,7 @@ urlpatterns = [
 
     # Impostazioni
     path('settings/', views.settings_dashboard, name='settings_dashboard'),
+    path('settings/statistics/', views.statistics_dashboard, name='statistics_dashboard'),
     path('settings/printer/add/', views.add_printer, name='add_printer'),
     path('settings/printer/<int:pk>/details/', views.get_printer_details, name='get_printer_details'),
     path('settings/printer/<int:pk>/edit/', views.edit_printer, name='edit_printer'),
