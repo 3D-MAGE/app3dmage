@@ -416,7 +416,9 @@ def clone_print_file(request):
                 status=PrintFile.Status.TODO,
                 produced_quantity=original_file.produced_quantity,
                 actual_quantity=0,
-                queue_position=0
+                queue_position=0,
+                project_part=original_file.project_part,
+                master_print_file=original_file.master_print_file
             )
             for usage in original_file.filament_usages.all():
                 FilamentUsage.objects.create(
@@ -508,7 +510,10 @@ def requeue_print_file(request, file_id):
             plate=original_file.plate,
             print_time_seconds=original_file.print_time_seconds,
             status=PrintFile.Status.TODO,
-            queue_position=0
+            queue_position=0,
+            produced_quantity=original_file.produced_quantity,
+            project_part=original_file.project_part,
+            master_print_file=original_file.master_print_file
         )
 
         if planned_filaments:
@@ -596,7 +601,10 @@ def reprint_project(request, project_id):
             printer=old_file.printer,
             plate=old_file.plate,
             print_time_seconds=old_file.print_time_seconds,
-            status=PrintFile.Status.TODO
+            status=PrintFile.Status.TODO,
+            produced_quantity=old_file.produced_quantity,
+            project_part=old_file.project_part,
+            master_print_file=old_file.master_print_file
         )
         for usage in old_file.filament_usages.all():
             FilamentUsage.objects.create(

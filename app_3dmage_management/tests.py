@@ -1,7 +1,7 @@
 # in app_3dmage_management/tests.py
 
 from django.test import TestCase
-from .models import WorkOrder, PrintFile
+from .models import WorkOrder, PrintFile, Project, ProjectPart
 
 class WorkOrderModelTests(TestCase):
 
@@ -93,4 +93,36 @@ class ExpenseAccountingTests(TestCase):
         
         self.payment_method.refresh_from_db()
         self.assertEqual(float(self.payment_method.balance), 70.00)
+
+
+class PrintFileCloningTests(TestCase):
+    def setUp(self):
+        from django.contrib.auth.models import User
+        self.user = User.objects.create_user(username='testuser', password='password')
+        self.client.force_login(self.user)
+        self.project = Project.objects.create(name="Progetto Master Test")
+        self.part = ProjectPart.objects.create(project=self.project, name="Parte Superiore", order=1)
+        self.work_order = WorkOrder.objects.create(name="Ordine Test", project=self.project)
+        self.print_file = PrintFile.objects.create(
+            work_order=self.work_order,
+            name="file_originale.gcode",
+            project_part=self.part,
+            produced_quantity=3
+        )
+
+    def test_clone_print_file_retains_part_and_quantity(self):
+        import json
+        response = self.client.post(
+            reverse('clone_print_file'),
+            data=json.dumps({'file_id': self.print_file.id, 'count': 1}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 200)
+        
+        # Verify that the cloned print file has the correct project_part and produced_quantity
+        cloned_file = PrintFile.objects.filter(name__contains="file_originale").exclude(id=self.print_file.id).first()
+        self.assertIsNotNone(cloned_file)
+        self.assertEqual(cloned_file.project_part, self.part)
+        self.assertEqual(cloned_file.produced_quantity, 3)
+
 
