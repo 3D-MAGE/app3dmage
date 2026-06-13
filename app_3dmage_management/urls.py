@@ -81,6 +81,21 @@ urlpatterns = [
     path('ajax/stock_item/<int:item_id>/update/', views.update_stock_item, name='update_stock_item'),
     path('ajax/stock_item/<int:item_id>/delete/', views.delete_stock_item, name='delete_stock_item'),
 
+    # Magazzino Materie Prime
+    path('inventory/raw-materials/', views.raw_materials_dashboard, name='raw_materials_dashboard'),
+    path('raw-material/add/', views.add_raw_material, name='add_raw_material'),
+    path('raw-material/<int:material_id>/edit/', views.edit_raw_material, name='edit_raw_material'),
+    path('raw-material/<int:material_id>/delete/', views.delete_raw_material, name='delete_raw_material'),
+    path('raw-material/<int:material_id>/details/', views.get_raw_material_details, name='get_raw_material_details'),
+    path('raw-material-purchase/add/', views.add_raw_material_purchase, name='add_raw_material_purchase'),
+    path('raw-material-purchase/<int:purchase_id>/delete/', views.delete_raw_material_purchase, name='delete_raw_material_purchase'),
+
+    # Associazioni Materie Prime a Progetti e Ordini
+    path('project/<int:project_id>/raw-material/add/', views.add_project_raw_material, name='add_project_raw_material'),
+    path('project/raw-material/<int:association_id>/delete/', views.delete_project_raw_material, name='delete_project_raw_material'),
+    path('work-order/<int:work_order_id>/raw-material/add/', views.add_work_order_raw_material, name='add_work_order_raw_material'),
+    path('work-order/raw-material/<int:association_id>/delete/', views.delete_work_order_raw_material, name='delete_work_order_raw_material'),
+
     # EXPORT CSV
     path('export/stock-sales-csv/', views.export_stock_sales_csv, name='export_stock_sales_csv'),
 

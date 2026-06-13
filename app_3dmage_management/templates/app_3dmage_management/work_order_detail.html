@@ -114,6 +114,9 @@
             <i class="bi bi-printer-fill me-1"></i> Ristampa
         </button>
         {% else %}
+        <button class="btn btn-outline-warning" data-bs-toggle="modal" data-bs-target="#addOrderRawMaterialModal">
+            <i class="bi bi-tools me-2"></i>+ Materia Prima
+        </button>
         <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#completeProjectModal">
             <i class="bi bi-check-circle-fill me-2"></i>Completa
         </button>
@@ -126,6 +129,25 @@
         {% endif %}
     </div>
 </div>
+
+<!-- Avvisi Materie Prime Sotto Scorta -->
+{% for worm in order_raw_materials %}
+    {% if worm.is_insufficient %}
+    <div class="alert alert-danger d-flex align-items-center mb-3" role="alert">
+        <i class="bi bi-exclamation-triangle-fill me-2 fs-5"></i>
+        <div>
+            <strong>Attenzione! Materia prima insufficiente:</strong> Per completare questo ordine occorre <strong>{{ worm.raw_material.name }}</strong>, ma mancano <strong>{{ worm.shortage_quantity }}</strong> pezzi rispetto al magazzino. <a href="{% url 'raw_materials_dashboard' %}" class="alert-link text-decoration-underline">Registra un acquisto</a>.
+        </div>
+    </div>
+    {% elif worm.raw_material.available_quantity == 0 %}
+    <div class="alert alert-warning d-flex align-items-center mb-3" role="alert">
+        <i class="bi bi-info-circle-fill me-2 fs-5 text-dark"></i>
+        <div class="text-dark">
+            <strong>Attenzione! Materia prima esaurita:</strong> La materia prima <strong>{{ worm.raw_material.name }}</strong> è esaurita in magazzino o completamente prenotata da altri ordini attivi. <a href="{% url 'raw_materials_dashboard' %}" class="alert-link text-decoration-underline">Registra un acquisto</a>.
+        </div>
+    </div>
+    {% endif %}
+{% endfor %}
 
 <!-- Hidden action form for Reprint -->
 <form id="reprintOrderForm" action="{% url 'reprint_project' project.id %}" method="post" style="display: none;">
@@ -263,6 +285,59 @@
         </div>
     </div>
 </div>
+
+{% if order_raw_materials %}
+<!-- Sezione Materie Prime Utilizzate nell'Ordine -->
+<div class="card bg-dark-card text-white mb-4 card-info-compact border-secondary">
+    <div class="card-header py-2 d-flex justify-content-between align-items-center border-secondary">
+        <h6 class="mb-0 text-white"><i class="bi bi-tools me-2 text-warning"></i>Materie Prime Utilizzate nell'Ordine</h6>
+        <button class="btn btn-sm btn-outline-warning" data-bs-toggle="modal" data-bs-target="#addOrderRawMaterialModal">
+            <i class="bi bi-plus-circle me-1"></i>Inserisci Materia Prima
+        </button>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-dark table-hover align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>Nome Materia Prima</th>
+                        <th class="text-center" style="width: 20%;">Quantità Richiesta</th>
+                        <th class="text-center" style="width: 20%;">Quantità Disponibile in Magazzino</th>
+                        <th class="text-center" style="width: 20%;">Costo Medio Unitario</th>
+                        <th class="text-center" style="width: 20%;">Costo Totale Stimato</th>
+                        <th class="text-end" style="width: 10%;">Azione</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for worm in order_raw_materials %}
+                    <tr>
+                        <td class="fw-bold">{{ worm.raw_material.name }}</td>
+                        <td class="text-center">{{ worm.quantity }}</td>
+                        <td class="text-center">
+                            {% if worm.is_insufficient %}
+                            <span class="badge bg-danger">Insufficienti (Fisici: {{ worm.raw_material.remaining_quantity|default:0 }})</span>
+                            {% else %}
+                            <span class="badge bg-success">Disponibili (Fisici: {{ worm.raw_material.remaining_quantity|default:0 }})</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">{{ worm.raw_material.average_unit_cost }} €</td>
+                        <td class="text-center text-warning fw-bold">
+                            {{ worm.raw_material.average_unit_cost|multiply_decimal:worm.quantity }} €
+                        </td>
+                        <td class="text-end">
+                            <form action="{% url 'delete_work_order_raw_material' worm.id %}" method="post" class="d-inline" onsubmit="return confirm('Rimuovere questa materia prima dall\'ordine?');">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
 
 <!-- Tabella File di Stampa Associati -->
 <div class="card bg-dark-card text-white mb-4 card-info-compact">
@@ -669,6 +744,35 @@
                 <div class="modal-footer border-secondary">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button>
                     <button type="submit" class="btn btn-primary-custom">Salva Note</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Aggiungi Materia Prima Ordine -->
+<div class="modal fade" id="addOrderRawMaterialModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-dark-card text-white border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title"><i class="bi bi-tools me-2 text-warning"></i>Aggiungi Materia Prima</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form action="{% url 'add_work_order_raw_material' project.id %}" method="post">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="id_raw_material_wo" class="form-label">Seleziona Materia Prima</label>
+                        {{ add_order_raw_material_form.raw_material }}
+                    </div>
+                    <div class="mb-3">
+                        <label for="id_quantity_wo" class="form-label">Quantità Richiesta</label>
+                        {{ add_order_raw_material_form.quantity }}
+                    </div>
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button>
+                    <button type="submit" class="btn btn-primary-custom">Aggiungi</button>
                 </div>
             </form>
         </div>

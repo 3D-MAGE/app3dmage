@@ -10,3 +10,4 @@ from .quotes import *
 from .notifications import *
 from .sync import *
 from .statistics import *
+from .raw_materials import *

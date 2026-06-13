@@ -53,6 +53,17 @@ def multiply(value, arg):
         return int(value) * int(arg)
     except (ValueError, TypeError):
         return 0
+
+@register.filter
+def multiply_decimal(value, arg):
+    """
+    Multiplies the value by the argument, returning a Decimal.
+    """
+    from decimal import Decimal
+    try:
+        return (Decimal(str(value)) * Decimal(str(arg))).quantize(Decimal('0.01'))
+    except (ValueError, TypeError, Exception):
+        return Decimal('0.00')
 @register.filter
 def remaining_for_output(work_order, output):
     """

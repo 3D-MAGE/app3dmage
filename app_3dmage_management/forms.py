@@ -1,5 +1,9 @@
 from django import forms
-from .models import WorkOrder, PrintFile, Project, MasterPrintFile, Category, Printer, Plate, Filament, Spool, StockItem, Expense, PaymentMethod, ExpenseCategory, MaintenanceLog, GlobalSetting, ProjectPart
+from .models import (
+    WorkOrder, PrintFile, Project, MasterPrintFile, Category, Printer, Plate, Filament, Spool, 
+    StockItem, Expense, PaymentMethod, ExpenseCategory, MaintenanceLog, GlobalSetting, ProjectPart,
+    RawMaterial, RawMaterialPurchase, ProjectRawMaterial, WorkOrderRawMaterial
+)
 import datetime
 
 class WorkOrderForm(forms.ModelForm):
@@ -441,4 +445,58 @@ class MasterPrintFileForm(forms.ModelForm):
             'printer': 'Stampante',
             'plate': 'Piatto',
             'project_parts': 'Parti Progetto',
+        }
+
+
+class RawMaterialForm(forms.ModelForm):
+    class Meta:
+        model = RawMaterial
+        fields = ['name', 'notes']
+        widgets = {
+            'name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Es. Calamita 10x2, Vite M3'}),
+            'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 3, 'placeholder': 'Note aggiuntive'}),
+        }
+
+
+class RawMaterialPurchaseForm(forms.ModelForm):
+    payment_method = forms.ModelChoiceField(
+        queryset=PaymentMethod.objects.all(),
+        label="Pagato con",
+        required=True,
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+    purchase_date = forms.DateField(
+        widget=forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}, format='%Y-%m-%d'),
+        label="Data Acquisto",
+        initial=datetime.date.today
+    )
+
+    class Meta:
+        model = RawMaterialPurchase
+        fields = ['raw_material', 'quantity', 'cost', 'purchase_date', 'purchase_link', 'payment_method']
+        widgets = {
+            'raw_material': forms.Select(attrs={'class': 'form-select'}),
+            'quantity': forms.NumberInput(attrs={'class': 'form-control'}),
+            'cost': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
+            'purchase_link': forms.URLInput(attrs={'class': 'form-control', 'placeholder': 'https://...'}),
+        }
+
+
+class ProjectRawMaterialForm(forms.ModelForm):
+    class Meta:
+        model = ProjectRawMaterial
+        fields = ['raw_material', 'quantity']
+        widgets = {
+            'raw_material': forms.Select(attrs={'class': 'form-select'}),
+            'quantity': forms.NumberInput(attrs={'class': 'form-control', 'min': 1}),
+        }
+
+
+class WorkOrderRawMaterialForm(forms.ModelForm):
+    class Meta:
+        model = WorkOrderRawMaterial
+        fields = ['raw_material', 'quantity']
+        widgets = {
+            'raw_material': forms.Select(attrs={'class': 'form-select'}),
+            'quantity': forms.NumberInput(attrs={'class': 'form-control', 'min': 1}),
         }

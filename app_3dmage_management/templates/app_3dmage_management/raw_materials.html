@@ -1,0 +1,368 @@
+{% extends "app_3dmage_management/base.html" %}
+{% load static %}
+{% block title %}Magazzino Materie Prime - 3DMAGE MANAGEMENT{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 mobile-stack">
+    <h2 class="text-white mb-0"><i class="bi bi-tools me-2 text-warning"></i>Magazzino Materie Prime</h2>
+    <div class="btn-group-mobile">
+        <a href="{% url 'inventory_dashboard' %}" class="btn btn-sm btn-outline-secondary me-2">
+            <i class="bi bi-box-seam me-1"></i>Magazzino Oggetti
+        </a>
+        <button class="btn btn-sm btn-outline-warning me-2" data-bs-toggle="modal" data-bs-target="#addPurchaseModal">
+            <i class="bi bi-cart-plus me-1"></i>Registra Acquisto
+        </button>
+        <button class="btn btn-sm btn-primary-custom" data-bs-toggle="modal" data-bs-target="#addMaterialModal">
+            <i class="bi bi-plus-circle me-1"></i>Nuovo Materiale
+        </button>
+    </div>
+</div>
+
+<div class="card bg-dark-card mb-4">
+    <div class="card-body">
+        <form method="get" action="{% url 'raw_materials_dashboard' %}" class="row g-3 align-items-end">
+            <div class="col-md-9">
+                <label for="q" class="form-label">Cerca Materia Prima</label>
+                <input type="text" class="form-control form-control-sm" name="q" id="q" value="{{ search_query }}" placeholder="Es. calamite, bulloni...">
+            </div>
+            <div class="col-md-1 d-grid">
+                <button type="submit" class="btn btn-sm btn-primary-custom">Filtra</button>
+            </div>
+            <div class="col-md-2 d-grid">
+                <a href="{% url 'raw_materials_dashboard' %}" class="btn btn-sm btn-outline-secondary">Azzera</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- MATERIE PRIME DISPONIBILI -->
+<div class="card bg-dark-card mb-4">
+    <div class="card-body">
+        <h5 class="card-title text-white mb-3"><i class="bi bi-check-circle-fill text-success me-2"></i>Materie Prime in Stock</h5>
+        <div class="table-responsive">
+            <table class="table table-dark table-hover align-middle">
+                <thead>
+                    <tr>
+                        <th>Nome</th>
+                        <th class="text-center">Giacenza Fisica (Acquistati)</th>
+                        <th class="text-center">Impegnati in Ordini</th>
+                        <th class="text-center">Disponibili</th>
+                        <th class="text-end">Costo Unitario Medio</th>
+                        <th>Note</th>
+                        <th class="text-end" style="width: 100px;">Azioni</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for mat in active_materials %}
+                    <tr id="material-row-{{ mat.id }}">
+                        <td class="fw-bold">{{ mat.name }}</td>
+                        <td class="text-center">{{ mat.remaining_quantity }} <small class="text-muted">({{ mat.total_purchased }})</small></td>
+                        <td class="text-center text-info">{{ mat.total_pending }}</td>
+                        <td class="text-center fw-bold {% if mat.available_quantity <= 3 %}text-warning{% else %}text-success{% endif %}">
+                            {{ mat.available_quantity }}
+                        </td>
+                        <td class="text-end">{{ mat.average_unit_cost }} €</td>
+                        <td class="text-muted text-truncate" style="max-width: 250px;">{{ mat.notes|default:"-" }}</td>
+                        <td class="text-end">
+                            <button class="btn btn-sm btn-outline-light me-1 edit-material-btn" data-id="{{ mat.id }}"><i class="bi bi-pencil"></i></button>
+                            <button class="btn btn-sm btn-outline-danger delete-material-btn" data-id="{{ mat.id }}" data-name="{{ mat.name }}"><i class="bi bi-trash"></i></button>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="7" class="text-center py-4 text-muted">Nessuna materia prima in stock. Registra un acquisto per aggiungere giacenza!</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- MATERIE PRIME ESAURITE O DA RIORDINARE -->
+<div class="card bg-dark-card mb-4">
+    <div class="card-body">
+        <h5 class="card-title text-white mb-3"><i class="bi bi-exclamation-triangle-fill text-danger me-2"></i>Esaurite o Da Riordinare</h5>
+        <div class="table-responsive">
+            <table class="table table-dark table-hover align-middle">
+                <thead>
+                    <tr>
+                        <th>Nome</th>
+                        <th class="text-center">Giacenza Fisica</th>
+                        <th class="text-center">Impegnati in Ordini</th>
+                        <th class="text-center">Disponibili</th>
+                        <th class="text-end">Costo Unitario Medio</th>
+                        <th>Note</th>
+                        <th class="text-end" style="width: 100px;">Azioni</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for mat in exhausted_materials %}
+                    <tr id="material-row-{{ mat.id }}" class="table-danger-custom">
+                        <td class="fw-bold text-danger">{{ mat.name }}</td>
+                        <td class="text-center text-muted">{{ mat.remaining_quantity }}</td>
+                        <td class="text-center text-info">{{ mat.total_pending }}</td>
+                        <td class="text-center text-danger fw-bold">0 (Esaurito)</td>
+                        <td class="text-end">{{ mat.average_unit_cost }} €</td>
+                        <td class="text-muted text-truncate" style="max-width: 250px;">{{ mat.notes|default:"-" }}</td>
+                        <td class="text-end">
+                            <button class="btn btn-sm btn-outline-light me-1 edit-material-btn" data-id="{{ mat.id }}"><i class="bi bi-pencil"></i></button>
+                            <button class="btn btn-sm btn-outline-danger delete-material-btn" data-id="{{ mat.id }}" data-name="{{ mat.name }}"><i class="bi bi-trash"></i></button>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="7" class="text-center py-4 text-muted text-success">Ottimo! Nessuna materia prima esaurita o sottoscorta.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- ACQUISTI RECENTI -->
+<div class="card bg-dark-card">
+    <div class="card-body">
+        <h5 class="card-title text-white mb-3"><i class="bi bi-receipt me-2 text-warning"></i>Registro Acquisti Recenti</h5>
+        <div class="table-responsive">
+            <table class="table table-dark table-hover align-middle">
+                <thead>
+                    <tr>
+                        <th>Data</th>
+                        <th>Materia Prima</th>
+                        <th class="text-center">Quantità</th>
+                        <th class="text-end">Costo Totale</th>
+                        <th class="text-end">Costo Unitario</th>
+                        <th>Pagato con</th>
+                        <th>Link</th>
+                        <th class="text-end" style="width: 80px;">Azione</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for purchase in recent_purchases %}
+                    <tr id="purchase-row-{{ purchase.id }}">
+                        <td>{{ purchase.purchase_date|date:"d/m/Y" }}</td>
+                        <td class="fw-bold">{{ purchase.raw_material.name }}</td>
+                        <td class="text-center">{{ purchase.quantity }}</td>
+                        <td class="text-end">{{ purchase.cost }} €</td>
+                        <td class="text-end text-muted">{% widthratio purchase.cost purchase.quantity 1 as unit_cost %}{{ purchase.cost|default:0 }} / {{ purchase.quantity }} €</td>
+                        <td>{{ purchase.payment_method.name|default:"N/D" }}</td>
+                        <td>
+                            {% if purchase.purchase_link %}
+                            <a href="{{ purchase.purchase_link }}" target="_blank" class="btn btn-sm btn-outline-info"><i class="bi bi-link-45deg"></i></a>
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
+                        <td class="text-end">
+                            <button class="btn btn-sm btn-outline-danger delete-purchase-btn" data-id="{{ purchase.id }}" data-desc="Acquisto {{ purchase.quantity }}x {{ purchase.raw_material.name }}"><i class="bi bi-trash"></i></button>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="8" class="text-center py-4 text-muted">Nessun acquisto registrato di recente.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- MODALE NUOVO MATERIALE -->
+<div class="modal fade" id="addMaterialModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-dark-card text-white">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title">Nuovo Tipo Materia Prima</h5>
+            </div>
+            <form id="addMaterialForm" action="{% url 'add_raw_material' %}" method="post">
+                {% csrf_token %}
+                <div class="modal-body">
+                    {{ raw_material_form.as_p }}
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button>
+                    <button type="submit" class="btn btn-primary-custom">Crea</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- MODALE MODIFICA MATERIALE -->
+<div class="modal fade" id="editMaterialModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-dark-card text-white">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title">Modifica Materia Prima</h5>
+            </div>
+            <form id="editMaterialForm" method="post">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="edit_name" class="form-label">Nome Materia Prima</label>
+                        <input type="text" name="name" id="edit_name" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit_notes" class="form-label">Note</label>
+                        <textarea name="notes" id="edit_notes" class="form-control" rows="3"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button>
+                    <button type="submit" class="btn btn-primary-custom">Salva Modifiche</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- MODALE NUOVO ACQUISTO -->
+<div class="modal fade" id="addPurchaseModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-dark-card text-white">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title">Registra Acquisto Materie Prime</h5>
+            </div>
+            <form id="addPurchaseForm" action="{% url 'add_raw_material_purchase' %}" method="post">
+                {% csrf_token %}
+                <div class="modal-body">
+                    {{ purchase_form.as_p }}
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button>
+                    <button type="submit" class="btn btn-primary-custom">Registra Spesa</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Gestione eliminazione materiale
+    document.querySelectorAll('.delete-material-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const materialId = this.dataset.id;
+            const name = this.dataset.name;
+            if (confirm(`Sei sicuro di voler eliminare la materia prima "${name}"? questa azione eliminerà anche le sue associazioni.`)) {
+                fetch(`/raw-material/${materialId}/delete/`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': '{{ csrf_token }}',
+                        'Content-Type': 'application/json'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'ok') {
+                        document.getElementById(`material-row-${materialId}`).remove();
+                        showToast(data.message, 'success');
+                    } else {
+                        showToast(data.message, 'danger');
+                    }
+                })
+                .catch(err => {
+                    showToast('Errore di connessione durante l\'eliminazione.', 'danger');
+                });
+            }
+        });
+    });
+
+    // Gestione eliminazione acquisto
+    document.querySelectorAll('.delete-purchase-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const purchaseId = this.dataset.id;
+            const desc = this.dataset.desc;
+            if (confirm(`Sei sicuro di voler eliminare l'acquisto "${desc}"? Il saldo del metodo di pagamento verrà rimborsato e la spesa stornata.`)) {
+                fetch(`/raw-material-purchase/${purchaseId}/delete/`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': '{{ csrf_token }}',
+                        'Content-Type': 'application/json'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'ok') {
+                        document.getElementById(`purchase-row-${purchaseId}`).remove();
+                        showToast(data.message, 'success');
+                        // Ricarica la pagina dopo un po' per mostrare i quantitativi aggiornati nelle tabelle sopra
+                        setTimeout(() => window.location.reload(), 1500);
+                    } else {
+                        showToast(data.message, 'danger');
+                    }
+                })
+                .catch(err => {
+                    showToast('Errore di connessione durante l\'eliminazione dell\'acquisto.', 'danger');
+                });
+            }
+        });
+    });
+
+    // Gestione apertura form modifica
+    const editModal = new bootstrap.Modal(document.getElementById('editMaterialModal'));
+    document.querySelectorAll('.edit-material-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const materialId = this.dataset.id;
+            fetch(`/raw-material/${materialId}/details/`)
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('edit_name').value = data.name;
+                document.getElementById('edit_notes').value = data.notes || '';
+                document.getElementById('editMaterialForm').action = `/raw-material/${materialId}/edit/`;
+                editModal.show();
+            });
+        });
+    });
+
+    // Submit form modifica
+    document.getElementById('editMaterialForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const actionUrl = this.action;
+        const formData = new FormData(this);
+        fetch(actionUrl, {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'ok') {
+                editModal.hide();
+                showToast('Materia prima modificata con successo!', 'success');
+                setTimeout(() => window.location.reload(), 1000);
+            } else {
+                showToast('Errore durante il salvataggio delle modifiche.', 'danger');
+            }
+        });
+    });
+
+    // Submit form creazione materiale
+    const addMaterialForm = document.getElementById('addMaterialForm');
+    const addMaterialModal = new bootstrap.Modal(document.getElementById('addMaterialModal'));
+    addMaterialForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        const formData = new FormData(this);
+        fetch(this.action, {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'ok') {
+                addMaterialModal.hide();
+                showToast('Materia prima creata con successo!', 'success');
+                setTimeout(() => window.location.reload(), 1000);
+            } else {
+                showToast('Errore durante la creazione.', 'danger');
+            }
+        });
+    });
+});
+</script>
+{% endblock %}

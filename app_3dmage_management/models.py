@@ -280,6 +280,15 @@ class Project(models.Model):
                                 spool=spool,
                                 grams_used=master_usage.grams_used
                             )
+        
+        # Copia le materie prime del Progetto Master all'Ordine di Lavoro
+        for pm_rm in self.raw_materials.all():
+            WorkOrderRawMaterial.objects.create(
+                work_order=new_wo,
+                raw_material=pm_rm.raw_material,
+                quantity=pm_rm.quantity * quantity
+            )
+            
         return new_wo
 
     def __str__(self):
@@ -460,6 +469,8 @@ class WorkOrder(models.Model):
         for print_file in self.print_files.all():
             # La property total_cost del PrintFile include già materiale, elettricità e usura
             total_cost += print_file.total_cost
+        for worm in self.raw_materials.all():
+            total_cost += worm.raw_material.average_unit_cost * Decimal(worm.quantity)
         return total_cost
 
     @property
@@ -873,3 +884,105 @@ class Notification(models.Model):
 
     class Meta:
         ordering = ['-created_at']
+
+
+# Modelli per la gestione delle Materie Prime (Magazzino e associazione con oggetti/ordini)
+
+class RawMaterial(models.Model):
+    name = models.CharField(max_length=200, unique=True, verbose_name="Nome Materia Prima")
+    notes = models.TextField(blank=True, verbose_name="Note")
+
+    def __str__(self):
+        return self.name
+
+    @property
+    def total_purchased(self):
+        return self.purchases.aggregate(total=Sum('quantity'))['total'] or 0
+
+    @property
+    def total_used(self):
+        return self.work_order_usages.filter(work_order__status='DONE').aggregate(total=Sum('quantity'))['total'] or 0
+
+    @property
+    def total_pending(self):
+        return self.work_order_usages.filter(work_order__status__in=['TODO', 'PRINTING', 'PRINTED']).aggregate(total=Sum('quantity'))['total'] or 0
+
+    @property
+    def remaining_quantity(self):
+        """Quantità rimanente in magazzino (comprata - consumata in ordini completati)."""
+        return max(0, self.total_purchased - self.total_used)
+
+    @property
+    def available_quantity(self):
+        """Quantità disponibile (rimanente - impegnata in ordini attivi)."""
+        return self.remaining_quantity - self.total_pending
+
+    @property
+    def average_unit_cost(self):
+        total_qty = self.purchases.aggregate(total=Sum('quantity'))['total'] or 0
+        if total_qty == 0:
+            return Decimal('0.00')
+        total_cost = self.purchases.aggregate(total=Sum('cost'))['total'] or Decimal('0.00')
+        return (total_cost / Decimal(total_qty)).quantize(Decimal('0.01'))
+
+    class Meta:
+        verbose_name = "Materia Prima"
+        verbose_name_plural = "Materie Prime"
+        ordering = ['name']
+
+
+class RawMaterialPurchase(models.Model):
+    raw_material = models.ForeignKey(RawMaterial, on_delete=models.CASCADE, related_name='purchases', verbose_name="Materia Prima")
+    quantity = models.PositiveIntegerField(verbose_name="Quantità Acquistata")
+    cost = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Costo Totale (€)")
+    purchase_date = models.DateField(default=timezone.now, verbose_name="Data Acquisto")
+    purchase_link = models.URLField(max_length=512, blank=True, null=True, verbose_name="Link Acquisto")
+    payment_method = models.ForeignKey(PaymentMethod, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Pagato con")
+    expense = models.OneToOneField(Expense, on_delete=models.SET_NULL, null=True, blank=True, related_name='raw_material_purchase')
+
+    def __str__(self):
+        return f"Acquisto {self.quantity}x {self.raw_material.name} del {self.purchase_date.strftime('%d/%m/%y')}"
+
+    class Meta:
+        verbose_name = "Acquisto Materia Prima"
+        verbose_name_plural = "Acquisti Materie Prime"
+        ordering = ['-purchase_date']
+
+
+class ProjectRawMaterial(models.Model):
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='raw_materials', verbose_name="Progetto Master")
+    raw_material = models.ForeignKey(RawMaterial, on_delete=models.CASCADE, related_name='project_usages', verbose_name="Materia Prima")
+    quantity = models.PositiveIntegerField(default=1, verbose_name="Quantità Utilizzata")
+
+    def __str__(self):
+        return f"{self.quantity}x {self.raw_material.name} per {self.project.name}"
+
+    class Meta:
+        verbose_name = "Materia Prima Progetto"
+        verbose_name_plural = "Materie Prime Progetto"
+        unique_together = ('project', 'raw_material')
+
+
+class WorkOrderRawMaterial(models.Model):
+    work_order = models.ForeignKey(WorkOrder, on_delete=models.CASCADE, related_name='raw_materials', verbose_name="Ordine di Lavoro")
+    raw_material = models.ForeignKey(RawMaterial, on_delete=models.CASCADE, related_name='work_order_usages', verbose_name="Materia Prima")
+    quantity = models.PositiveIntegerField(default=1, verbose_name="Quantità Utilizzata")
+
+    def __str__(self):
+        return f"{self.quantity}x {self.raw_material.name} per {self.work_order.name}"
+
+    @property
+    def is_insufficient(self):
+        return self.raw_material.available_quantity < 0
+
+    @property
+    def shortage_quantity(self):
+        avail = self.raw_material.available_quantity
+        if avail < 0:
+            return abs(avail)
+        return 0
+
+    class Meta:
+        verbose_name = "Materia Prima Ordine"
+        verbose_name_plural = "Materie Prime Ordine"
+        unique_together = ('work_order', 'raw_material')

@@ -13,8 +13,15 @@ from django.forms.models import model_to_dict
 from django.urls import reverse
 
 from django.contrib import messages
-from ..models import Project, MasterPrintFile, WorkOrder, PrintFile, StockItem, FilamentUsage, Spool, Filament, MasterFilamentUsage, Printer, Category, ProjectPart
-from ..forms import WorkOrderForm, PrintFileForm, PrintFileEditForm, CompleteWorkOrderForm, MasterProjectForm, MasterPrintFileForm
+from ..models import (
+    Project, MasterPrintFile, WorkOrder, PrintFile, StockItem, FilamentUsage, Spool, 
+    Filament, MasterFilamentUsage, Printer, Category, ProjectPart,
+    RawMaterial, RawMaterialPurchase, ProjectRawMaterial, WorkOrderRawMaterial
+)
+from ..forms import (
+    WorkOrderForm, PrintFileForm, PrintFileEditForm, CompleteWorkOrderForm, 
+    MasterProjectForm, MasterPrintFileForm, ProjectRawMaterialForm, WorkOrderRawMaterialForm
+)
 from .filaments import _handle_filament_data # Importing helper function
 
 
@@ -22,11 +29,12 @@ from .filaments import _handle_filament_data # Importing helper function
 def project_detail(request, project_id):
     queryset = WorkOrder.objects.prefetch_related(
         Prefetch('print_files', queryset=PrintFile.objects.select_related('printer', 'plate')
-                 .prefetch_related('filament_usages__spool__filament').order_by('project_part__name', 'created_at'))
+                 .prefetch_related('filament_usages__spool__filament').order_by('project_part__name', 'created_at')),
+        'raw_materials__raw_material'
     )
     work_order = get_object_or_404(queryset, id=project_id)
 
-    total_project_cost = sum(file.total_cost for file in work_order.print_files.all())
+    total_project_cost = work_order.full_total_cost
 
     # Calcolo della quantità suggerita per il magazzino: 
     # Pezzi totali attesi meno pezzi già versati (produced_quantity)
@@ -59,7 +67,10 @@ def project_detail(request, project_id):
         'edit_print_file_form': PrintFileEditForm(work_order=work_order),
         'can_be_completed': not work_order.print_files.filter(status__in=['TODO', 'PRINTING']).exists() and work_order.print_files.exists(),
         'page_title': 'Ordine di Lavoro',
-        'referer': referer
+        'referer': referer,
+        'order_raw_materials': work_order.raw_materials.all(),
+        'add_order_raw_material_form': WorkOrderRawMaterialForm(),
+        'all_raw_materials': RawMaterial.objects.all().order_by('name'),
     }
     return render(request, 'app_3dmage_management/work_order_detail.html', context)
 
@@ -813,7 +824,8 @@ def add_master_project(request):
 def project_master_detail(request, pk):
     project = get_object_or_404(Project.objects.prefetch_related(
         'master_print_files__filament_usages',
-        'parts'
+        'parts',
+        'raw_materials__raw_material'
     ), pk=pk)
     
     # Costruiamo una lista di dizionari per gestire la visualizzazione per parti
@@ -859,6 +871,9 @@ def project_master_detail(request, pk):
             for f in Filament.objects.all().order_by('material', 'color_code')
         ],
         'active_work_orders': active_work_orders,
+        'project_raw_materials': project.raw_materials.all(),
+        'add_project_raw_material_form': ProjectRawMaterialForm(),
+        'all_raw_materials': RawMaterial.objects.all().order_by('name'),
     }
     return render(request, 'app_3dmage_management/master_project_detail.html', context)
 
@@ -1232,6 +1247,14 @@ def create_from_template(request, pk):
                                 grams_used=master_usage.grams_used
                             )
 
+    # Copia le materie prime dal Progetto Master all'Ordine di Lavoro
+    for pm_rm in master_project.raw_materials.all():
+        WorkOrderRawMaterial.objects.create(
+            work_order=new_wo,
+            raw_material=pm_rm.raw_material,
+            quantity=pm_rm.quantity * total_requested_quantity
+        )
+
     if is_ajax:
         return JsonResponse({
             'status': 'ok',
@@ -1555,3 +1578,75 @@ def add_parts_to_order(request, pk):
 
     messages.success(request, f"Parti di '{master_project.name}' aggiunte con successo all'ordine '{work_order.name}'.")
     return redirect('project_detail', project_id=work_order.id)
+
+
+@require_POST
+@login_required
+def add_project_raw_material(request, project_id):
+    project = get_object_or_404(Project, id=project_id)
+    form = ProjectRawMaterialForm(request.POST)
+    if form.is_valid():
+        raw_material = form.cleaned_data['raw_material']
+        quantity = form.cleaned_data['quantity']
+        
+        # Se esiste già, aggiorna la quantità, altrimenti creala
+        assoc, created = ProjectRawMaterial.objects.get_or_create(
+            project=project,
+            raw_material=raw_material,
+            defaults={'quantity': quantity}
+        )
+        if not created:
+            assoc.quantity += quantity
+            assoc.save()
+            
+        messages.success(request, f"Materia prima '{raw_material.name}' aggiunta al progetto.")
+    else:
+        messages.error(request, "Errore durante l'aggiunta della materia prima.")
+    return redirect('project_master_detail', pk=project.id)
+
+
+@require_POST
+@login_required
+def delete_project_raw_material(request, association_id):
+    assoc = get_object_or_404(ProjectRawMaterial, id=association_id)
+    project_id = assoc.project_id
+    material_name = assoc.raw_material.name
+    assoc.delete()
+    messages.success(request, f"Materia prima '{material_name}' rimossa dal progetto.")
+    return redirect('project_master_detail', pk=project_id)
+
+
+@require_POST
+@login_required
+def add_work_order_raw_material(request, work_order_id):
+    work_order = get_object_or_404(WorkOrder, id=work_order_id)
+    form = WorkOrderRawMaterialForm(request.POST)
+    if form.is_valid():
+        raw_material = form.cleaned_data['raw_material']
+        quantity = form.cleaned_data['quantity']
+        
+        # Se esiste già, aggiorna la quantità, altrimenti creala
+        assoc, created = WorkOrderRawMaterial.objects.get_or_create(
+            work_order=work_order,
+            raw_material=raw_material,
+            defaults={'quantity': quantity}
+        )
+        if not created:
+            assoc.quantity += quantity
+            assoc.save()
+            
+        messages.success(request, f"Materia prima '{raw_material.name}' aggiunta all'ordine.")
+    else:
+        messages.error(request, "Errore durante l'aggiunta della materia prima.")
+    return redirect('project_detail', project_id=work_order.id)
+
+
+@require_POST
+@login_required
+def delete_work_order_raw_material(request, association_id):
+    assoc = get_object_or_404(WorkOrderRawMaterial, id=association_id)
+    work_order_id = assoc.work_order_id
+    material_name = assoc.raw_material.name
+    assoc.delete()
+    messages.success(request, f"Materia prima '{material_name}' rimossa dall'ordine.")
+    return redirect('project_detail', project_id=work_order_id)
