@@ -276,7 +276,8 @@ def complete_project(request, project_id):
             
             if cp_unit > 0 or labor_unit > 0:
                 price = (cp_unit * Decimal('1.5')) + (cp_unit * Decimal('9.2')) / (cp_unit + Decimal('1.0')) + labor_unit
-                rounded_price = Decimal(math.ceil(price * 2)) / Decimal('2.0')
+                price_with_tax = price / Decimal('0.95')
+                rounded_price = Decimal(math.ceil(price_with_tax * 2)) / Decimal('2.0')
             else:
                 rounded_price = Decimal('0.00')
                 
@@ -669,11 +670,17 @@ def create_project_from_quote(request):
             status=WorkOrder.Status.QUOTE
         )
 
+        printer_obj = None
+        printer_id = data.get('printer_id')
+        if printer_id:
+            printer_obj = Printer.objects.filter(id=printer_id).first()
+
         print_file = PrintFile.objects.create(
             work_order=new_wo,
             name=f"{data['name']} (file unico)",
             print_time_seconds=total_seconds,
-            status=PrintFile.Status.TODO
+            status=PrintFile.Status.TODO,
+            printer=printer_obj
         )
 
         for material in data['materials']:

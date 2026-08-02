@@ -7,6 +7,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const addMaterialBtn = document.getElementById('add-material-btn');
     const rowTemplate = document.getElementById('material-row-template');
     const quoteNameInput = document.getElementById('quoteName');
+    const printerSelect = document.getElementById('printerSelect');
     const printDaysInput = document.getElementById('printDays');
     const printHoursInput = document.getElementById('printHours');
     const printMinutesInput = document.getElementById('printMinutes');
@@ -41,11 +42,24 @@ document.addEventListener('DOMContentLoaded', function() {
         const minutes = parseFloat(printMinutesInput.value) || 0;
         const totalHours = (days * 24) + hours + (minutes / 60);
 
-        const electricityKwh = totalHours * (AVG_PRINTER_WATTAGE / 1000);
+        let printerWattage = AVG_PRINTER_WATTAGE;
+        let printerLabelInfo = "";
+        if (printerSelect && printerSelect.value && costs.printers) {
+            const selectedP = costs.printers.find(p => p.id == printerSelect.value);
+            if (selectedP) {
+                printerWattage = selectedP.power_consumption || AVG_PRINTER_WATTAGE;
+                printerLabelInfo = ` (${selectedP.name} - ${printerWattage}W, `;
+            }
+        }
+        if (!printerLabelInfo) {
+            printerLabelInfo = ` (${printerWattage}W, `;
+        }
+
+        const electricityKwh = totalHours * (printerWattage / 1000);
         const electricityCost = electricityKwh * costs.electricity_cost_kwh;
 
         let totalMaterialCost = 0;
-        let breakdownHtml = `<p class="d-flex justify-content-between mb-1"><span>Costo Elettricità <small class="text-muted">(${electricityKwh.toFixed(2)} kWh)</small></span> <span>${electricityCost.toFixed(2)}€</span></p>`;
+        let breakdownHtml = `<p class="d-flex justify-content-between mb-1"><span>Costo Elettricità <small class="text-muted">${printerLabelInfo}${electricityKwh.toFixed(2)} kWh)</small></span> <span>${electricityCost.toFixed(2)}€</span></p>`;
 
         materialsContainer.querySelectorAll('.material-row').forEach(row => {
             const selectElement = row.querySelector('select'); // Prende il select standard (ora gestito da TomSelect)
@@ -71,9 +85,16 @@ document.addEventListener('DOMContentLoaded', function() {
         const totalCost = totalProductionCost + laborCost;
 
         let suggestedPrice = 0;
+        let taxAmount = 0;
         if (totalProductionCost > 0 || laborCost > 0) {
-            const price = (totalProductionCost * 1.5) + (totalProductionCost * 9.2) / (totalProductionCost + 1.0) + laborCost;
-            suggestedPrice = Math.ceil(price * 2) / 2;
+            const rawPrice = (totalProductionCost * 1.5) + (totalProductionCost * 9.2) / (totalProductionCost + 1.0) + laborCost;
+            const priceWithTax = rawPrice / 0.95;
+            suggestedPrice = Math.ceil(priceWithTax * 2) / 2;
+            taxAmount = suggestedPrice * 0.05;
+        }
+
+        if (suggestedPrice > 0) {
+            breakdownHtml += `<p class="d-flex justify-content-between mb-1 text-info"><span>Tasse (5% Forfettario)</span> <span>${taxAmount.toFixed(2)}€</span></p>`;
         }
 
         costBreakdown.innerHTML = breakdownHtml || '<p class="text-muted">Nessun costo da mostrare.</p>';
@@ -193,6 +214,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         return {
             name: quoteName,
+            printer_id: printerSelect ? printerSelect.value : null,
             days: days,
             hours: hours,
             minutes: minutes,
@@ -204,6 +226,17 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function initializeApp() {
+        if (printerSelect && costs.printers && costs.printers.length > 0) {
+            printerSelect.innerHTML = '<option value="">-- Seleziona Stampante (Default: 150W) --</option>';
+            costs.printers.forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p.id;
+                opt.textContent = `${p.name}${p.model ? ' (' + p.model + ')' : ''} - ${p.power_consumption}W`;
+                printerSelect.appendChild(opt);
+            });
+            printerSelect.addEventListener('change', calculateAndDisplay);
+        }
+
         addMaterialRow();
         calculateAndDisplay();
 
@@ -295,6 +328,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 .then(data => {
                     const details = data.details;
                     quoteNameInput.value = details.name || '';
+                    if (printerSelect) printerSelect.value = details.printer_id || '';
                     printDaysInput.value = details.days || 0;
                     printHoursInput.value = details.hours || 0;
                     printMinutesInput.value = details.minutes || 0;

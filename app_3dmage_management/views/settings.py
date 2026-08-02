@@ -321,7 +321,19 @@ def api_get_costs(request):
             'color_hex': f.color_hex
         })
 
+    printers_data = []
+    printers = Printer.objects.all().order_by('name')
+    for p in printers:
+        printers_data.append({
+            'id': p.id,
+            'name': p.name,
+            'model': p.model or '',
+            'power_consumption': p.power_consumption,
+            'tag': p.tag or ''
+        })
+
     return JsonResponse({
         'electricity_cost_kwh': float(cost_kwh),
-        'filaments': filaments_data
+        'filaments': filaments_data,
+        'printers': printers_data
     })
