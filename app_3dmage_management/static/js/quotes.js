@@ -88,7 +88,7 @@ document.addEventListener('DOMContentLoaded', function() {
         let taxAmount = 0;
         if (totalProductionCost > 0 || laborCost > 0) {
             const rawPrice = (totalProductionCost * 1.5) + (totalProductionCost * 9.2) / (totalProductionCost + 1.0) + laborCost;
-            const priceWithTax = rawPrice / 0.95;
+            const priceWithTax = (rawPrice / 0.95) * 1.20;
             suggestedPrice = Math.ceil(priceWithTax * 2) / 2;
             taxAmount = suggestedPrice * 0.05;
         }

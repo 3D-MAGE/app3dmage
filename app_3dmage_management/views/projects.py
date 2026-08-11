@@ -276,7 +276,7 @@ def complete_project(request, project_id):
             
             if cp_unit > 0 or labor_unit > 0:
                 price = (cp_unit * Decimal('1.5')) + (cp_unit * Decimal('9.2')) / (cp_unit + Decimal('1.0')) + labor_unit
-                price_with_tax = price / Decimal('0.95')
+                price_with_tax = (price / Decimal('0.95')) * Decimal('1.20')
                 rounded_price = Decimal(math.ceil(price_with_tax * 2)) / Decimal('2.0')
             else:
                 rounded_price = Decimal('0.00')
