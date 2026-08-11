@@ -9,6 +9,9 @@
         <a href="{% url 'inventory_dashboard' %}" class="btn btn-sm btn-outline-secondary me-2">
             <i class="bi bi-box-seam me-1"></i>Magazzino Oggetti
         </a>
+        <button class="btn btn-sm btn-outline-info me-2" data-bs-toggle="modal" data-bs-target="#addStockModal">
+            <i class="bi bi-box-arrow-in-down me-1"></i>Carica Giacenza (In Casa)
+        </button>
         <button class="btn btn-sm btn-outline-warning me-2" data-bs-toggle="modal" data-bs-target="#addPurchaseModal">
             <i class="bi bi-cart-plus me-1"></i>Registra Acquisto
         </button>
@@ -143,7 +146,7 @@
                         <td class="text-center">{{ purchase.quantity }}</td>
                         <td class="text-end">{{ purchase.cost }} €</td>
                         <td class="text-end text-muted">{% widthratio purchase.cost purchase.quantity 1 as unit_cost %}{{ purchase.cost|default:0 }} / {{ purchase.quantity }} €</td>
-                        <td>{{ purchase.payment_method.name|default:"N/D" }}</td>
+                        <td>{{ purchase.payment_method.name|default:"Già in casa" }}</td>
                         <td>
                             {% if purchase.purchase_link %}
                             <a href="{{ purchase.purchase_link }}" target="_blank" class="btn btn-sm btn-outline-info"><i class="bi bi-link-45deg"></i></a>
@@ -219,6 +222,7 @@
         <div class="modal-content bg-dark-card text-white">
             <div class="modal-header border-secondary">
                 <h5 class="modal-title">Registra Acquisto Materie Prime</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <form id="addPurchaseForm" action="{% url 'add_raw_material_purchase' %}" method="post">
                 {% csrf_token %}
@@ -228,6 +232,47 @@
                 <div class="modal-footer border-secondary">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button>
                     <button type="submit" class="btn btn-primary-custom">Registra Spesa</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- MODALE CARICA GIACENZA (GIÀ IN CASA) -->
+<div class="modal fade" id="addStockModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-dark-card text-white">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title"><i class="bi bi-box-arrow-in-down me-2 text-info"></i>Carica Giacenza Esistente (Già in casa)</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="addStockForm" action="{% url 'add_raw_material_purchase' %}" method="post">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="alert alert-info py-2 small mb-3">
+                        <i class="bi bi-info-circle me-1"></i> Aggiungi materiale già a tua disposizione in casa. Questa operazione popolerà il magazzino <strong>senza generare alcuna spesa</strong> nel bilancio contabile.
+                    </div>
+                    <div class="mb-3">
+                        <label for="stock_raw_material" class="form-label">Materia Prima</label>
+                        {{ purchase_form.raw_material }}
+                    </div>
+                    <div class="mb-3">
+                        <label for="stock_quantity" class="form-label">Quantità Presente in Casa</label>
+                        <input type="number" name="quantity" id="stock_quantity" class="form-control" min="1" required placeholder="Es. 100">
+                    </div>
+                    <div class="mb-3">
+                        <label for="stock_cost" class="form-label">Costo Stimato Totale (€) - Opzionale</label>
+                        <input type="number" step="0.01" name="cost" id="stock_cost" class="form-control" value="0.00" placeholder="0.00">
+                        <small class="text-muted">Lascia 0.00 se non desideri attribuire un valore di carico.</small>
+                    </div>
+                    <div class="mb-3">
+                        <label for="stock_purchase_date" class="form-label">Data Carico</label>
+                        {{ purchase_form.purchase_date }}
+                    </div>
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button>
+                    <button type="submit" class="btn btn-info text-white"><i class="bi bi-plus-lg me-1"></i>Aggiungi a Magazzino</button>
                 </div>
             </form>
         </div>

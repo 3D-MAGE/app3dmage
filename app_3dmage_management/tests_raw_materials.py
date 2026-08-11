@@ -193,3 +193,26 @@ class RawMaterialsBusinessLogicTests(TestCase):
         self.assertIsNotNone(worm)
         self.assertEqual(worm.raw_material, self.material)
         self.assertEqual(worm.quantity, 15) # 5 * 3
+
+    def test_add_stock_already_owned_no_expense(self):
+        """Test adding initial stock (già in casa) without payment_method does not create expense or deduct balance."""
+        self.client.login(username='testuser', password='password')
+
+        response = self.client.post(reverse('add_raw_material_purchase'), {
+            'raw_material': self.material.id,
+            'quantity': 100,
+            'cost': '0.00',
+            'purchase_date': timezone.now().date().strftime('%Y-%m-%d'),
+            'payment_method': ''
+        })
+
+        self.assertEqual(response.status_code, 302)
+
+        # Verify stock quantity was increased
+        self.assertEqual(self.material.total_purchased, 100)
+        self.assertEqual(self.material.available_quantity, 100)
+
+        # Verify NO expense was created and payment method balance was untouched
+        self.assertEqual(Expense.objects.count(), 0)
+        self.payment_method.refresh_from_db()
+        self.assertEqual(self.payment_method.balance, Decimal("100.00"))

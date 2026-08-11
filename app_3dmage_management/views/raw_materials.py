@@ -69,29 +69,30 @@ def add_raw_material_purchase(request):
     form = RawMaterialPurchaseForm(request.POST)
     if form.is_valid():
         purchase = form.save(commit=False)
-        payment_method = form.cleaned_data['payment_method']
-        cost = form.cleaned_data['cost']
+        payment_method = form.cleaned_data.get('payment_method')
+        cost = form.cleaned_data.get('cost') or Decimal('0.00')
+        purchase.cost = cost
 
-        # Aggiornamento contabilità
-        category, created = ExpenseCategory.objects.get_or_create(name='Materie Prime')
-        expense = Expense.objects.create(
-            description=f"Acquisto materia prima: {purchase.quantity}x {purchase.raw_material.name}",
-            amount=cost,
-            category=category,
-            expense_date=purchase.purchase_date,
-            payment_method=payment_method
-        )
+        # Aggiornamento contabilità solo se è specificato un metodo di pagamento ed il costo è > 0
+        if payment_method and cost > 0:
+            category, created = ExpenseCategory.objects.get_or_create(name='Materie Prime')
+            expense = Expense.objects.create(
+                description=f"Acquisto materia prima: {purchase.quantity}x {purchase.raw_material.name}",
+                amount=cost,
+                category=category,
+                expense_date=purchase.purchase_date,
+                payment_method=payment_method
+            )
+            purchase.expense = expense
+            payment_method.balance -= cost
+            payment_method.save()
+        else:
+            purchase.payment_method = None
+            purchase.expense = None
 
-        purchase.expense = expense
         purchase.save()
-
-        # Detrazione fondi
-        payment_method.balance -= cost
-        payment_method.save()
-
         return redirect('raw_materials_dashboard')
     
-    # In caso di errore nel form, ridirigi con un messaggio o gestisci in altro modo
     return redirect('raw_materials_dashboard')
 
 @require_POST

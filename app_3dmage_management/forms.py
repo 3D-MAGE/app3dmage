@@ -5,6 +5,7 @@ from .models import (
     RawMaterial, RawMaterialPurchase, ProjectRawMaterial, WorkOrderRawMaterial
 )
 import datetime
+from decimal import Decimal
 
 class WorkOrderForm(forms.ModelForm):
     class Meta:
@@ -462,12 +463,21 @@ class RawMaterialPurchaseForm(forms.ModelForm):
     payment_method = forms.ModelChoiceField(
         queryset=PaymentMethod.objects.all(),
         label="Pagato con",
-        required=True,
+        required=False,
+        empty_label="-- Nessuno / Già in casa (Nessuna spesa) --",
         widget=forms.Select(attrs={'class': 'form-select'})
+    )
+    cost = forms.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        label="Costo Totale (€)",
+        required=False,
+        initial=Decimal('0.00'),
+        widget=forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'})
     )
     purchase_date = forms.DateField(
         widget=forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}, format='%Y-%m-%d'),
-        label="Data Acquisto",
+        label="Data Acquisto / Carico",
         initial=datetime.date.today
     )
 
@@ -477,7 +487,6 @@ class RawMaterialPurchaseForm(forms.ModelForm):
         widgets = {
             'raw_material': forms.Select(attrs={'class': 'form-select'}),
             'quantity': forms.NumberInput(attrs={'class': 'form-control'}),
-            'cost': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
             'purchase_link': forms.URLInput(attrs={'class': 'form-control', 'placeholder': 'https://...'}),
         }
 
