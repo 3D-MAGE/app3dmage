@@ -1,4 +1,5 @@
 import datetime
+import math
 from django.db import models
 from django.db.models import Sum, F, Case, When, IntegerField, Value
 from django.utils import timezone
@@ -472,6 +473,19 @@ class WorkOrder(models.Model):
         for worm in self.raw_materials.all():
             total_cost += worm.raw_material.average_unit_cost * Decimal(worm.quantity)
         return total_cost
+
+    @property
+    def suggested_price(self):
+        if self.project and self.project.suggested_selling_price:
+            return self.project.suggested_selling_price * Decimal(self.quantity)
+
+        c_prod = self.full_total_cost
+        if c_prod > 0:
+            price = (c_prod * Decimal('1.5')) + (c_prod * Decimal('9.2')) / (c_prod + Decimal('1.0'))
+            price_with_tax = (price / Decimal('0.95')) * Decimal('1.20')
+            rounded_price = Decimal(math.ceil(price_with_tax * 2)) / Decimal('2.0')
+            return rounded_price.quantize(Decimal('0.01'))
+        return Decimal('0.00')
 
     @property
     def total_objects_printed(self):

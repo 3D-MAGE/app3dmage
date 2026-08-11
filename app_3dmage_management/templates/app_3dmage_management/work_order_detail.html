@@ -225,8 +225,8 @@
                 </div>
             </div>
             <div class="col">
-                <div class="info-label">Categoria</div>
-                <div class="info-value text-truncate">{{ project.category.name|default:"N/D" }}</div>
+                <div class="info-label">Prezzo Suggerito</div>
+                <div class="info-value text-success fw-bold">{{ project.suggested_price|floatformat:2 }}€</div>
             </div>
             <div class="col">
                 <div class="info-label">Quantità (Tot/Prod/Rim)</div>
