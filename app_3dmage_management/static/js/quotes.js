@@ -7,6 +7,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const addMaterialBtn = document.getElementById('add-material-btn');
     const rowTemplate = document.getElementById('material-row-template');
     const quoteNameInput = document.getElementById('quoteName');
+    const pieceQuantityInput = document.getElementById('pieceQuantity');
     const printerSelect = document.getElementById('printerSelect');
     const printDaysInput = document.getElementById('printDays');
     const printHoursInput = document.getElementById('printHours');
@@ -16,6 +17,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const costBreakdown = document.getElementById('cost-breakdown');
     const totalCostEl = document.getElementById('total-cost');
     const suggestedPriceEl = document.getElementById('suggested-price');
+    const unitPriceLabel = document.getElementById('unit-price-label');
     const saveQuoteBtn = document.getElementById('save-quote-btn');
     const createProjectBtn = document.getElementById('create-project-btn');
     const savedQuotesTable = document.getElementById('saved-quotes-table');
@@ -37,10 +39,12 @@ document.addEventListener('DOMContentLoaded', function() {
     };
 
     function calculateAndDisplay() {
+        const quantity = parseInt(pieceQuantityInput ? pieceQuantityInput.value : 1, 10) || 1;
         const days = parseFloat(printDaysInput.value) || 0;
         const hours = parseFloat(printHoursInput.value) || 0;
         const minutes = parseFloat(printMinutesInput.value) || 0;
-        const totalHours = (days * 24) + hours + (minutes / 60);
+        const singleHours = (days * 24) + hours + (minutes / 60);
+        const totalHours = singleHours * quantity;
 
         let printerWattage = AVG_PRINTER_WATTAGE;
         let printerLabelInfo = "";
@@ -59,38 +63,49 @@ document.addEventListener('DOMContentLoaded', function() {
         const electricityCost = electricityKwh * costs.electricity_cost_kwh;
 
         let totalMaterialCost = 0;
-        let breakdownHtml = `<p class="d-flex justify-content-between mb-1"><span>Costo Elettricità <small class="text-muted">${printerLabelInfo}${electricityKwh.toFixed(2)} kWh)</small></span> <span>${electricityCost.toFixed(2)}€</span></p>`;
+        let breakdownHtml = "";
+        if (quantity > 1) {
+            breakdownHtml += `<p class="d-flex justify-content-between mb-1"><span>Pezzi da Stampare</span> <span class="fw-bold text-white">${quantity}</span></p>`;
+        }
+        breakdownHtml += `<p class="d-flex justify-content-between mb-1"><span>Costo Elettricità <small class="text-muted">${printerLabelInfo}${electricityKwh.toFixed(2)} kWh)</small></span> <span>${electricityCost.toFixed(2)}€</span></p>`;
 
         materialsContainer.querySelectorAll('.material-row').forEach(row => {
             const selectElement = row.querySelector('select'); // Prende il select standard (ora gestito da TomSelect)
             const filamentId = selectElement.value;
-            const grams = parseFloat(row.querySelector('.grams-input').value) || 0;
+            const singleGrams = parseFloat(row.querySelector('.grams-input').value) || 0;
 
-            if (filamentId && grams > 0) {
+            if (filamentId && singleGrams > 0) {
                 const filament = costs.filaments.find(f => f.id == filamentId);
                 if (filament) {
-                    const materialCost = grams * filament.cost_per_gram;
+                    const totalGrams = singleGrams * quantity;
+                    const materialCost = totalGrams * filament.cost_per_gram;
                     totalMaterialCost += materialCost;
-                    breakdownHtml += `<p class="d-flex justify-content-between mb-1"><span>${filament.name} <small class="text-muted">(${grams}g)</small></span> <span>${materialCost.toFixed(2)}€</span></p>`;
+                    const weightLabel = quantity > 1 ? `${totalGrams}g tot (${singleGrams}g/pz)` : `${singleGrams}g`;
+                    breakdownHtml += `<p class="d-flex justify-content-between mb-1"><span>${filament.name} <small class="text-muted">(${weightLabel})</small></span> <span>${materialCost.toFixed(2)}€</span></p>`;
                 }
             }
         });
 
-        const laborCost = parseFloat(laborCostInput.value) || 0;
-        if (laborCost > 0) {
-            breakdownHtml += `<p class="d-flex justify-content-between mb-1"><span>Manodopera</span> <span>${laborCost.toFixed(2)}€</span></p>`;
+        const singleLaborCost = parseFloat(laborCostInput.value) || 0;
+        const totalLaborCost = singleLaborCost * quantity;
+        if (totalLaborCost > 0) {
+            const laborLabel = quantity > 1 ? `Manodopera (${singleLaborCost.toFixed(2)}€/pz)` : `Manodopera`;
+            breakdownHtml += `<p class="d-flex justify-content-between mb-1"><span>${laborLabel}</span> <span>${totalLaborCost.toFixed(2)}€</span></p>`;
         }
 
         const totalProductionCost = electricityCost + totalMaterialCost;
-        const totalCost = totalProductionCost + laborCost;
+        const totalCost = totalProductionCost + totalLaborCost;
 
         let suggestedPrice = 0;
         let taxAmount = 0;
-        if (totalProductionCost > 0 || laborCost > 0) {
-            const rawPrice = (totalProductionCost * 1.5) + (totalProductionCost * 9.2) / (totalProductionCost + 1.0) + laborCost;
+        let unitPrice = 0;
+
+        if (totalProductionCost > 0 || totalLaborCost > 0) {
+            const rawPrice = (totalProductionCost * 1.5) + (totalProductionCost * 9.2) / (totalProductionCost + 1.0) + totalLaborCost;
             const priceWithTax = (rawPrice / 0.95) * 1.20;
             suggestedPrice = Math.ceil(priceWithTax * 2) / 2;
             taxAmount = suggestedPrice * 0.05;
+            unitPrice = suggestedPrice / quantity;
         }
 
         if (suggestedPrice > 0) {
@@ -100,6 +115,11 @@ document.addEventListener('DOMContentLoaded', function() {
         costBreakdown.innerHTML = breakdownHtml || '<p class="text-muted">Nessun costo da mostrare.</p>';
         totalCostEl.textContent = `${totalCost.toFixed(2)}€`;
         suggestedPriceEl.textContent = `${suggestedPrice.toFixed(2)}€`;
+
+        if (unitPriceLabel) {
+            unitPriceLabel.textContent = quantity > 1 ? `Prezzo unitario: ${unitPrice.toFixed(2)}€/pz` : `Prezzo unitario: ${suggestedPrice.toFixed(2)}€`;
+        }
+
         const name = quoteNameInput.value.trim();
         resultTitle.textContent = name ? `Riepilogo Costi: ${name}` : 'Riepilogo Costi';
     }
@@ -212,8 +232,10 @@ document.addEventListener('DOMContentLoaded', function() {
             return null;
         }
 
+        const quantity = parseInt(pieceQuantityInput ? pieceQuantityInput.value : 1, 10) || 1;
         return {
             name: quoteName,
+            quantity: quantity,
             printer_id: printerSelect ? printerSelect.value : null,
             days: days,
             hours: hours,
@@ -241,6 +263,7 @@ document.addEventListener('DOMContentLoaded', function() {
         calculateAndDisplay();
 
         addMaterialBtn.addEventListener('click', () => addMaterialRow());
+        if (pieceQuantityInput) pieceQuantityInput.addEventListener('input', calculateAndDisplay);
         quoteNameInput.addEventListener('input', calculateAndDisplay);
         printDaysInput.addEventListener('input', calculateAndDisplay);
         printHoursInput.addEventListener('input', calculateAndDisplay);
@@ -328,6 +351,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 .then(data => {
                     const details = data.details;
                     quoteNameInput.value = details.name || '';
+                    if (pieceQuantityInput) pieceQuantityInput.value = details.quantity || 1;
                     if (printerSelect) printerSelect.value = details.printer_id || '';
                     printDaysInput.value = details.days || 0;
                     printHoursInput.value = details.hours || 0;

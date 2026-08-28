@@ -660,13 +660,20 @@ def create_project_from_quote(request):
         if not data.get('name') or not data.get('materials'):
             return JsonResponse({'status': 'error', 'message': 'Nome dell\'ordine e materiali sono obbligatori.'}, status=400)
 
-        total_seconds = (int(data.get('hours', 0)) * 3600) + (int(data.get('minutes', 0)) * 60)
-        if total_seconds <= 0:
+        quantity = int(data.get('quantity', 1))
+        if quantity <= 0:
+            quantity = 1
+
+        total_seconds_single = (int(data.get('hours', 0)) * 3600) + (int(data.get('minutes', 0)) * 60)
+        if total_seconds_single <= 0:
             return JsonResponse({'status': 'error', 'message': 'Il tempo di stampa deve essere maggiore di zero.'}, status=400)
+
+        total_seconds_wo = total_seconds_single * quantity
 
         new_wo = WorkOrder.objects.create(
             name=data['name'],
-            notes=f"Creato da preventivo in data {timezone.now().strftime('%d/%m/%Y')}",
+            quantity=quantity,
+            notes=f"Creato da preventivo in data {timezone.now().strftime('%d/%m/%Y')} (Quantità: {quantity} pz)",
             status=WorkOrder.Status.QUOTE
         )
 
@@ -677,23 +684,25 @@ def create_project_from_quote(request):
 
         print_file = PrintFile.objects.create(
             work_order=new_wo,
-            name=f"{data['name']} (file unico)",
-            print_time_seconds=total_seconds,
+            name=f"{data['name']} ({quantity} pz)",
+            print_time_seconds=total_seconds_wo,
+            produced_quantity=quantity,
             status=PrintFile.Status.TODO,
             printer=printer_obj
         )
 
         for material in data['materials']:
             filament_id = material.get('filament_id')
-            grams = material.get('grams')
-            if filament_id and grams:
+            grams_single = material.get('grams')
+            if filament_id and grams_single:
+                total_grams = Decimal(grams_single) * Decimal(quantity)
                 first_available_spool = Spool.objects.filter(filament_id=filament_id).first()
 
                 if first_available_spool:
                     FilamentUsage.objects.create(
                         print_file=print_file,
                         spool=first_available_spool,
-                        grams_used=Decimal(grams)
+                        grams_used=total_grams
                     )
                 else:
                     filament = get_object_or_404(Filament, id=filament_id)
