@@ -135,7 +135,7 @@
                         <th class="text-end">Costo Unitario</th>
                         <th>Pagato con</th>
                         <th>Link</th>
-                        <th class="text-end" style="width: 80px;">Azione</th>
+                        <th class="text-end" style="width: 100px;">Azione</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -155,7 +155,8 @@
                             {% endif %}
                         </td>
                         <td class="text-end">
-                            <button class="btn btn-sm btn-outline-danger delete-purchase-btn" data-id="{{ purchase.id }}" data-desc="Acquisto {{ purchase.quantity }}x {{ purchase.raw_material.name }}"><i class="bi bi-trash"></i></button>
+                            <button class="btn btn-sm btn-outline-light me-1 edit-purchase-btn" data-id="{{ purchase.id }}" title="Modifica Acquisto"><i class="bi bi-pencil"></i></button>
+                            <button class="btn btn-sm btn-outline-danger delete-purchase-btn" data-id="{{ purchase.id }}" data-desc="Acquisto {{ purchase.quantity }}x {{ purchase.raw_material.name }}" title="Elimina Acquisto"><i class="bi bi-trash"></i></button>
                         </td>
                     </tr>
                     {% empty %}
@@ -193,7 +194,8 @@
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content bg-dark-card text-white">
             <div class="modal-header border-secondary">
-                <h5 class="modal-title">Modifica Materia Prima</h5>
+                <h5 class="modal-title"><i class="bi bi-pencil-square me-2 text-warning"></i>Modifica Materia Prima</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <form id="editMaterialForm" method="post">
                 {% csrf_token %}
@@ -202,6 +204,52 @@
                         <label for="edit_name" class="form-label">Nome Materia Prima</label>
                         <input type="text" name="name" id="edit_name" class="form-control" required>
                     </div>
+
+                    <!-- Sezione Quantità e Prezzo -->
+                    <div id="single-purchase-edit-fields">
+                        <div class="row g-2 mb-3">
+                            <div class="col-md-6">
+                                <label for="edit_quantity" class="form-label">Quantità Caricata / Stock</label>
+                                <input type="number" name="quantity" id="edit_quantity" class="form-control" min="0" placeholder="0">
+                            </div>
+                            <div class="col-md-6">
+                                <label for="edit_cost" class="form-label">Costo Totale (€)</label>
+                                <input type="number" step="0.01" name="cost" id="edit_cost" class="form-control" min="0" placeholder="0.00">
+                            </div>
+                        </div>
+                        <div class="mb-3" id="edit_payment_method_container">
+                            <label for="edit_payment_method" class="form-label">Metodo di Pagamento Spesa</label>
+                            <select name="payment_method" id="edit_payment_method" class="form-select">
+                                <option value="">-- Nessuno / Già in casa (Nessuna spesa) --</option>
+                                {% for pm in payment_methods %}
+                                <option value="{{ pm.id }}">{{ pm.name }} (Saldo: {{ pm.balance }} €)</option>
+                                {% endfor %}
+                            </select>
+                            <small class="text-muted">Se impostato e il costo è > 0, aggiorna o genera la spesa in contabilità.</small>
+                        </div>
+                    </div>
+
+                    <!-- Sezione informativa se ci sono più carichi -->
+                    <div id="multiple-purchases-container" style="display: none;">
+                        <div class="alert alert-info py-2 small mb-3">
+                            <i class="bi bi-info-circle me-1"></i> Questa materia prima ha <strong><span id="purchases-count-badge">0</span> carichi/acquisti</strong> registrati. Puoi modificare i singoli carichi qui sotto per correggere quantità e costi:
+                        </div>
+                        <div class="table-responsive mb-3" style="max-height: 180px; overflow-y: auto;">
+                            <table class="table table-sm table-dark align-middle small mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Data</th>
+                                        <th class="text-center">Quantità</th>
+                                        <th class="text-end">Costo</th>
+                                        <th class="text-end">Azione</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="material-purchases-list-tbody">
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
                     <div class="mb-3">
                         <label for="edit_notes" class="form-label">Note</label>
                         <textarea name="notes" id="edit_notes" class="form-control" rows="3"></textarea>
@@ -279,11 +327,75 @@
     </div>
 </div>
 
+<!-- MODALE MODIFICA SINGOLO ACQUISTO / CARICO -->
+<div class="modal fade" id="editPurchaseModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-dark-card text-white">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title"><i class="bi bi-pencil-square me-2 text-warning"></i>Modifica Acquisto / Carico</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="editPurchaseForm" method="post">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="edit_purchase_material" class="form-label">Materia Prima</label>
+                        <select name="raw_material" id="edit_purchase_material" class="form-select" required>
+                            {% for mat in active_materials %}
+                            <option value="{{ mat.id }}">{{ mat.name }}</option>
+                            {% endfor %}
+                            {% for mat in exhausted_materials %}
+                            <option value="{{ mat.id }}">{{ mat.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-6">
+                            <label for="edit_purchase_quantity" class="form-label">Quantità</label>
+                            <input type="number" name="quantity" id="edit_purchase_quantity" class="form-control" min="1" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="edit_purchase_cost" class="form-label">Costo Totale (€)</label>
+                            <input type="number" step="0.01" name="cost" id="edit_purchase_cost" class="form-control" required>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit_purchase_date" class="form-label">Data Acquisto / Carico</label>
+                        <input type="date" name="purchase_date" id="edit_purchase_date" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit_purchase_payment_method" class="form-label">Pagato con</label>
+                        <select name="payment_method" id="edit_purchase_payment_method" class="form-select">
+                            <option value="">-- Nessuno / Già in casa (Nessuna spesa) --</option>
+                            {% for pm in payment_methods %}
+                            <option value="{{ pm.id }}">{{ pm.name }} (Saldo: {{ pm.balance }} €)</option>
+                            {% endfor %}
+                        </select>
+                        <small class="text-muted">La modifica del conto o del costo ricalcolerà i saldi e aggiornerà la spesa registrata.</small>
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit_purchase_link" class="form-label">Link Acquisto</label>
+                        <input type="url" name="purchase_link" id="edit_purchase_link" class="form-control" placeholder="https://...">
+                    </div>
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button>
+                    <button type="submit" class="btn btn-primary-custom">Salva Modifiche</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block scripts %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    const editModal = new bootstrap.Modal(document.getElementById('editMaterialModal'));
+    const editPurchaseModal = new bootstrap.Modal(document.getElementById('editPurchaseModal'));
+    const addMaterialModal = new bootstrap.Modal(document.getElementById('addMaterialModal'));
+
     // Gestione eliminazione materiale
     document.querySelectorAll('.delete-material-btn').forEach(btn => {
         btn.addEventListener('click', function() {
@@ -331,7 +443,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (data.status === 'ok') {
                         document.getElementById(`purchase-row-${purchaseId}`).remove();
                         showToast(data.message, 'success');
-                        // Ricarica la pagina dopo un po' per mostrare i quantitativi aggiornati nelle tabelle sopra
                         setTimeout(() => window.location.reload(), 1500);
                     } else {
                         showToast(data.message, 'danger');
@@ -344,8 +455,34 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // Gestione apertura form modifica
-    const editModal = new bootstrap.Modal(document.getElementById('editMaterialModal'));
+    // Funzione apertura form modifica acquisto
+    function openEditPurchaseModal(purchaseId) {
+        fetch(`/raw-material-purchase/${purchaseId}/details/`)
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('edit_purchase_material').value = data.raw_material_id;
+            document.getElementById('edit_purchase_quantity').value = data.quantity;
+            document.getElementById('edit_purchase_cost').value = data.cost;
+            document.getElementById('edit_purchase_date').value = data.purchase_date;
+            document.getElementById('edit_purchase_payment_method').value = data.payment_method_id;
+            document.getElementById('edit_purchase_link').value = data.purchase_link || '';
+            document.getElementById('editPurchaseForm').action = `/raw-material-purchase/${purchaseId}/edit/`;
+            editPurchaseModal.show();
+        })
+        .catch(err => {
+            showToast('Errore nel recupero dei dettagli dell\'acquisto.', 'danger');
+        });
+    }
+
+    // Gestione click pulsante modifica acquisto in tabella
+    document.querySelectorAll('.edit-purchase-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const purchaseId = this.dataset.id;
+            openEditPurchaseModal(purchaseId);
+        });
+    });
+
+    // Gestione apertura form modifica materiale
     document.querySelectorAll('.edit-material-btn').forEach(btn => {
         btn.addEventListener('click', function() {
             const materialId = this.dataset.id;
@@ -355,12 +492,64 @@ document.addEventListener('DOMContentLoaded', function() {
                 document.getElementById('edit_name').value = data.name;
                 document.getElementById('edit_notes').value = data.notes || '';
                 document.getElementById('editMaterialForm').action = `/raw-material/${materialId}/edit/`;
+
+                const singleSection = document.getElementById('single-purchase-edit-fields');
+                const multiSection = document.getElementById('multiple-purchases-container');
+                const multiTbody = document.getElementById('material-purchases-list-tbody');
+
+                if (data.purchases_count <= 1) {
+                    singleSection.style.display = 'block';
+                    multiSection.style.display = 'none';
+
+                    if (data.single_purchase) {
+                        document.getElementById('edit_quantity').value = data.single_purchase.quantity;
+                        document.getElementById('edit_cost').value = data.single_purchase.cost;
+                        document.getElementById('edit_payment_method').value = data.single_purchase.payment_method_id;
+                    } else {
+                        document.getElementById('edit_quantity').value = '';
+                        document.getElementById('edit_cost').value = '0.00';
+                        document.getElementById('edit_payment_method').value = '';
+                    }
+                } else {
+                    singleSection.style.display = 'none';
+                    multiSection.style.display = 'block';
+                    document.getElementById('purchases-count-badge').textContent = data.purchases_count;
+
+                    multiTbody.innerHTML = '';
+                    data.purchases.forEach(p => {
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `
+                            <td>${p.purchase_date}</td>
+                            <td class="text-center fw-bold">${p.quantity}</td>
+                            <td class="text-end">${p.cost} €</td>
+                            <td class="text-end">
+                                <button type="button" class="btn btn-xs btn-outline-warning edit-nested-purchase-btn" data-purchase-id="${p.id}">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                            </td>
+                        `;
+                        multiTbody.appendChild(tr);
+                    });
+
+                    // Event listener per modificare singoli carichi dalla lista
+                    multiTbody.querySelectorAll('.edit-nested-purchase-btn').forEach(nestedBtn => {
+                        nestedBtn.addEventListener('click', function() {
+                            const pId = this.dataset.purchaseId;
+                            editModal.hide();
+                            openEditPurchaseModal(pId);
+                        });
+                    });
+                }
+
                 editModal.show();
+            })
+            .catch(err => {
+                showToast('Errore nel recupero dei dettagli della materia prima.', 'danger');
             });
         });
     });
 
-    // Submit form modifica
+    // Submit form modifica materiale
     document.getElementById('editMaterialForm').addEventListener('submit', function(e) {
         e.preventDefault();
         const actionUrl = this.action;
@@ -379,14 +568,43 @@ document.addEventListener('DOMContentLoaded', function() {
                 showToast('Materia prima modificata con successo!', 'success');
                 setTimeout(() => window.location.reload(), 1000);
             } else {
-                showToast('Errore durante il salvataggio delle modifiche.', 'danger');
+                showToast(data.message || 'Errore durante il salvataggio delle modifiche.', 'danger');
             }
+        })
+        .catch(err => {
+            showToast('Errore di rete.', 'danger');
+        });
+    });
+
+    // Submit form modifica acquisto
+    document.getElementById('editPurchaseForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const actionUrl = this.action;
+        const formData = new FormData(this);
+        fetch(actionUrl, {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'ok') {
+                editPurchaseModal.hide();
+                showToast(data.message || 'Acquisto modificato con successo!', 'success');
+                setTimeout(() => window.location.reload(), 1000);
+            } else {
+                showToast(data.message || 'Errore durante il salvataggio dell\'acquisto.', 'danger');
+            }
+        })
+        .catch(err => {
+            showToast('Errore di rete.', 'danger');
         });
     });
 
     // Submit form creazione materiale
     const addMaterialForm = document.getElementById('addMaterialForm');
-    const addMaterialModal = new bootstrap.Modal(document.getElementById('addMaterialModal'));
     addMaterialForm.addEventListener('submit', function(e) {
         e.preventDefault();
         const formData = new FormData(this);
@@ -406,6 +624,9 @@ document.addEventListener('DOMContentLoaded', function() {
             } else {
                 showToast('Errore durante la creazione.', 'danger');
             }
+        })
+        .catch(err => {
+            showToast('Errore di rete.', 'danger');
         });
     });
 });

@@ -216,3 +216,136 @@ class RawMaterialsBusinessLogicTests(TestCase):
         self.assertEqual(Expense.objects.count(), 0)
         self.payment_method.refresh_from_db()
         self.assertEqual(self.payment_method.balance, Decimal("100.00"))
+
+    def test_edit_raw_material_quantity_and_cost(self):
+        """Test editing raw material name, notes, quantity and price in stock with 1 purchase."""
+        self.client.login(username='testuser', password='password')
+
+        # Register purchase of 50 units for 10.00 €
+        self.client.post(reverse('add_raw_material_purchase'), {
+            'raw_material': self.material.id,
+            'quantity': 50,
+            'cost': '10.00',
+            'purchase_date': timezone.now().date().strftime('%Y-%m-%d'),
+            'payment_method': self.payment_method.id
+        })
+        self.payment_method.refresh_from_db()
+        self.assertEqual(self.payment_method.balance, Decimal("90.00"))
+
+        # Edit raw material: change name, quantity to 80, cost to 20.00
+        response = self.client.post(reverse('edit_raw_material', args=[self.material.id]), {
+            'name': 'Magnet 10x2 Upgraded',
+            'notes': 'Updated notes',
+            'quantity': 80,
+            'cost': '20.00',
+            'payment_method': self.payment_method.id
+        })
+        self.assertEqual(response.status_code, 200)
+
+        self.material.refresh_from_db()
+        self.assertEqual(self.material.name, 'Magnet 10x2 Upgraded')
+        self.assertEqual(self.material.notes, 'Updated notes')
+        self.assertEqual(self.material.total_purchased, 80)
+        self.assertEqual(self.material.remaining_quantity, 80)
+        self.assertEqual(self.material.average_unit_cost, Decimal('0.25')) # 20.00 / 80
+
+        # Verify expense was updated
+        expense = Expense.objects.first()
+        self.assertEqual(expense.amount, Decimal('20.00'))
+
+        # Verify payment method was adjusted (was 100 - 20 = 80)
+        self.payment_method.refresh_from_db()
+        self.assertEqual(self.payment_method.balance, Decimal("80.00"))
+
+    def test_edit_raw_material_initial_stock_creation(self):
+        """Test editing a raw material with 0 purchases by supplying initial quantity and cost."""
+        self.client.login(username='testuser', password='password')
+        new_mat = RawMaterial.objects.create(name="Bolt M4", notes="New")
+
+        response = self.client.post(reverse('edit_raw_material', args=[new_mat.id]), {
+            'name': 'Bolt M4 Hex',
+            'notes': 'With stock',
+            'quantity': 100,
+            'cost': '15.00',
+            'payment_method': ''
+        })
+        self.assertEqual(response.status_code, 200)
+
+        new_mat.refresh_from_db()
+        self.assertEqual(new_mat.name, 'Bolt M4 Hex')
+        self.assertEqual(new_mat.total_purchased, 100)
+        self.assertEqual(new_mat.average_unit_cost, Decimal('0.15'))
+
+    def test_edit_raw_material_purchase_direct(self):
+        """Test editing a purchase directly and updating accounting across different payment methods."""
+        self.client.login(username='testuser', password='password')
+        pm2 = PaymentMethod.objects.create(name="Conto Carta", balance=Decimal("200.00"))
+
+        # Purchase on payment_method 1
+        purchase = RawMaterialPurchase.objects.create(
+            raw_material=self.material,
+            quantity=20,
+            cost=Decimal("10.00"),
+            purchase_date=timezone.now().date(),
+            payment_method=self.payment_method
+        )
+        expense = Expense.objects.create(
+            description="Acquisto materia prima: 20x Magnet 10x2",
+            amount=Decimal("10.00"),
+            expense_date=purchase.purchase_date,
+            payment_method=self.payment_method
+        )
+        purchase.expense = expense
+        purchase.save()
+        self.payment_method.balance -= Decimal("10.00")
+        self.payment_method.save()
+
+        # Edit purchase: change quantity to 30, cost to 18.00, switch to pm2
+        response = self.client.post(reverse('edit_raw_material_purchase', args=[purchase.id]), {
+            'raw_material': self.material.id,
+            'quantity': 30,
+            'cost': '18.00',
+            'purchase_date': purchase.purchase_date.strftime('%Y-%m-%d'),
+            'payment_method': pm2.id,
+            'purchase_link': 'https://example.com/item'
+        })
+        self.assertEqual(response.status_code, 200)
+
+        purchase.refresh_from_db()
+        self.assertEqual(purchase.quantity, 30)
+        self.assertEqual(purchase.cost, Decimal('18.00'))
+        self.assertEqual(purchase.payment_method, pm2)
+        self.assertEqual(purchase.purchase_link, 'https://example.com/item')
+
+        # Old payment method should be refunded
+        self.payment_method.refresh_from_db()
+        self.assertEqual(self.payment_method.balance, Decimal("100.00"))
+
+        # New payment method should be deducted
+        pm2.refresh_from_db()
+        self.assertEqual(pm2.balance, Decimal("182.00"))
+
+        # Expense should be updated
+        expense.refresh_from_db()
+        self.assertEqual(expense.amount, Decimal("18.00"))
+        self.assertEqual(expense.payment_method, pm2)
+
+    def test_get_raw_material_purchase_details_view(self):
+        """Test retrieving raw material purchase details via AJAX endpoint."""
+        self.client.login(username='testuser', password='password')
+        purchase = RawMaterialPurchase.objects.create(
+            raw_material=self.material,
+            quantity=25,
+            cost=Decimal("12.50"),
+            purchase_date=timezone.now().date(),
+            payment_method=self.payment_method
+        )
+
+        response = self.client.get(reverse('get_raw_material_purchase_details', args=[purchase.id]))
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data['id'], purchase.id)
+        self.assertEqual(data['quantity'], 25)
+        self.assertEqual(data['cost'], '12.50')
+        self.assertEqual(data['raw_material_name'], self.material.name)
+

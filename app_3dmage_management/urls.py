@@ -88,6 +88,8 @@ urlpatterns = [
     path('raw-material/<int:material_id>/delete/', views.delete_raw_material, name='delete_raw_material'),
     path('raw-material/<int:material_id>/details/', views.get_raw_material_details, name='get_raw_material_details'),
     path('raw-material-purchase/add/', views.add_raw_material_purchase, name='add_raw_material_purchase'),
+    path('raw-material-purchase/<int:purchase_id>/details/', views.get_raw_material_purchase_details, name='get_raw_material_purchase_details'),
+    path('raw-material-purchase/<int:purchase_id>/edit/', views.edit_raw_material_purchase, name='edit_raw_material_purchase'),
     path('raw-material-purchase/<int:purchase_id>/delete/', views.delete_raw_material_purchase, name='delete_raw_material_purchase'),
 
     # Associazioni Materie Prime a Progetti e Ordini
