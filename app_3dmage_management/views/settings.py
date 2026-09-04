@@ -115,6 +115,24 @@ def settings_dashboard(request):
     return render(request, 'app_3dmage_management/settings.html', context)
 
 
+@login_required
+def documentation_dashboard(request):
+    electricity_cost_obj, _ = GlobalSetting.objects.get_or_create(
+        key='electricity_cost_kwh',
+        defaults={'value': Decimal('0.25')}
+    )
+    wear_tear_obj, _ = GlobalSetting.objects.get_or_create(
+        key='wear_tear_coefficient',
+        defaults={'value': Decimal('0.10')}
+    )
+    context = {
+        'page_title': 'Documentazione',
+        'electricity_cost_kwh': electricity_cost_obj.value,
+        'wear_tear_coefficient': wear_tear_obj.value,
+    }
+    return render(request, 'app_3dmage_management/documentation.html', context)
+
+
 
 @require_POST
 @login_required

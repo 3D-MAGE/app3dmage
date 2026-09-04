@@ -705,18 +705,36 @@ class StockItemQuerySet(models.QuerySet):
         """
         Annotates net revenue and net profit at the DB level.
         Logic:
-        - Satispay Business: 1% fee (0.99 multiplier)
+        - Satispay Business:
+            - Storico (sold_at < 2026-09-04): 1% fee (0.99 multiplier)
+            - Da 2026-09-04 (o privo di sold_at):
+                - Pagamenti < 10€: 0% fee (1.0 multiplier)
+                - Pagamenti >= 10€: 0.95% fee (0.9905 multiplier)
         - SumUp / Sum Up: 1.95% fee (0.9805 multiplier)
         - Others: 0 fee (1.0 multiplier)
         """
-        from django.db.models import FloatField, DecimalField
+        from django.db.models import FloatField, DecimalField, Q
+        effective_date = datetime.date(2026, 9, 4)
         return self.annotate(
             # Coalesce to avoid null results in math
             safe_sale_price=Case(When(sale_price__isnull=True, then=Value(0)), default=F('sale_price'), output_field=DecimalField(max_digits=10, decimal_places=2)),
-            annotated_total_gross=F('safe_sale_price') * F('quantity'),
             annotated_production_cost=F('material_cost') + F('labor_cost'),
+        ).annotate(
+            annotated_total_gross=F('safe_sale_price') * F('quantity'),
+        ).annotate(
             multiplier=Case(
-                When(payment_method__name__icontains='satispay business', then=Value(0.99)),
+                When(
+                    Q(payment_method__name__icontains='satispay business') & Q(sold_at__lt=effective_date),
+                    then=Value(0.99)
+                ),
+                When(
+                    Q(payment_method__name__icontains='satispay business') & (Q(sold_at__gte=effective_date) | Q(sold_at__isnull=True)) & Q(annotated_total_gross__lt=Decimal('10.00')),
+                    then=Value(1.0)
+                ),
+                When(
+                    Q(payment_method__name__icontains='satispay business') & (Q(sold_at__gte=effective_date) | Q(sold_at__isnull=True)) & Q(annotated_total_gross__gte=Decimal('10.00')),
+                    then=Value(0.9905)
+                ),
                 When(payment_method__name__icontains='sumup', then=Value(0.9805)),
                 When(payment_method__name__icontains='sum up', then=Value(0.9805)),
                 default=Value(1.0),
@@ -795,7 +813,13 @@ class StockItem(models.Model):
         
         method_name = self.payment_method.name.lower()
         if 'satispay business' in method_name:
-            return (total_gross * Decimal('0.99')).quantize(Decimal('0.01')) # 1% fee
+            effective_date = datetime.date(2026, 9, 4)
+            if self.sold_at and self.sold_at < effective_date:
+                return (total_gross * Decimal('0.99')).quantize(Decimal('0.01')) # 1% fee storica
+            else:
+                if total_gross < Decimal('10.00'):
+                    return total_gross # 0% fee sotto i 10€
+                return (total_gross * Decimal('0.9905')).quantize(Decimal('0.01')) # 0.95% fee
         elif 'sumup' in method_name or 'sum up' in method_name:
             return (total_gross * Decimal('0.9805')).quantize(Decimal('0.01')) # 1.95% fee
         

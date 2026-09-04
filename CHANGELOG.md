@@ -1,5 +1,22 @@
 Tutte le modifiche notevoli a questo progetto saranno documentate in questo file.
 
+## [2.4.0] - 2026-09-04
+
+### Commissioni & Contabilità
+- **Aggiornamento Satispay Business**: Implementate le nuove tariffe commerciali Satispay Business in vigore da oggi (04/09/2026):
+  - 0% di commissione per pagamenti di importo complessivo inferiore a 10,00 €.
+  - 0,95% di commissione per pagamenti di importo complessivo pari o superiore a 10,00 €.
+  - **Integrità Storica**: I pagamenti registrati con data antecedente a oggi mantengono inalterato il calcolo della commissione storica all'1,00%, preservando l'integrità dei saldi contabili e dei report passati.
+- **Anteprime Nette Dinamiche**: Aggiornati i modali di vendita magazzino e modifica vendite con il calcolo in tempo reale del ricavo netto e dell'importo trattenuto in base alla data e all'importo totale.
+
+### Documentazione & Trasparenza Calcoli
+- **Nuova Pagina di Documentazione Economica**: Aggiunta una pagina dedicata (`/settings/documentation/`), accessibile dal menu a tendina Impostazioni / Statistiche nella navbar e dalla schermata Impostazioni.
+  - Spiegazione analitica dei costi di fabbricazione 3D (filamento al grammo, energia elettrica per kWh, usura oraria macchine, componentistica e manodopera).
+  - Analisi dettagliata dell'algoritmo non lineare per il calcolo del prezzo consigliato e dei preventivi (curva degressiva per pezzi piccoli, compensazione fiscale forfettario al 5%, margine di sicurezza al 20%, arrotondamento ai 50 centesimi).
+  - **Calcolo Preventivi Multi-Pezzo**: Spiegazione dettagliata della scalabilità dei costi per tirature multiple (1, 10, 100 pezzi) e dell'effetto dell'economia di scala sul prezzo unitario al pezzo.
+  - Tabella di riepilogo delle commissioni di pagamento e calcolo del ricavo netto.
+  - Esempi pratici guidati a confronto e layout ad alto contrasto per una leggibilità ottimale.
+
 ## [2.3.0] - 2026-04-10
 
 ### Nuove Funzionalità (Gantt & Consegne)

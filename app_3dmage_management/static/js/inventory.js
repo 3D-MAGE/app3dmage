@@ -6,12 +6,20 @@ let confirmDeleteModal = null;
 let isTransitioning = false;
 
 // Utility globale per il calcolo del prezzo netto (commissioni)
-window.calculateNetPrice = function (grossPrice, methodName) {
+window.calculateNetPrice = function (grossPrice, methodName, soldAt) {
     if (isNaN(grossPrice)) return grossPrice;
     
     const method = methodName.toLowerCase();
     if (method.includes('satispay business')) {
-        return Math.round(grossPrice * 0.99 * 100) / 100; // 1% fee
+        // Se la data di vendita è antecedente a oggi (04/09/2026), mantiene la vecchia commissione 1%
+        if (soldAt && soldAt < '2026-09-04') {
+            return Math.round(grossPrice * 0.99 * 100) / 100; // 1% fee storica
+        }
+        // Da oggi: sotto i 10€ nessuna commissione, da 10€ in su 0.95%
+        if (grossPrice < 10) {
+            return Math.round(grossPrice * 100) / 100; // 0% fee
+        }
+        return Math.round(grossPrice * 0.9905 * 100) / 100; // 0.95% fee
     } else if (method.includes('sumup') || method.includes('sum up')) {
         return Math.round(grossPrice * 0.9805 * 100) / 100; // 1.95% fee
     }
@@ -184,7 +192,12 @@ function initStaticModules() {
         const priceInput = document.getElementById('sell_price');
         const paySelect = sellForm.querySelector('[name="payment_method"]');
         
+        const qtyInput = document.getElementById('sell_quantity');
+        const dateInput = document.getElementById('sell_date');
+        
         if (priceInput) priceInput.addEventListener('input', updateNetPreview);
+        if (qtyInput) qtyInput.addEventListener('input', updateNetPreview);
+        if (dateInput) dateInput.addEventListener('change', updateNetPreview);
         if (paySelect) paySelect.addEventListener('change', updateNetPreview);
 
         sellForm.addEventListener('submit', function (e) {
@@ -274,6 +287,8 @@ function initStaticModules() {
 
 function updateNetPreview() {
     const priceInput = document.getElementById('sell_price');
+    const qtyInput = document.getElementById('sell_quantity');
+    const dateInput = document.getElementById('sell_date');
     const previewDiv = document.getElementById('sell_net_preview');
     const sellForm = document.getElementById('sellStockItemForm');
     if (!sellForm) return;
@@ -281,20 +296,33 @@ function updateNetPreview() {
     
     if (!priceInput || !previewDiv || !paySelect) return;
 
-    const grossPrice = parseFloat(priceInput.value.replace(',', '.'));
+    const unitPrice = parseFloat(priceInput.value.replace(',', '.'));
+    const qty = qtyInput ? (parseFloat(qtyInput.value) || 1) : 1;
     const selectedOption = paySelect.options[paySelect.selectedIndex];
     const methodName = selectedOption ? selectedOption.text.trim() : '';
+    const soldAt = dateInput ? dateInput.value : '';
 
-    if (isNaN(grossPrice)) {
+    if (isNaN(unitPrice)) {
         previewDiv.textContent = '';
         return;
     }
 
-    const netPrice = window.calculateNetPrice(grossPrice, methodName);
-    if (netPrice !== grossPrice) {
-        previewDiv.textContent = `Netto ricevuto: ${netPrice.toFixed(2)}€ (dopo commissioni)`;
+    const totalGross = unitPrice * qty;
+    const netTotal = window.calculateNetPrice(totalGross, methodName, soldAt);
+    
+    if (netTotal !== totalGross) {
+        const feeAmount = (totalGross - netTotal).toFixed(2);
+        if (qty > 1) {
+            previewDiv.textContent = `Netto totale: ${netTotal.toFixed(2)}€ (-${feeAmount}€ commissioni su ${totalGross.toFixed(2)}€)`;
+        } else {
+            previewDiv.textContent = `Netto ricevuto: ${netTotal.toFixed(2)}€ (commissioni -${feeAmount}€)`;
+        }
     } else {
-        previewDiv.textContent = 'Nessuna commissione applicata';
+        if (methodName.toLowerCase().includes('satispay business') && totalGross < 10) {
+            previewDiv.textContent = `Nessuna commissione applicata (Satispay < 10€: 0%)`;
+        } else {
+            previewDiv.textContent = 'Nessuna commissione applicata';
+        }
     }
 }
 

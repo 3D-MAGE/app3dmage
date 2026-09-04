@@ -66,9 +66,16 @@ Una volta completato un ordine, i pezzi prodotti diventano **Oggetti a Magazzino
 Quando un oggetto viene segnato come `Venduto`, è possibile specificare:
 *   Prezzo di vendita effettivo.
 *   Data di vendita.
-*   Metodo di pagamento (usato per calcolare le commissioni, es: Satispay 1% o SumUp 1.95%).
+*   Metodo di pagamento (usato per calcolare le commissioni nette e il saldo effettivo, es: Satispay Business 0% sotto i 10€ e 0,95% da 10€ in su, SumUp 1.95%, Contanti 0%). I pagamenti antecedenti al 04/09/2026 mantengono la commissione storica dell'1%.
 
 ---
+
+## 5. Documentazione Economica & Calcoli
+Nel menu **Impostazioni / Statistiche** (icona ingranaggio) è disponibile la pagina **Documentazione**, che illustra dettagliatamente:
+*   La struttura dei costi di produzione (materiale, elettricità, ammortamento usura, minuteria e manodopera).
+*   L'algoritmo non lineare di calcolo del prezzo consigliato e dei preventivi.
+*   La compensazione fiscale (regime forfettario 5%) e i margini di sicurezza.
+*   Le commissioni applicate ai diversi metodi di pagamento.
 
 ## 5. Materiali e Hardware
 

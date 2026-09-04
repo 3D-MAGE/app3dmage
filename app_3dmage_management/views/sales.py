@@ -93,6 +93,7 @@ def get_sale_details(request, item_id):
         'item_custom_id': sale.custom_id,
         'project_id': sale.work_order.id if sale.work_order else None,
         'name': sale.name,
+        'quantity': sale.quantity,
         'sold_at': sale.sold_at.strftime('%Y-%m-%d') if sale.sold_at else '',
         'sale_price': sale.sale_price,
         'payment_method': sale.payment_method.id if sale.payment_method else None,

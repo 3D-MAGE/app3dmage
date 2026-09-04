@@ -11,9 +11,11 @@ document.addEventListener('DOMContentLoaded', function () {
         const form = editSaleModalEl.querySelector('#editSaleForm');
         const modalTitle = editSaleModalEl.querySelector('#editSaleModalLabel');
         let currentItemId = null;
+        let currentItemQuantity = 1;
 
         const salePriceInput = form.querySelector('[name="sale_price"]');
         const paymentMethodSelect = form.querySelector('[name="payment_method"]');
+        const soldAtInput = form.querySelector('[name="sold_at"]');
 
         // Crea dinamicamente il preview del netto se non esiste
         let previewDiv = document.getElementById('sale_net_preview');
@@ -27,26 +29,39 @@ document.addEventListener('DOMContentLoaded', function () {
         function updateNetPreview() {
             if (!salePriceInput || !previewDiv || !paymentMethodSelect) return;
 
-            const grossPrice = parseFloat(salePriceInput.value.replace(',', '.'));
+            const unitPrice = parseFloat(salePriceInput.value.replace(',', '.'));
+            const qty = currentItemQuantity || 1;
+            const totalGross = unitPrice * qty;
+            const soldAt = soldAtInput ? soldAtInput.value : '';
             const selectedOption = paymentMethodSelect.options[paymentMethodSelect.selectedIndex];
             const methodName = selectedOption ? selectedOption.text.trim() : '';
 
-            if (isNaN(grossPrice)) {
+            if (isNaN(unitPrice)) {
                 previewDiv.textContent = '';
                 return;
             }
 
             if (typeof window.calculateNetPrice === 'function') {
-                const netPrice = window.calculateNetPrice(grossPrice, methodName);
-                if (netPrice !== grossPrice) {
-                    previewDiv.textContent = `Netto ricevuto: ${netPrice.toFixed(2)}€ (dopo commissioni)`;
+                const netTotal = window.calculateNetPrice(totalGross, methodName, soldAt);
+                if (netTotal !== totalGross) {
+                    const feeAmount = (totalGross - netTotal).toFixed(2);
+                    if (qty > 1) {
+                        previewDiv.textContent = `Netto totale: ${netTotal.toFixed(2)}€ (-${feeAmount}€ commissioni su ${totalGross.toFixed(2)}€)`;
+                    } else {
+                        previewDiv.textContent = `Netto ricevuto: ${netTotal.toFixed(2)}€ (commissioni -${feeAmount}€)`;
+                    }
                 } else {
-                    previewDiv.textContent = 'Nessuna commissione applicata';
+                    if (methodName.toLowerCase().includes('satispay business') && totalGross < 10) {
+                        previewDiv.textContent = `Nessuna commissione applicata (Satispay < 10€: 0%)`;
+                    } else {
+                        previewDiv.textContent = 'Nessuna commissione applicata';
+                    }
                 }
             }
         }
 
         if (salePriceInput) salePriceInput.addEventListener('input', updateNetPreview);
+        if (soldAtInput) soldAtInput.addEventListener('change', updateNetPreview);
         if (paymentMethodSelect) paymentMethodSelect.addEventListener('change', updateNetPreview);
 
         editSaleModalEl.addEventListener('show.bs.modal', function (event) {
@@ -58,6 +73,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 .then(res => res.json())
                 .then(data => {
                     modalTitle.textContent = `Modifica Vendita: ${data.name}`;
+                    currentItemQuantity = data.quantity || 1;
 
                     document.getElementById('saleItemId').textContent = data.item_custom_id ? `#${data.item_custom_id}` : 'N/D';
                     document.getElementById('saleProjectId').textContent = data.project_id ? `#${data.project_id}` : 'N/D';
@@ -68,7 +84,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         totalCostEl.textContent = !isNaN(cost) ? `${cost.toFixed(2)}€` : '0.00€';
                     }
 
-                    form.querySelector('[name="sold_at"]').value = data.sold_at;
+                    if (soldAtInput) soldAtInput.value = data.sold_at;
                     salePriceInput.value = data.sale_price;
                     paymentMethodSelect.value = data.payment_method || '';
 

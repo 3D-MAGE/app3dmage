@@ -1,0 +1,550 @@
+{% extends "app_3dmage_management/base.html" %}
+{% load static %}
+{% block title %}Documentazione Costi & Preventivi - 3DMAGE MANAGEMENT{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0">
+    <!-- Header Pagina -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 pb-2 border-bottom border-secondary">
+        <div>
+            <h2 class="text-white mb-1">
+                <i class="bi bi-journal-bookmark-fill text-primary-custom me-2"></i>Documentazione Economica & Calcoli
+            </h2>
+            <p class="text-white mb-0">Guida completa alla determinazione dei costi di produzione 3D, fiscalità, commissioni POS e algoritmo preventivi.</p>
+        </div>
+        <div class="d-flex gap-2 mt-3 mt-md-0">
+            <a href="{% url 'quote_calculator' %}" class="btn btn-outline-info btn-sm">
+                <i class="bi bi-calculator me-1"></i> Vai a Preventivi
+            </a>
+            <a href="{% url 'settings_dashboard' %}" class="btn btn-outline-light btn-sm">
+                <i class="bi bi-sliders me-1"></i> Modifica Tariffe
+            </a>
+        </div>
+    </div>
+
+    <!-- Indice di Navigazione Rapida -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <a href="#costi-produzione" class="text-decoration-none">
+                <div class="card bg-dark-card border-secondary h-100 p-3 hover-shadow">
+                    <div class="d-flex align-items-center">
+                        <div class="rounded-circle bg-primary bg-opacity-25 p-2 me-3 text-primary-custom">
+                            <i class="bi bi-cpu fs-4"></i>
+                        </div>
+                        <div>
+                            <h6 class="text-white mb-0">1. Costi Produzione</h6>
+                            <small class="text-muted">Filamento, energia, usura</small>
+                        </div>
+                    </div>
+                </div>
+            </a>
+        </div>
+        <div class="col-md-3">
+            <a href="#formula-preventivi" class="text-decoration-none">
+                <div class="card bg-dark-card border-secondary h-100 p-3 hover-shadow">
+                    <div class="d-flex align-items-center">
+                        <div class="rounded-circle bg-info bg-opacity-25 p-2 me-3 text-info">
+                            <i class="bi bi-graph-up-arrow fs-4"></i>
+                        </div>
+                        <div>
+                            <h6 class="text-white mb-0">2. Algoritmo Prezzi</h6>
+                            <small class="text-muted">Markup degressivo & quote</small>
+                        </div>
+                    </div>
+                </div>
+            </a>
+        </div>
+        <div class="col-md-3">
+            <a href="#fiscalita-tasse" class="text-decoration-none">
+                <div class="card bg-dark-card border-secondary h-100 p-3 hover-shadow">
+                    <div class="d-flex align-items-center">
+                        <div class="rounded-circle bg-warning bg-opacity-25 p-2 me-3 text-warning">
+                            <i class="bi bi-receipt-cutoff fs-4"></i>
+                        </div>
+                        <div>
+                            <h6 class="text-white mb-0">3. Regime Fiscale</h6>
+                            <small class="text-muted">Forfettario 5% & scorporo</small>
+                        </div>
+                    </div>
+                </div>
+            </a>
+        </div>
+        <div class="col-md-3">
+            <a href="#commissioni-pagamento" class="text-decoration-none">
+                <div class="card bg-dark-card border-secondary h-100 p-3 hover-shadow">
+                    <div class="d-flex align-items-center">
+                        <div class="rounded-circle bg-success bg-opacity-25 p-2 me-3 text-success">
+                            <i class="bi bi-credit-card-2-front fs-4"></i>
+                        </div>
+                        <div>
+                            <h6 class="text-white mb-0">4. Commissioni Incasso</h6>
+                            <small class="text-muted">Satispay, SumUp, Netto</small>
+                        </div>
+                    </div>
+                </div>
+            </a>
+        </div>
+    </div>
+
+    <!-- SEZIONE 1: COSTI DI PRODUZIONE -->
+    <section id="costi-produzione" class="mb-5">
+        <div class="card bg-dark-card border-secondary shadow-sm">
+            <div class="card-header bg-transparent border-secondary py-3">
+                <h4 class="text-white mb-0">
+                    <i class="bi bi-cpu text-primary-custom me-2"></i>1. Struttura dei Costi di Produzione (C<sub>prod</sub>)
+                </h4>
+            </div>
+            <div class="card-body">
+                <p class="text-light lead fs-6">
+                    In <strong>3DMAGE Management</strong>, il costo totale di fabbricazione di un pezzo o di un intero ordine di lavoro 
+                    si compone della somma analitica di tutte le risorse fisiche, temporali ed energetiche consumate durante il processo.
+                </p>
+
+                <div class="row g-4 mt-2">
+                    <!-- Costo Materiale -->
+                    <div class="col-lg-6">
+                        <div class="card bg-dark border-secondary h-100 p-3">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <h5 class="text-white mb-0"><i class="bi bi-disc text-primary-custom me-2"></i>Costo Materiali (Filamento)</h5>
+                                <span class="badge bg-primary">Dinamico</span>
+                            </div>
+                            <p class="text-muted small">
+                                Tracciato per ogni singolo filamento consumato durante la stampa (supporta stampe multicolore AMS/MMU).
+                            </p>
+                            <div class="p-2 rounded bg-black bg-opacity-50 text-light font-monospace small mb-2 border border-secondary">
+                                Costo Materiale = Grammi Consumati × (Costo Acquisto Bobina / Peso Iniziale Bobina)
+                            </div>
+                            <small class="text-secondary">
+                                <em>Esempio:</em> Una bobina da 1000g pagata 22,00€ ha un costo di 0,022€ al grammo. Una stampa da 65g comporta <strong>1,43€</strong> di materiale.
+                            </small>
+                        </div>
+                    </div>
+
+                    <!-- Costo Elettricità -->
+                    <div class="col-lg-6">
+                        <div class="card bg-dark border-secondary h-100 p-3">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <h5 class="text-white mb-0"><i class="bi bi-lightning-charge text-warning me-2"></i>Costo Energia Elettrica</h5>
+                                <span class="badge bg-secondary">Tariffa: {{ electricity_cost_kwh }} €/kWh</span>
+                            </div>
+                            <p class="text-muted small">
+                                Calcolato in base alla potenza media assorbita dalla stampante prescelta e al tempo di stampa effettivo.
+                            </p>
+                            <div class="p-2 rounded bg-black bg-opacity-50 text-light font-monospace small mb-2 border border-secondary">
+                                Costo Elettricità = (Ore Stampa) × (Watt Stampante / 1000) × Tariffa kWh
+                            </div>
+                            <small class="text-secondary">
+                                <em>Esempio:</em> Stampante a 150W che lavora per 4 ore a 0,25 €/kWh consuma 0,60 kWh per un costo di <strong>0,15€</strong>.
+                            </small>
+                        </div>
+                    </div>
+
+                    <!-- Costo Usura -->
+                    <div class="col-lg-6">
+                        <div class="card bg-dark border-secondary h-100 p-3">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <h5 class="text-white mb-0"><i class="bi bi-tools text-danger me-2"></i>Usura & Manutenzione Macchina</h5>
+                                <span class="badge bg-secondary">Coeff: {{ wear_tear_coefficient }} €/ora</span>
+                            </div>
+                            <p class="text-muted small">
+                                Ammortamento hardware per coprire sostituzione ugelli, piatti flessibili, cinghie, cuscinetti e ricambi periodici.
+                            </p>
+                            <div class="p-2 rounded bg-black bg-opacity-50 text-light font-monospace small mb-2 border border-secondary">
+                                Costo Usura = Ore Stampa × Coefficiente Orario Usura
+                            </div>
+                            <small class="text-secondary">
+                                <em>Esempio:</em> 4 ore di stampa con coefficiente standard 0,10 €/ora generano <strong>0,40€</strong> di fondo cassa manutenzione.
+                            </small>
+                        </div>
+                    </div>
+
+                    <!-- Minuteria e Manodopera -->
+                    <div class="col-lg-6">
+                        <div class="card bg-dark border-secondary h-100 p-3">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <h5 class="text-white mb-0"><i class="bi bi-person-workspace text-info me-2"></i>Manodopera & Minuteria Extra</h5>
+                                <span class="badge bg-info text-dark">Lavorazioni Manuali</span>
+                            </div>
+                            <p class="text-muted small">
+                                Copre il tempo dedicato alla preparazione, rimozione supporti, levigatura, assemblaggio e viti/inserti/magneti.
+                            </p>
+                            <div class="p-2 rounded bg-black bg-opacity-50 text-light font-monospace small mb-2 border border-secondary">
+                                Costo Totale Produzione = Materiali + Elettricità + Usura + Minuteria + Manodopera
+                            </div>
+                            <small class="text-secondary">
+                                I componenti come magneti o inserti filettati vengono valorizzati automaticamente dal modulo <em>Materie Prime</em>.
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- SEZIONE 2: LOGICA PREVENTIVI & FORMULA PREZZO -->
+    <section id="formula-preventivi" class="mb-5">
+        <div class="card bg-dark-card border-secondary shadow-sm">
+            <div class="card-header bg-transparent border-secondary py-3">
+                <h4 class="text-white mb-0">
+                    <i class="bi bi-graph-up-arrow text-info me-2"></i>2. Logica di Calcolo del Prezzo Consigliato e Preventivi
+                </h4>
+            </div>
+            <div class="card-body">
+                <p class="text-light">
+                    Il prezzo di vendita suggerito da 3DMAGE Management non applica un banale ricarico moltiplicativo fisso. 
+                    Un markup lineare percentuale (es. "costo × 2") causerebbe due problemi critici nel service 3D:
+                </p>
+                <div class="row g-3 mb-4">
+                    <div class="col-md-6">
+                        <div class="p-3 rounded bg-danger bg-opacity-10 border border-danger border-opacity-25 h-100">
+                            <h6 class="text-danger fw-bold"><i class="bi bi-x-circle me-1"></i> Perché un moltiplicatore fisso fallisce sui piccoli pezzi</h6>
+                            <p class="small text-light mb-0">
+                                Un pezzo piccolo con costo di soli <strong>0,40€</strong> verrebbe venduto a 0,80€. 
+                                Questo prezzo non remunera nemmeno il tempo di accendere la stampante, pulire il piatto o staccare il pezzo!
+                            </p>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="p-3 rounded bg-success bg-opacity-10 border border-success border-opacity-25 h-100">
+                            <h6 class="text-success fw-bold"><i class="bi bi-check-circle me-1"></i> La Soluzione: Algoritmo Non Lineare 3DMAGE</h6>
+                            <p class="small text-light mb-0">
+                                Viene impiegata una funzione iperbolica degressiva: fornisce una solida base minima per oggetti piccoli 
+                                e si attenua dolcemente sui pezzi grandi per mantenerli commercialmente competitivi sul mercato.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Dettaglio Formule Matematiche -->
+                <h5 class="text-white mt-4 mb-3">La Formula Matematica in 3 Fasi</h5>
+                
+                <div class="card bg-dark border-info border-opacity-50 p-4 mb-4">
+                    <!-- Fase 1 -->
+                    <div class="mb-4">
+                        <div class="d-flex align-items-center mb-2">
+                            <span class="badge bg-primary me-2">Fase 1</span>
+                            <h6 class="text-white mb-0 fw-bold">Calcolo del Prezzo Base (Raw Price)</h6>
+                        </div>
+                        <div class="p-3 rounded bg-black font-monospace text-info border border-secondary fs-6 mb-2">
+                            RawPrice = (C<sub>prod</sub> × 1.5) + [ (C<sub>prod</sub> × 9.2) / (C<sub>prod</sub> + 1.0) ] + CostoManodopera
+                        </div>
+                        <p class="small text-muted mb-0">
+                            <strong>Analisi della formula:</strong>
+                            <br>• <code>(C<sub>prod</sub> × 1.5)</code>: Margine base del 50% sul costo vivo di produzione.
+                            <br>• <code>(C<sub>prod</sub> × 9.2) / (C<sub>prod</sub> + 1.0)</code>: Termine iperbolico saturante. Se C<sub>prod</sub> è 0,10€, aggiunge ~0,84€; se C<sub>prod</sub> è 1€, aggiunge 4,60€; all'aumentare dei costi si stabilizza verso un asintoto di 9,20€, impedendo prezzi sproporzionati su produzioni massicce.
+                            <br>• <code>CostoManodopera</code>: Aggiunto integralmente a valore 1:1.
+                        </p>
+                    </div>
+
+                    <hr class="border-secondary my-3">
+
+                    <!-- Fase 2 -->
+                    <div class="mb-4">
+                        <div class="d-flex align-items-center mb-2">
+                            <span class="badge bg-warning text-dark me-2">Fase 2</span>
+                            <h6 class="text-white mb-0 fw-bold">Scorporo Fiscale, Margine di Sicurezza & Gestione Multi-Pezzo (1 - 10 - 100 pz)</h6>
+                        </div>
+                        <div class="p-3 rounded bg-black font-monospace text-warning border border-secondary fs-6 mb-2">
+                            PriceWithTax = (RawPrice / 0.95) × 1.20
+                        </div>
+                        <p class="small text-muted mb-2">
+                            • <code>/ 0.95</code>: <strong>Compensazione Fiscale Forfettario</strong>. Dividere per 0,95 applica un ricarico inverso in modo che, sottraendo il 5% di imposte dal prezzo finale, rimanga esattamente il 100% del prezzo base target.
+                            <br>• <code>× 1.20</code>: <strong>Margine di Sicurezza 20%</strong>. Copre imprevisti, scarti fisiologici, stampe fallite da rifare e riserva d'utile operativo.
+                        </p>
+
+                        <!-- Box Spiegazione Preventivi Multi-Pezzo -->
+                        <div class="p-3 rounded bg-black bg-opacity-75 border border-info border-opacity-50 mt-3">
+                            <div class="d-flex align-items-center mb-2">
+                                <span class="badge bg-info text-dark me-2"><i class="bi bi-boxes me-1"></i>Calcolo Preventivi Multi-Pezzo</span>
+                                <h6 class="text-info mb-0 fw-bold">Come scala il preventivo per tirature multiple (1, 10, 50, 100 pezzi)</h6>
+                            </div>
+                            <p class="small text-light mb-2">
+                                Quando imposti il campo <strong>"Numero Pezzi"</strong> nel Calcolatore Preventivi, l'applicazione scala proporzionalmente tutti i fattori produttivi della commessa complessiva:
+                            </p>
+                            <ul class="small text-light mb-2 ps-3">
+                                <li><strong>Tempo e Consumo Elettrico Complessivo</strong>: <code>Tempo Totale = Tempo Singolo Pezzo × Quantità</code>. I kWh consumati dalla stampante selezionata vengono calcolati sull'intera durata della commessa.</li>
+                                <li><strong>Consumo Materiale Complessivo</strong>: <code>Grammi Totali = Grammi Singolo Pezzo × Quantità</code>. Il costo del filamento scala linearmente su tutti i pezzi.</li>
+                                <li><strong>Manodopera Complessiva</strong>: <code>Manodopera Totale = Manodopera Singola (€/pz) × Quantità</code>.</li>
+                            </ul>
+                            <div class="p-2 rounded bg-dark border border-secondary small text-light mb-2">
+                                <strong class="text-warning"><i class="bi bi-graph-down-arrow me-1"></i> Economia di scala sul Prezzo Unitario:</strong><br>
+                                Il prezzo suggerito finale viene calcolato sul costo di produzione complessivo dell'intera commessa. 
+                                Poiché la formula del prezzo base contiene un markup degressivo, l'effetto sul prezzo per singolo pezzo (<code>Prezzo Unitario = Prezzo Totale / Quantità</code>) è che <strong>più pezzi si producono, più il prezzo unitario al pezzo si abbassa</strong>:
+                                <ul class="mb-0 mt-1 ps-3 text-muted">
+                                    <li><strong class="text-white">1 Pezzo:</strong> Assorbe l'intero markup base del singolo setup iniziale (es. 4,50€/pz).</li>
+                                    <li><strong class="text-white">10 Pezzi:</strong> Il margine degressivo si distribuisce sui 10 pezzi, abbattendo il prezzo unitario (es. a ~2,35€/pz) e rendendo l'offerta commerciale altamente competitiva.</li>
+                                    <li><strong class="text-white">100 Pezzi:</strong> Massima ottimizzazione dei costi e tariffa unitaria fortemente scontata (es. a ~1,95€/pz), mantenendo al tempo stesso un profitto assoluto elevato per il service.</li>
+                                </ul>
+                            </div>
+                            <small class="text-info">
+                                <i class="bi bi-check2-circle me-1"></i> Nella schermata Preventivi viene mostrato in evidenza sia il <strong>Costo Totale della Commessa</strong>, sia il <strong>Prezzo Totale Suggerito</strong>, sia l'etichetta <strong>"Prezzo unitario: X,XX€/pz"</strong>.
+                            </small>
+                        </div>
+                    </div>
+
+                    <hr class="border-secondary my-3">
+
+                    <!-- Fase 3 -->
+                    <div>
+                        <div class="d-flex align-items-center mb-2">
+                            <span class="badge bg-success me-2">Fase 3</span>
+                            <h6 class="text-white mb-0 fw-bold">Arrotondamento Commerciale al 0,50€ Superiore</h6>
+                        </div>
+                        <div class="p-3 rounded bg-black font-monospace text-success border border-secondary fs-6 mb-2">
+                            PrezzoSuggerito = Math.ceil(PriceWithTax × 2) / 2
+                        </div>
+                        <p class="small text-muted mb-0">
+                            Elimina i decimali disordinati arrotondando sempre per eccesso al mezzo euro (es. 4,12€ diviene <strong>4,50€</strong>; 11,54€ diviene <strong>12,00€</strong>).
+                            Nel caso di preventivo con quantità &gt; 1, il <em>Prezzo Unitario</em> è dato da <code>PrezzoSuggerito / Quantità</code>.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- SEZIONE 3: FISCALITA' E TASSE -->
+    <section id="fiscalita-tasse" class="mb-5">
+        <div class="card bg-dark-card border-secondary shadow-sm">
+            <div class="card-header bg-transparent border-secondary py-3">
+                <h4 class="text-white mb-0">
+                    <i class="bi bi-receipt-cutoff text-warning me-2"></i>3. Fiscalità & Regime Forfettario
+                </h4>
+            </div>
+            <div class="card-body">
+                <div class="row align-items-center g-4">
+                    <div class="col-lg-8">
+                        <h5 class="text-white">Imposta Sostitutiva 5% (Nuove Attività Startup)</h5>
+                        <p class="text-light">
+                            Nel calcolatore preventivi compare la voce <strong>"Tasse (5% Forfettario)"</strong>. 
+                            Nel regime forfettario non esiste l'IVA a debito verso i clienti finali (la fattura/ricevuta è esente IVA art. 1, commi 54-89, L. 190/2014), 
+                            ma l'attività è soggetta all'imposta sostitutiva IRPEF del 5% per i primi 5 anni.
+                        </p>
+                        <div class="p-3 rounded bg-dark border-secondary text-light small mb-3">
+                            <strong class="text-info">Perché il cliente paga il prezzo corretto senza perdite:</strong>
+                            <br>Grazie al coefficiente <code>/ 0.95</code> presente nella Fase 2, l'incidenza delle tasse viene automaticamente 
+                            inglobata nel prezzo consigliato. Quando a fine anno pagherai il 5% sul fatturato, il tuo margine netto rimarrà 
+                            perfettamente intatto.
+                        </div>
+                    </div>
+                    <div class="col-lg-4">
+                        <div class="card bg-dark border-warning p-3 text-center">
+                            <div class="display-6 text-warning fw-bold mb-1">5%</div>
+                            <div class="text-white fw-semibold mb-2">Aliquota Fiscale Forfettaria</div>
+                            <p class="text-muted small mb-0">
+                                Stimata nel riepilogo preventivi come:<br>
+                                <code>Imposta = PrezzoConsigliato × 0.05</code>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- SEZIONE 4: COMMISSIONI PAGAMENTI & SALDI -->
+    <section id="commissioni-pagamento" class="mb-5">
+        <div class="card bg-dark-card border-secondary shadow-sm">
+            <div class="card-header bg-transparent border-secondary py-3">
+                <h4 class="text-white mb-0">
+                    <i class="bi bi-credit-card-2-front text-success me-2"></i>4. Metodi di Pagamento, Commissioni & Saldi Reali
+                </h4>
+            </div>
+            <div class="card-body">
+                <p class="text-light">
+                    Quando una vendita viene registrata nel <strong>Magazzino</strong> o nel modulo <strong>Vendite</strong>, 
+                    il sistema non accredita il lordo teorico, ma il <strong>ricavo netto effettivo</strong> sul metodo di pagamento scelto, 
+                    riflettendo al centesimo il saldo disponibile sui conti bancari o POS.
+                </p>
+
+                <!-- Tabella Commissioni -->
+                <div class="table-responsive mb-4">
+                    <table class="table table-dark table-hover table-bordered align-middle">
+                        <thead class="table-secondary text-dark">
+                            <tr>
+                                <th style="width: 25%;">Metodo di Pagamento</th>
+                                <th style="width: 20%;">Tariffa Applicata</th>
+                                <th style="width: 25%;">Regola di Calcolo</th>
+                                <th style="width: 30%;">Note Operative</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Satispay Business -->
+                            <tr>
+                                <td class="fw-bold">
+                                    <span class="badge bg-danger p-2 me-1">Satispay</span> Satispay Business
+                                </td>
+                                <td>
+                                    <span class="badge bg-success fs-6">0% (&lt; 10€)</span><br>
+                                    <span class="badge bg-warning text-dark fs-6 mt-1">0,95% (≥ 10€)</span>
+                                </td>
+                                <td>
+                                    <code class="text-info">Totale &lt; 10,00€: Lordo</code><br>
+                                    <code class="text-info">Totale ≥ 10,00€: Lordo × 0.9905</code>
+                                </td>
+                                <td>
+                                    <strong>Tariffa aggiornata da oggi (04/09/2026)</strong>.
+                                    <div class="text-muted small mt-1">
+                                        Per preservare la precisione contabile, i pagamenti antecedenti a oggi mantengono il tasso storico all'1,00%.
+                                    </div>
+                                </td>
+                            </tr>
+                            <!-- SumUp -->
+                            <tr>
+                                <td class="fw-bold">
+                                    <span class="badge bg-primary p-2 me-1">SumUp</span> POS SumUp
+                                </td>
+                                <td>
+                                    <span class="badge bg-warning text-dark fs-6">1,95% fisso</span>
+                                </td>
+                                <td>
+                                    <code class="text-info">Netto = Lordo × 0.9805</code>
+                                </td>
+                                <td>
+                                    Applicato su tutte le transazioni contactless e chip effettuate tramite lettore SumUp.
+                                </td>
+                            </tr>
+                            <!-- Contanti / Bonifico -->
+                            <tr>
+                                <td class="fw-bold">
+                                    <span class="badge bg-secondary p-2 me-1">Contanti</span> Contanti / Bonifico
+                                </td>
+                                <td>
+                                    <span class="badge bg-success fs-6">0,00%</span>
+                                </td>
+                                <td>
+                                    <code class="text-info">Netto = Lordo × 1.00</code>
+                                </td>
+                                <td>
+                                    Nessuna commissione di intermediazione trattenuta. L'intero importo incassato entra in cassa.
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Formule di Rendicontazione -->
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <div class="card bg-dark border-secondary p-3 h-100">
+                            <h6 class="text-info mb-1">Ricavo Totale Lordo</h6>
+                            <div class="font-monospace small text-white my-2">Prezzo Vendita × Quantità</div>
+                            <small class="text-muted">Il prezzo pagato complessivamente dal cliente finale.</small>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card bg-dark border-secondary p-3 h-100">
+                            <h6 class="text-success mb-1">Ricavo Netto Incassato</h6>
+                            <div class="font-monospace small text-white my-2">Ricavo Lordo - Commissioni POS</div>
+                            <small class="text-muted">L'importo reale accreditato sul saldo del conto.</small>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card bg-dark border-secondary p-3 h-100">
+                            <h6 class="text-warning mb-1">Profitto Netto Effettivo</h6>
+                            <div class="font-monospace small text-white my-2">Ricavo Netto - Costo Produzione</div>
+                            <small class="text-muted">Il guadagno reale dopo aver pagato materiali e manodopera.</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- SEZIONE 5: ESEMPI PRATICI A CONFRONTO -->
+    <section id="esempi-pratici" class="mb-4">
+        <div class="card bg-dark-card border-secondary shadow-sm">
+            <div class="card-header bg-transparent border-secondary py-3">
+                <h4 class="text-white mb-0">
+                    <i class="bi bi-lightbulb text-warning me-2"></i>5. Esempi Pratici di Calcolo a Confronto
+                </h4>
+            </div>
+            <div class="card-body">
+                <div class="row g-4">
+                    <!-- Esempio 1: Pezzo Piccolo -->
+                    <div class="col-lg-4">
+                        <div class="card bg-dark border-secondary h-100 p-3">
+                            <div class="d-flex justify-content-between mb-2">
+                                <span class="badge bg-secondary">Stampa Piccola</span>
+                                <small class="text-muted">es. Portachiavi</small>
+                            </div>
+                            <h5 class="text-white">Portachiavi Personalizzato</h5>
+                            <ul class="list-unstyled small text-light my-2">
+                                <li>• Materiale (15g PLA): <strong>0,33€</strong></li>
+                                <li>• Elettricità (40 min @ 150W): <strong>0,03€</strong></li>
+                                <li>• Usura (40 min): <strong>0,07€</strong></li>
+                                <li class="text-info mt-1">• <strong>Costo Produzione: 0,43€</strong></li>
+                            </ul>
+                            <hr class="border-secondary my-2">
+                            <div class="small text-muted">
+                                RawPrice = (0,43 × 1.5) + (0,43 × 9.2 / 1.43) = 0,65 + 2,77 = 3,42€<br>
+                                PriceWithTax = (3,42 / 0.95) × 1.20 = 4,32€<br>
+                                Arrotondamento: <strong>4,50€</strong>
+                            </div>
+                            <div class="mt-3 p-2 bg-black rounded text-center border border-success border-opacity-25">
+                                <span class="text-muted small">Prezzo Consigliato:</span>
+                                <div class="text-success fw-bold fs-5">4,50€</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Esempio 2: Pezzo Medio -->
+                    <div class="col-lg-4">
+                        <div class="card bg-dark border-secondary h-100 p-3">
+                            <div class="d-flex justify-content-between mb-2">
+                                <span class="badge bg-primary">Stampa Media</span>
+                                <small class="text-muted">es. Supporto Cuffie</small>
+                            </div>
+                            <h5 class="text-white">Supporto da Scrivania</h5>
+                            <ul class="list-unstyled small text-light my-2">
+                                <li>• Materiale (140g PETG): <strong>3,36€</strong></li>
+                                <li>• Elettricità (6h @ 180W): <strong>0,27€</strong></li>
+                                <li>• Usura (6 ore): <strong>0,60€</strong></li>
+                                <li class="text-info mt-1">• <strong>Costo Produzione: 4,23€</strong></li>
+                            </ul>
+                            <hr class="border-secondary my-2">
+                            <div class="small text-muted">
+                                RawPrice = (4,23 × 1.5) + (4,23 × 9.2 / 5.23) = 6,35 + 7,44 = 13,79€<br>
+                                PriceWithTax = (13,79 / 0.95) × 1.20 = 17,42€<br>
+                                Arrotondamento: <strong>17,50€</strong>
+                            </div>
+                            <div class="mt-3 p-2 bg-black rounded text-center border border-success border-opacity-25">
+                                <span class="text-muted small">Prezzo Consigliato:</span>
+                                <div class="text-success fw-bold fs-5">17,50€</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Esempio 3: Pezzo Grande / Set -->
+                    <div class="col-lg-4">
+                        <div class="card bg-dark border-secondary h-100 p-3">
+                            <div class="d-flex justify-content-between mb-2">
+                                <span class="badge bg-warning text-dark">Stampa Grande</span>
+                                <small class="text-muted">es. Set Scacchi Completo</small>
+                            </div>
+                            <h5 class="text-white">Set Scacchi da Collezione</h5>
+                            <ul class="list-unstyled small text-light my-2">
+                                <li>• Materiale (650g Bicolore): <strong>15,60€</strong></li>
+                                <li>• Elettricità (28h @ 150W): <strong>1,05€</strong></li>
+                                <li>• Usura (28 ore): <strong>2,80€</strong></li>
+                                <li>• Manodopera post-prod: <strong>5,00€</strong></li>
+                                <li class="text-info mt-1">• <strong>Costo Produzione: 24,45€</strong></li>
+                            </ul>
+                            <hr class="border-secondary my-2">
+                            <div class="small text-muted">
+                                RawPrice = (19,45 × 1.5) + (19,45 × 9.2 / 20.45) + 5,00 = 42,92€<br>
+                                PriceWithTax = (42,92 / 0.95) × 1.20 = 54,21€<br>
+                                Arrotondamento: <strong>54,50€</strong>
+                            </div>
+                            <div class="mt-3 p-2 bg-black rounded text-center border border-success border-opacity-25">
+                                <span class="text-muted small">Prezzo Consigliato:</span>
+                                <div class="text-success fw-bold fs-5">54,50€</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+</div>
+{% endblock %}
