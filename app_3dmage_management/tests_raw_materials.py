@@ -349,3 +349,32 @@ class RawMaterialsBusinessLogicTests(TestCase):
         self.assertEqual(data['cost'], '12.50')
         self.assertEqual(data['raw_material_name'], self.material.name)
 
+    def test_with_stock_info_average_unit_cost_two_decimals(self):
+        """Verify annotated average_unit_cost and dashboard output always round to 2 decimal places."""
+        self.client.login(username='testuser', password='password')
+
+        mat_exact = RawMaterial.objects.create(name="Cornice 25x25")
+        RawMaterialPurchase.objects.create(
+            raw_material=mat_exact, quantity=1, cost=Decimal("5.95"), purchase_date=timezone.now().date()
+        )
+        mat_round = RawMaterial.objects.create(name="Luce LED")
+        RawMaterialPurchase.objects.create(
+            raw_material=mat_round, quantity=20, cost=Decimal("53.61"), purchase_date=timezone.now().date()
+        )
+
+        annotated = {m.name: m for m in RawMaterial.objects.with_stock_info()}
+        self.assertEqual(str(annotated["Cornice 25x25"].average_unit_cost), "5.95")
+        self.assertEqual(str(annotated["Luce LED"].average_unit_cost), "2.68")
+        self.assertEqual(str(annotated[self.material.name].average_unit_cost), "0.00")
+
+        response = self.client.get(reverse('raw_materials_dashboard'))
+        self.assertEqual(response.status_code, 200)
+        html = response.content.decode('utf-8')
+        self.assertRegex(html, r'5[.,]95 €')
+        self.assertRegex(html, r'2[.,]68 €')
+        self.assertNotIn('5,950000', html)
+        self.assertNotIn('5.950000', html)
+        self.assertNotIn('2,680500', html)
+        self.assertNotIn('2.680500', html)
+
+

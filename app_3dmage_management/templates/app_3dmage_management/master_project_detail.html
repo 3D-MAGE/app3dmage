@@ -311,7 +311,7 @@
                             <tr>
                                 <td class="fw-bold">{{ prm.raw_material.name }}</td>
                                 <td class="text-center">{{ prm.quantity }}</td>
-                                <td class="text-center">{{ prm.raw_material.average_unit_cost }} €</td>
+                                <td class="text-center">{{ prm.raw_material.average_unit_cost|floatformat:2 }} €</td>
                                 <td class="text-center text-warning fw-bold">
                                     {{ prm.raw_material.average_unit_cost|multiply_decimal:prm.quantity }} €
                                 </td>

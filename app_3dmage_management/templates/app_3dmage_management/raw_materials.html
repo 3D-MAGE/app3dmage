@@ -64,7 +64,7 @@
                         <td class="text-center fw-bold {% if mat.available_quantity <= 3 %}text-warning{% else %}text-success{% endif %}">
                             {{ mat.available_quantity }}
                         </td>
-                        <td class="text-end">{{ mat.average_unit_cost }} €</td>
+                        <td class="text-end">{{ mat.average_unit_cost|floatformat:2 }} €</td>
                         <td class="text-muted text-truncate" style="max-width: 250px;">{{ mat.notes|default:"-" }}</td>
                         <td class="text-end">
                             <button class="btn btn-sm btn-outline-light me-1 edit-material-btn" data-id="{{ mat.id }}"><i class="bi bi-pencil"></i></button>
@@ -104,7 +104,7 @@
                         <td class="text-center text-muted">{{ mat.remaining_quantity }}</td>
                         <td class="text-center text-info">{{ mat.total_pending }}</td>
                         <td class="text-center text-danger fw-bold">0 (Esaurito)</td>
-                        <td class="text-end">{{ mat.average_unit_cost }} €</td>
+                        <td class="text-end">{{ mat.average_unit_cost|floatformat:2 }} €</td>
                         <td class="text-muted text-truncate" style="max-width: 250px;">{{ mat.notes|default:"-" }}</td>
                         <td class="text-end">
                             <button class="btn btn-sm btn-outline-light me-1 edit-material-btn" data-id="{{ mat.id }}"><i class="bi bi-pencil"></i></button>

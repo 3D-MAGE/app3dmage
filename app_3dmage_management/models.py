@@ -1046,7 +1046,10 @@ class RawMaterial(models.Model):
     @property
     def average_unit_cost(self):
         if hasattr(self, 'annotated_average_unit_cost'):
-            return self.annotated_average_unit_cost
+            val = self.annotated_average_unit_cost
+            if val is None:
+                return Decimal('0.00')
+            return Decimal(str(val)).quantize(Decimal('0.01'))
         total_qty = self.purchases.aggregate(total=Sum('quantity'))['total'] or 0
         if total_qty == 0:
             return Decimal('0.00')

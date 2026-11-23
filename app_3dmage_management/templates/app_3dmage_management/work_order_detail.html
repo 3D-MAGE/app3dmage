@@ -325,7 +325,7 @@
                             <span class="badge bg-success">Disponibili (Fisici: {{ worm.raw_material.remaining_quantity|default:0 }})</span>
                             {% endif %}
                         </td>
-                        <td class="text-center">{{ worm.raw_material.average_unit_cost }} €</td>
+                        <td class="text-center">{{ worm.raw_material.average_unit_cost|floatformat:2 }} €</td>
                         <td class="text-center text-warning fw-bold">
                             {{ worm.raw_material.average_unit_cost|multiply_decimal:worm.quantity }} €
                         </td>
