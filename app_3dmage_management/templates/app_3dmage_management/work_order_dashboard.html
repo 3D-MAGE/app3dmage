@@ -108,7 +108,7 @@
                     <select class="form-select form-select-sm" name="filament_completed" id="filament_completed">
                         <option value="">Tutti</option>
                         {% for f in all_filaments %}
-                        <option value="{{ f.id }}" {% if f.id|stringformat:"s" == completed_filament_filter %}selected{% endif %}>{{ f }}</option>
+                        <option value="{{ f.id }}" {% if f.id|stringformat:"s" == completed_filament_filter %}selected{% endif %}>{{ f }}{% if f.color_name %} - {{ f.color_name }}{% endif %}</option>
                         {% endfor %}
                     </select>
                 </div>

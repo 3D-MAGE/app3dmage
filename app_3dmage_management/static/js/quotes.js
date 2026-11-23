@@ -132,13 +132,17 @@ document.addEventListener('DOMContentLoaded', function() {
         // Crea dinamicamente l'elemento SELECT
         const selectEl = document.createElement('select');
         selectEl.classList.add('form-select');
-        selectEl.setAttribute('placeholder', 'Seleziona materiale...');
+        selectEl.setAttribute('placeholder', 'Cerca codice, colore o materiale...');
         selectContainer.appendChild(selectEl);
 
         // Prepara le opzioni per Tom Select
         const options = costs.filaments.map(f => ({
             id: f.id,
             title: f.name,
+            color_name: f.color_name || '',
+            material: f.material || '',
+            color_code: f.color_code || '',
+            brand: f.brand || '',
             cost: f.cost_per_gram,
             color: f.color_hex,
             contrast: getContrastYIQ(f.color_hex)
@@ -149,17 +153,19 @@ document.addEventListener('DOMContentLoaded', function() {
             options: options,
             valueField: 'id',
             labelField: 'title',
-            searchField: 'title',
-            placeholder: 'Cerca materiale...',
+            searchField: ['title', 'color_name', 'material', 'color_code', 'brand'],
+            maxOptions: null,
+            placeholder: 'Cerca codice, colore o materiale...',
             render: {
                 option: function(data, escape) {
+                    const colorLabel = data.color_name ? ` - ${escape(data.color_name)}` : '';
                     return `<div>
                         <span style="display:inline-block; width:10px; height:10px; border-radius:50%; background-color:${escape(data.color)}; margin-right:5px;"></span>
-                        ${escape(data.title)} (~${parseFloat(data.cost).toFixed(3)}€/g)
+                        ${escape(data.title)}${colorLabel} (~${parseFloat(data.cost).toFixed(3)}€/g)
                     </div>`;
                 },
                 item: function(data, escape) {
-                    return `<div style="background-color: ${escape(data.color)}; color: ${escape(data.contrast)}; border-radius: 99px; padding: 2px 10px; font-weight: 500;">
+                    return `<div title="${escape(data.color_name || '')}" style="background-color: ${escape(data.color)}; color: ${escape(data.contrast)}; border-radius: 99px; padding: 2px 10px; font-weight: 500;">
                         ${escape(data.title)}
                     </div>`;
                 }

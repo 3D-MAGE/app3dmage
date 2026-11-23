@@ -6,28 +6,16 @@ from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from decimal import Decimal
 
-from ..models import WorkOrder, Category, Filament, FilamentUsage, GlobalSetting
+from ..models import WorkOrder, Category, Filament, FilamentUsage, GlobalSetting, get_app_version
 from ..forms import WorkOrderForm, PrintFileForm, PrintFileEditForm
 
 @login_required
 def project_dashboard(request):
-    # Intelligent Polling Check
-    try:
-        setting = GlobalSetting.objects.get(key='app_last_updated')
-        if setting.value is None or str(setting.value) == '':
-            raise ValueError("Empty value")
-        current_server_version = str(setting.value)
-    except Exception:
-        from django.utils import timezone
-        ts = str(timezone.now().timestamp() % 100000)
-        new_val = Decimal(ts)
-        GlobalSetting.objects.filter(key='app_last_updated').delete()
-        GlobalSetting.objects.create(key='app_last_updated', value=new_val)
-        current_server_version = str(new_val)
+    current_server_version = get_app_version()
 
     if request.headers.get('HX-Request'):
         client_version = request.GET.get('v')
-        if client_version == current_server_version:
+        if client_version and client_version == current_server_version:
             return HttpResponse(status=204)
 
     # Determina la vista corrente (active o completed)

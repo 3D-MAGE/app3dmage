@@ -192,7 +192,7 @@ document.addEventListener('DOMContentLoaded', function () {
             row.className = 'row mb-3 filament-row align-items-center';
             row.innerHTML = `
                 <div class="col-7">
-                    <select class="form-select select-filament-ts w-100" placeholder="Seleziona Filamento..."></select>
+                    <select class="form-select select-filament-ts w-100" placeholder="Cerca codice, colore o materiale..."></select>
                 </div>
                 <div class="col-3">
                     <input type="number" class="form-control input-grams bg-dark text-white" value="${grams}" step="0.01" min="0" placeholder="grammi">
@@ -209,21 +209,25 @@ document.addEventListener('DOMContentLoaded', function () {
                 const ts = new TomSelect(selectEl, {
                     valueField: 'id',
                     labelField: 'name',
-                    searchField: 'name',
+                    searchField: ['name', 'color_name', 'material', 'color_code', 'brand'],
+                    maxOptions: null,
+                    placeholder: 'Cerca codice, colore o materiale...',
                     options: allFilamentsData || [],
                     create: false,
                     render: {
                         option: function (data, escape) {
                             const textColor = getTextColorForBg(data.color_hex);
                             const textShadow = textColor === '#FFFFFF' ? '1px 1px 2px rgba(0,0,0,0.5)' : 'none';
-                            return `<div>
-                                        <span class="filament-pill" style="background-color: ${data.color_hex}; color: ${textColor}; text-shadow: ${textShadow}; border: 1px solid #444;">${escape(data.name)}</span>
+                            const colorLabel = data.color_name ? `<span class="ms-2 small text-white-50">${escape(data.color_name)}</span>` : '';
+                            return `<div class="d-flex align-items-center">
+                                        <span class="filament-pill mb-0" style="background-color: ${data.color_hex}; color: ${textColor}; text-shadow: ${textShadow}; border: 1px solid #444;">${escape(data.name)}</span>
+                                        ${colorLabel}
                                     </div>`;
                         },
                         item: function (data, escape) {
                             const textColor = getTextColorForBg(data.color_hex);
                             const textShadow = textColor === '#FFFFFF' ? '1px 1px 2px rgba(0,0,0,0.5)' : 'none';
-                            return `<div class="filament-pill" style="background-color: ${data.color_hex}; color: ${textColor}; text-shadow: ${textShadow}; border: 1px solid #444;">
+                            return `<div class="filament-pill" title="${escape(data.color_name || '')}" style="background-color: ${data.color_hex}; color: ${textColor}; text-shadow: ${textShadow}; border: 1px solid #444;">
                                         ${escape(data.name)}
                                     </div>`;
                         }
@@ -288,21 +292,40 @@ document.addEventListener('DOMContentLoaded', function () {
                 const partId = section.getAttribute('data-part-id');
                 const partName = section.querySelector('h6').textContent.trim();
                 const printersInPartMap = new Map();
+                const filesInPart = [];
 
                 section.querySelectorAll('.master-file-row').forEach(row => {
                     const id = row.getAttribute('data-printer-id');
                     const tag = row.getAttribute('data-printer');
                     const name = row.getAttribute('data-printer-name');
+                    const fileId = row.getAttribute('data-file-id');
+                    const fileName = row.querySelector('td')?.textContent.trim() || 'File';
+                    const producedQty = parseInt(row.getAttribute('data-produced-qty')) || 1;
+                    const estimatedTime = row.querySelectorAll('td')[1]?.textContent.trim() || '';
+
+                    if (fileId) {
+                        filesInPart.push({
+                            id: fileId,
+                            name: fileName,
+                            printerId: (id && id !== 'none') ? id : null,
+                            printerName: name || tag,
+                            printerTag: tag,
+                            producedQty: producedQty,
+                            estimatedTime: estimatedTime
+                        });
+                    }
+
                     if (id && id !== 'none') {
                         printersInPartMap.set(id, { id, name: name || tag, tag: tag });
                     }
                 });
 
-                if (printersInPartMap.size > 0) {
+                if (filesInPart.length > 0) {
                     partsInfo.push({
                         id: partId,
                         name: partName,
-                        printers: Array.from(printersInPartMap.values())
+                        printers: Array.from(printersInPartMap.values()),
+                        files: filesInPart
                     });
                 }
             });
@@ -323,9 +346,9 @@ document.addEventListener('DOMContentLoaded', function () {
             let partsHtml = '';
             partsInfo.forEach(part => {
                 let printerOptionsHtml = `
-                    <div class="d-flex flex-wrap gap-2">
+                    <div class="d-flex flex-wrap gap-2 mb-2">
                         <div class="printer-box-wrapper">
-                            <input type="radio" class="btn-check" name="printer_part_${part.id}_batch_${batchId}" id="skip_${part.id}_${batchId}" value="skip" autocomplete="off">
+                            <input type="radio" class="btn-check printer-radio" name="printer_part_${part.id}_batch_${batchId}" id="skip_${part.id}_${batchId}" value="skip" autocomplete="off" data-part-id="${part.id}" data-batch-id="${batchId}">
                             <label class="btn btn-outline-secondary btn-xs" for="skip_${part.id}_${batchId}">Salta</label>
                         </div>
                 `;
@@ -335,17 +358,68 @@ document.addEventListener('DOMContentLoaded', function () {
                     const isChecked = pIdx === 0 ? 'checked' : '';
                     printerOptionsHtml += `
                         <div class="printer-box-wrapper">
-                            <input type="radio" class="btn-check" name="printer_part_${part.id}_batch_${batchId}" id="${uniqueId}" value="${printer.id}" autocomplete="off" ${isChecked}>
+                            <input type="radio" class="btn-check printer-radio" name="printer_part_${part.id}_batch_${batchId}" id="${uniqueId}" value="${printer.id}" autocomplete="off" ${isChecked} data-part-id="${part.id}" data-printer-id="${printer.id}" data-batch-id="${batchId}">
                             <label class="btn btn-outline-orange btn-xs" for="${uniqueId}">${printer.name}</label>
                         </div>
                     `;
                 });
                 printerOptionsHtml += '</div>';
 
+                // File variants per printer
+                let fileVariantsHtml = '';
+                part.printers.forEach((printer, pIdx) => {
+                    const printerFiles = part.files.filter(f => !f.printerId || String(f.printerId) === String(printer.id));
+                    const isPrinterChecked = pIdx === 0;
+
+                    if (printerFiles.length > 1) {
+                        // Scegli il file migliore in base a qty
+                        let bestMatchId = printerFiles[0].id;
+                        const exactMatch = printerFiles.find(f => f.producedQty === qty);
+                        if (exactMatch) {
+                            bestMatchId = exactMatch.id;
+                        } else {
+                            const smallerOrEqual = printerFiles.filter(f => f.producedQty <= qty).sort((a, b) => b.producedQty - a.producedQty);
+                            if (smallerOrEqual.length > 0) {
+                                bestMatchId = smallerOrEqual[0].id;
+                            }
+                        }
+
+                        let radiosHtml = '';
+                        printerFiles.forEach(f => {
+                            const fChecked = (f.id === bestMatchId) ? 'checked' : '';
+                            const fUniqueId = `f_${f.id}_b${batchId}_p${part.id}`;
+                            radiosHtml += `
+                                <div class="file-box-wrapper">
+                                    <input type="radio" class="btn-check file-variant-radio" name="file_part_${part.id}_batch_${batchId}" id="${fUniqueId}" value="${f.id}" data-produced-qty="${f.producedQty}" ${fChecked} ${isPrinterChecked ? '' : 'disabled'}>
+                                    <label class="btn btn-outline-info btn-xs" for="${fUniqueId}">
+                                        ${f.name} <span class="badge bg-secondary ms-1">${f.producedQty} pz</span>
+                                        <span class="text-white-50 ms-1 small">(${f.estimatedTime})</span>
+                                    </label>
+                                </div>
+                            `;
+                        });
+
+                        fileVariantsHtml += `
+                            <div class="file-variant-wrapper ms-1 ps-2 border-start border-warning" id="files_wrap_${part.id}_pr_${printer.id}_${batchId}" style="${isPrinterChecked ? '' : 'display: none;'}">
+                                <div class="small text-warning-emphasis mb-1"><i class="bi bi-layers me-1"></i>Piatto G-code:</div>
+                                <div class="d-flex flex-wrap gap-2">
+                                    ${radiosHtml}
+                                </div>
+                            </div>
+                        `;
+                    } else if (printerFiles.length === 1) {
+                        const singleFile = printerFiles[0];
+                        fileVariantsHtml += `
+                            <input type="hidden" class="single-file-input" name="file_part_${part.id}_batch_${batchId}" value="${singleFile.id}" data-produced-qty="${singleFile.producedQty}" data-printer-id="${printer.id}" ${isPrinterChecked ? '' : 'disabled'}>
+                        `;
+                    }
+                });
+
                 partsHtml += `
                     <div class="mb-3 part-selection-row" data-part-id="${part.id}">
                         <label class="small text-white-50 d-block mb-1">${part.name}</label>
                         ${printerOptionsHtml}
+                        ${fileVariantsHtml}
                     </div>
                 `;
             });
@@ -353,7 +427,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const showRemove = batchIndex > 0;
             batchDiv.innerHTML = `
                 <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h6 class="text-success mb-0"><i class="bi bi-box-seam me-2"></i>Set #${batchIndex + 1}</h6>
+                    <h6 class="text-success mb-0"><i class="bi bi-box-seam me-2"></i>Lotto #${batchIndex + 1}</h6>
                     ${showRemove ? '<button type="button" class="btn btn-link btn-sm text-danger p-0 btn-remove-batch"><i class="bi bi-trash"></i> Rimuovi</button>' : ''}
                 </div>
                 <div class="row mb-1">
@@ -380,9 +454,44 @@ document.addEventListener('DOMContentLoaded', function () {
                 });
             }
 
+            // Gestione cambio stampante per mostrare/nascondere file corretti
+            batchDiv.querySelectorAll('.printer-radio').forEach(pRad => {
+                pRad.addEventListener('change', function () {
+                    const pRow = this.closest('.part-selection-row');
+                    const partId = this.getAttribute('data-part-id');
+                    const printerId = this.getAttribute('data-printer-id');
+                    const isSkip = this.value === 'skip';
+
+                    // Disabilita tutti i file della parte
+                    pRow.querySelectorAll('.file-variant-wrapper').forEach(w => {
+                        w.style.display = 'none';
+                        w.querySelectorAll('input').forEach(inp => inp.disabled = true);
+                    });
+                    pRow.querySelectorAll('.single-file-input').forEach(inp => inp.disabled = true);
+
+                    if (!isSkip && printerId) {
+                        const targetWrap = pRow.querySelector(`#files_wrap_${partId}_pr_${printerId}_${batchId}`);
+                        if (targetWrap) {
+                            targetWrap.style.display = 'block';
+                            targetWrap.querySelectorAll('input').forEach(inp => inp.disabled = false);
+                            // Se nessun radio è checked, checka il primo
+                            if (!targetWrap.querySelector('input:checked')) {
+                                const firstRadio = targetWrap.querySelector('input[type="radio"]');
+                                if (firstRadio) firstRadio.checked = true;
+                            }
+                        }
+                        const targetSingle = pRow.querySelector(`.single-file-input[data-printer-id="${printerId}"]`);
+                        if (targetSingle) {
+                            targetSingle.disabled = false;
+                        }
+                    }
+                    updateOrderSummary();
+                });
+            });
+
             batchDiv.querySelector('.batch-qty-input').addEventListener('input', updateOrderSummary);
-            batchDiv.querySelectorAll('input[type="radio"]').forEach(rad => {
-                rad.addEventListener('change', updateOrderSummary);
+            batchDiv.querySelectorAll('.file-variant-radio').forEach(fRad => {
+                fRad.addEventListener('change', updateOrderSummary);
             });
         }
 
@@ -390,9 +499,7 @@ document.addEventListener('DOMContentLoaded', function () {
             batchContainer.querySelectorAll('.order-batch-item').forEach((item, idx) => {
                 item.setAttribute('data-batch-index', idx);
                 const title = item.querySelector('h6');
-                if (title) title.innerHTML = `<i class="bi bi-box-seam me-2"></i>Set #${idx + 1}`;
-
-                // Aggiorna anche il testo della quantità se necessario (anche se qty non cambia, l'indice sì)
+                if (title) title.innerHTML = `<i class="bi bi-box-seam me-2"></i>Lotto #${idx + 1}`;
             });
         }
 
@@ -411,33 +518,21 @@ document.addEventListener('DOMContentLoaded', function () {
                 const qty = parseInt(batchDiv.querySelector('.batch-qty-input').value) || 0;
                 totalQty += qty;
 
-                const selectedPrinters = {}; // partId -> printerId
-                batchDiv.querySelectorAll('input[type="radio"]:checked').forEach(rad => {
-                    const name = rad.name;
-                    const partId = name.split('_')[2]; // printer_part_ID_batch_...
-                    selectedPrinters[partId] = rad.value;
-                });
-
                 let batchFiles = 0;
-                document.querySelectorAll('.part-section').forEach(section => {
-                    const partId = section.getAttribute('data-part-id');
-                    const selectedPrinterId = selectedPrinters[partId];
-                    if (selectedPrinterId === 'skip') return;
+                batchDiv.querySelectorAll('.part-selection-row').forEach(row => {
+                    const checkedPrinter = row.querySelector('.printer-radio:checked');
+                    if (!checkedPrinter || checkedPrinter.value === 'skip') return;
 
-                    section.querySelectorAll('.master-file-row').forEach(row => {
-                        const filePrinterId = row.getAttribute('data-printer-id');
-                        const producedQty = parseInt(row.getAttribute('data-produced-qty')) || 1;
-
-                        if (selectedPrinterId && filePrinterId === selectedPrinterId) {
-                            batchFiles += Math.ceil(qty / producedQty);
-                        } else if (!selectedPrinterId && filePrinterId === 'none') {
-                            batchFiles += Math.ceil(qty / producedQty);
-                        }
-                    });
+                    const activeFile = row.querySelector('.file-variant-radio:not(:disabled):checked, .single-file-input:not(:disabled)');
+                    if (activeFile) {
+                        const producedQty = parseInt(activeFile.getAttribute('data-produced-qty')) || 1;
+                        batchFiles += Math.ceil(qty / producedQty);
+                    }
                 });
+
                 totalFilesCount += batchFiles;
                 if (qty > 0) {
-                    batchSummaries.push(`Set #${idx + 1}: <strong>${qty} pezzi</strong> (${batchFiles} file)`);
+                    batchSummaries.push(`Lotto #${idx + 1}: <strong>${qty} pezzi</strong> (${batchFiles} file)`);
                 }
             });
 
@@ -462,13 +557,22 @@ document.addEventListener('DOMContentLoaded', function () {
             batchContainer.querySelectorAll('.order-batch-item').forEach(batchDiv => {
                 const qty = parseInt(batchDiv.querySelector('.batch-qty-input').value) || 0;
                 const printerSelection = {};
-                batchDiv.querySelectorAll('input[type="radio"]:checked').forEach(rad => {
-                    const name = rad.name;
-                    const partId = name.split('_')[2];
-                    printerSelection[partId] = rad.value;
+                const fileSelection = {};
+
+                batchDiv.querySelectorAll('.part-selection-row').forEach(row => {
+                    const partId = row.getAttribute('data-part-id');
+                    const checkedPrinter = row.querySelector('.printer-radio:checked');
+                    if (checkedPrinter) {
+                        printerSelection[partId] = checkedPrinter.value;
+                    }
+                    const activeFile = row.querySelector('.file-variant-radio:not(:disabled):checked, .single-file-input:not(:disabled)');
+                    if (activeFile && checkedPrinter && checkedPrinter.value !== 'skip') {
+                        fileSelection[partId] = activeFile.value;
+                    }
                 });
+
                 if (qty > 0) {
-                    batches.push({ quantity: qty, printers: printerSelection });
+                    batches.push({ quantity: qty, printers: printerSelection, files: fileSelection });
                 }
             });
 
@@ -597,11 +701,15 @@ document.addEventListener('DOMContentLoaded', function () {
         if (addPartBtn && partsContainer) {
             addPartBtn.addEventListener('click', function () {
                 const rowCount = partsContainer.querySelectorAll('.part-row').length + 1;
+                const projName = document.querySelector('#editMasterModal input[name="name"]')?.value?.trim();
+                const defaultName = (rowCount === 1 && projName) ? projName : `Parte ${rowCount}`;
                 const div = document.createElement('div');
                 div.className = 'input-group mb-2 part-row';
                 div.innerHTML = `
                     <input type="hidden" name="part_ids[]" value="">
-                    <input type="text" name="part_names[]" class="form-control bg-dark text-white" value="Parte ${rowCount}" placeholder="Nome Parte">
+                    <input type="text" name="part_names[]" class="form-control bg-dark text-white" value="${defaultName}" placeholder="Nome Parte" style="flex: 3;">
+                    <span class="input-group-text bg-dark border-secondary text-white-50">Qtà x Oggetto</span>
+                    <input type="number" name="part_pieces[]" class="form-control bg-dark text-white text-center" value="1" min="1" placeholder="Pz" style="max-width: 90px;">
                     <button type="button" class="btn btn-outline-danger remove-part-btn"><i class="bi bi-trash"></i></button>
                 `;
                 partsContainer.appendChild(div);
@@ -687,21 +795,40 @@ document.addEventListener('DOMContentLoaded', function () {
                 const partId = section.getAttribute('data-part-id');
                 const partName = section.querySelector('h6').textContent.trim();
                 const printersInPartMap = new Map();
+                const filesInPart = [];
 
                 section.querySelectorAll('.master-file-row').forEach(row => {
                     const id = row.getAttribute('data-printer-id');
                     const tag = row.getAttribute('data-printer');
                     const name = row.getAttribute('data-printer-name');
+                    const fileId = row.getAttribute('data-file-id');
+                    const fileName = row.querySelector('td')?.textContent.trim() || 'File';
+                    const producedQty = parseInt(row.getAttribute('data-produced-qty')) || 1;
+                    const estimatedTime = row.querySelectorAll('td')[1]?.textContent.trim() || '';
+
+                    if (fileId) {
+                        filesInPart.push({
+                            id: fileId,
+                            name: fileName,
+                            printerId: (id && id !== 'none') ? id : null,
+                            printerName: name || tag,
+                            printerTag: tag,
+                            producedQty: producedQty,
+                            estimatedTime: estimatedTime
+                        });
+                    }
+
                     if (id && id !== 'none') {
                         printersInPartMap.set(id, { id, name: name || tag, tag: tag });
                     }
                 });
 
-                if (printersInPartMap.size > 0) {
+                if (filesInPart.length > 0) {
                     partsInfo.push({
                         id: partId,
                         name: partName,
-                        printers: Array.from(printersInPartMap.values())
+                        printers: Array.from(printersInPartMap.values()),
+                        files: filesInPart
                     });
                 }
             });
@@ -722,9 +849,9 @@ document.addEventListener('DOMContentLoaded', function () {
             let partsHtml = '';
             partsInfo.forEach(part => {
                 let printerOptionsHtml = `
-                    <div class="d-flex flex-wrap gap-2">
+                    <div class="d-flex flex-wrap gap-2 mb-2">
                         <div class="printer-box-wrapper">
-                            <input type="radio" class="btn-check" name="printer_part_${part.id}_addtoorder_${batchId}" id="add_to_order_skip_${part.id}_${batchId}" value="skip" autocomplete="off">
+                            <input type="radio" class="btn-check printer-radio-addtoorder" name="printer_part_${part.id}_addtoorder_${batchId}" id="add_to_order_skip_${part.id}_${batchId}" value="skip" autocomplete="off" data-part-id="${part.id}" data-batch-id="${batchId}">
                             <label class="btn btn-outline-secondary btn-xs" for="add_to_order_skip_${part.id}_${batchId}">Salta</label>
                         </div>
                 `;
@@ -734,17 +861,67 @@ document.addEventListener('DOMContentLoaded', function () {
                     const isChecked = pIdx === 0 ? 'checked' : '';
                     printerOptionsHtml += `
                         <div class="printer-box-wrapper">
-                            <input type="radio" class="btn-check" name="printer_part_${part.id}_addtoorder_${batchId}" id="${uniqueId}" value="${printer.id}" autocomplete="off" ${isChecked}>
+                            <input type="radio" class="btn-check printer-radio-addtoorder" name="printer_part_${part.id}_addtoorder_${batchId}" id="${uniqueId}" value="${printer.id}" autocomplete="off" ${isChecked} data-part-id="${part.id}" data-printer-id="${printer.id}" data-batch-id="${batchId}">
                             <label class="btn btn-outline-orange btn-xs" for="${uniqueId}">${printer.name}</label>
                         </div>
                     `;
                 });
                 printerOptionsHtml += '</div>';
 
+                // File variants per printer
+                let fileVariantsHtml = '';
+                part.printers.forEach((printer, pIdx) => {
+                    const printerFiles = part.files.filter(f => !f.printerId || String(f.printerId) === String(printer.id));
+                    const isPrinterChecked = pIdx === 0;
+
+                    if (printerFiles.length > 1) {
+                        let bestMatchId = printerFiles[0].id;
+                        const exactMatch = printerFiles.find(f => f.producedQty === qty);
+                        if (exactMatch) {
+                            bestMatchId = exactMatch.id;
+                        } else {
+                            const smallerOrEqual = printerFiles.filter(f => f.producedQty <= qty).sort((a, b) => b.producedQty - a.producedQty);
+                            if (smallerOrEqual.length > 0) {
+                                bestMatchId = smallerOrEqual[0].id;
+                            }
+                        }
+
+                        let radiosHtml = '';
+                        printerFiles.forEach(f => {
+                            const fChecked = (f.id === bestMatchId) ? 'checked' : '';
+                            const fUniqueId = `f_ato_${f.id}_b${batchId}_p${part.id}`;
+                            radiosHtml += `
+                                <div class="file-box-wrapper">
+                                    <input type="radio" class="btn-check file-variant-radio-addtoorder" name="file_part_${part.id}_addtoorder_${batchId}" id="${fUniqueId}" value="${f.id}" data-produced-qty="${f.producedQty}" ${fChecked} ${isPrinterChecked ? '' : 'disabled'}>
+                                    <label class="btn btn-outline-info btn-xs" for="${fUniqueId}">
+                                        ${f.name} <span class="badge bg-secondary ms-1">${f.producedQty} pz</span>
+                                        <span class="text-white-50 ms-1 small">(${f.estimatedTime})</span>
+                                    </label>
+                                </div>
+                            `;
+                        });
+
+                        fileVariantsHtml += `
+                            <div class="file-variant-wrapper ms-1 ps-2 border-start border-warning" id="files_wrap_ato_${part.id}_pr_${printer.id}_${batchId}" style="${isPrinterChecked ? '' : 'display: none;'}">
+                                <div class="small text-warning-emphasis mb-1"><i class="bi bi-layers me-1"></i>Piatto G-code:</div>
+                                <div class="d-flex flex-wrap gap-2">
+                                    ${radiosHtml}
+                                </div>
+                            </div>
+                        `;
+                    } else if (printerFiles.length === 1) {
+                        const singleFile = printerFiles[0];
+                        fileVariantsHtml += `
+                            <input type="hidden" class="single-file-input-addtoorder" name="file_part_${part.id}_addtoorder_${batchId}" value="${singleFile.id}" data-produced-qty="${singleFile.producedQty}" data-printer-id="${printer.id}" ${isPrinterChecked ? '' : 'disabled'}>
+                        `;
+                    }
+                });
+
                 partsHtml += `
                     <div class="mb-3 part-selection-row" data-part-id="${part.id}">
                         <label class="small text-white-50 d-block mb-1">${part.name}</label>
                         ${printerOptionsHtml}
+                        ${fileVariantsHtml}
                     </div>
                 `;
             });
@@ -752,7 +929,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const showRemove = batchIndex > 0;
             batchDiv.innerHTML = `
                 <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h6 class="text-success mb-0"><i class="bi bi-box-seam me-2"></i>Set #${batchIndex + 1}</h6>
+                    <h6 class="text-success mb-0"><i class="bi bi-box-seam me-2"></i>Lotto #${batchIndex + 1}</h6>
                     ${showRemove ? '<button type="button" class="btn btn-link btn-sm text-danger p-0 btn-remove-batch"><i class="bi bi-trash"></i> Rimuovi</button>' : ''}
                 </div>
                 <div class="row mb-1">
@@ -779,9 +956,43 @@ document.addEventListener('DOMContentLoaded', function () {
                 });
             }
 
+            // Gestione cambio stampante per mostrare/nascondere file corretti
+            batchDiv.querySelectorAll('.printer-radio-addtoorder').forEach(pRad => {
+                pRad.addEventListener('change', function () {
+                    const pRow = this.closest('.part-selection-row');
+                    const partId = this.getAttribute('data-part-id');
+                    const printerId = this.getAttribute('data-printer-id');
+                    const isSkip = this.value === 'skip';
+
+                    // Disabilita tutti i file della parte
+                    pRow.querySelectorAll('.file-variant-wrapper').forEach(w => {
+                        w.style.display = 'none';
+                        w.querySelectorAll('input').forEach(inp => inp.disabled = true);
+                    });
+                    pRow.querySelectorAll('.single-file-input-addtoorder').forEach(inp => inp.disabled = true);
+
+                    if (!isSkip && printerId) {
+                        const targetWrap = pRow.querySelector(`#files_wrap_ato_${partId}_pr_${printerId}_${batchId}`);
+                        if (targetWrap) {
+                            targetWrap.style.display = 'block';
+                            targetWrap.querySelectorAll('input').forEach(inp => inp.disabled = false);
+                            if (!targetWrap.querySelector('input:checked')) {
+                                const firstRadio = targetWrap.querySelector('input[type="radio"]');
+                                if (firstRadio) firstRadio.checked = true;
+                            }
+                        }
+                        const targetSingle = pRow.querySelector(`.single-file-input-addtoorder[data-printer-id="${printerId}"]`);
+                        if (targetSingle) {
+                            targetSingle.disabled = false;
+                        }
+                    }
+                    updateOrderSummary();
+                });
+            });
+
             batchDiv.querySelector('.batch-qty-input').addEventListener('input', updateOrderSummary);
-            batchDiv.querySelectorAll('input[type="radio"]').forEach(rad => {
-                rad.addEventListener('change', updateOrderSummary);
+            batchDiv.querySelectorAll('.file-variant-radio-addtoorder').forEach(fRad => {
+                fRad.addEventListener('change', updateOrderSummary);
             });
         }
 
@@ -789,7 +1000,7 @@ document.addEventListener('DOMContentLoaded', function () {
             batchContainer.querySelectorAll('.order-batch-item').forEach((item, idx) => {
                 item.setAttribute('data-batch-index', idx);
                 const title = item.querySelector('h6');
-                if (title) title.innerHTML = `<i class="bi bi-box-seam me-2"></i>Set #${idx + 1}`;
+                if (title) title.innerHTML = `<i class="bi bi-box-seam me-2"></i>Lotto #${idx + 1}`;
             });
         }
 
@@ -808,33 +1019,21 @@ document.addEventListener('DOMContentLoaded', function () {
                 const qty = parseInt(batchDiv.querySelector('.batch-qty-input').value) || 0;
                 totalQty += qty;
 
-                const selectedPrinters = {}; // partId -> printerId
-                batchDiv.querySelectorAll('input[type="radio"]:checked').forEach(rad => {
-                    const name = rad.name;
-                    const partId = name.split('_')[2]; // printer_part_ID_addtoorder_...
-                    selectedPrinters[partId] = rad.value;
-                });
-
                 let batchFiles = 0;
-                document.querySelectorAll('.part-section').forEach(section => {
-                    const partId = section.getAttribute('data-part-id');
-                    const selectedPrinterId = selectedPrinters[partId];
-                    if (selectedPrinterId === 'skip') return;
+                batchDiv.querySelectorAll('.part-selection-row').forEach(row => {
+                    const checkedPrinter = row.querySelector('.printer-radio-addtoorder:checked');
+                    if (!checkedPrinter || checkedPrinter.value === 'skip') return;
 
-                    section.querySelectorAll('.master-file-row').forEach(row => {
-                        const filePrinterId = row.getAttribute('data-printer-id');
-                        const producedQty = parseInt(row.getAttribute('data-produced-qty')) || 1;
-
-                        if (selectedPrinterId && filePrinterId === selectedPrinterId) {
-                            batchFiles += Math.ceil(qty / producedQty);
-                        } else if (!selectedPrinterId && filePrinterId === 'none') {
-                            batchFiles += Math.ceil(qty / producedQty);
-                        }
-                    });
+                    const activeFile = row.querySelector('.file-variant-radio-addtoorder:not(:disabled):checked, .single-file-input-addtoorder:not(:disabled)');
+                    if (activeFile) {
+                        const producedQty = parseInt(activeFile.getAttribute('data-produced-qty')) || 1;
+                        batchFiles += Math.ceil(qty / producedQty);
+                    }
                 });
+
                 totalFilesCount += batchFiles;
                 if (qty > 0) {
-                    batchSummaries.push(`Set #${idx + 1}: <strong>${qty} pezzi</strong> (${batchFiles} file)`);
+                    batchSummaries.push(`Lotto #${idx + 1}: <strong>${qty} pezzi</strong> (${batchFiles} file)`);
                 }
             });
 
@@ -865,13 +1064,22 @@ document.addEventListener('DOMContentLoaded', function () {
             batchContainer.querySelectorAll('.order-batch-item').forEach(batchDiv => {
                 const qty = parseInt(batchDiv.querySelector('.batch-qty-input').value) || 0;
                 const printerSelection = {};
-                batchDiv.querySelectorAll('input[type="radio"]:checked').forEach(rad => {
-                    const name = rad.name;
-                    const partId = name.split('_')[2]; // printer_part_ID_addtoorder_...
-                    printerSelection[partId] = rad.value;
+                const fileSelection = {};
+
+                batchDiv.querySelectorAll('.part-selection-row').forEach(row => {
+                    const partId = row.getAttribute('data-part-id');
+                    const checkedPrinter = row.querySelector('.printer-radio-addtoorder:checked');
+                    if (checkedPrinter) {
+                        printerSelection[partId] = checkedPrinter.value;
+                    }
+                    const activeFile = row.querySelector('.file-variant-radio-addtoorder:not(:disabled):checked, .single-file-input-addtoorder:not(:disabled)');
+                    if (activeFile && checkedPrinter && checkedPrinter.value !== 'skip') {
+                        fileSelection[partId] = activeFile.value;
+                    }
                 });
+
                 if (qty > 0) {
-                    batches.push({ quantity: qty, printers: printerSelection });
+                    batches.push({ quantity: qty, printers: printerSelection, files: fileSelection });
                 }
             });
 

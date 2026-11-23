@@ -2,7 +2,7 @@ from django.contrib import admin, messages
 from django.db import transaction, models
 from .models import (
     Category, Printer, Plate, Filament, Spool, Project, MasterPrintFile, WorkOrder, PrintFile,
-    StockItem, PaymentMethod, Expense, ExpenseCategory, MaintenanceLog, GlobalSetting, Quote, Notification
+    StockItem, PaymentMethod, Expense, ExpenseCategory, MaintenanceLog, GlobalSetting, Quote, Notification, Note
 )
 
 # Registra i modelli per renderli visibili nel pannello di amministrazione
@@ -22,6 +22,7 @@ admin.site.register(MaintenanceLog)
 admin.site.register(GlobalSetting)
 admin.site.register(Quote)
 admin.site.register(Notification)
+admin.site.register(Note)
 
 @admin.register(WorkOrder)
 class WorkOrderAdmin(admin.ModelAdmin):

@@ -17,3 +17,7 @@ venv_local/
 # OS
 .DS_Store
 Thumbs.db
+
+# Backups
+backups/
+*.tar.gz

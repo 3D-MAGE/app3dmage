@@ -11,3 +11,4 @@ from .notifications import *
 from .sync import *
 from .statistics import *
 from .raw_materials import *
+from .notes import *

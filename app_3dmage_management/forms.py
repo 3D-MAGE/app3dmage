@@ -2,7 +2,7 @@ from django import forms
 from .models import (
     WorkOrder, PrintFile, Project, MasterPrintFile, Category, Printer, Plate, Filament, Spool, 
     StockItem, Expense, PaymentMethod, ExpenseCategory, MaintenanceLog, GlobalSetting, ProjectPart,
-    RawMaterial, RawMaterialPurchase, ProjectRawMaterial, WorkOrderRawMaterial
+    RawMaterial, RawMaterialPurchase, ProjectRawMaterial, WorkOrderRawMaterial, Note
 )
 import datetime
 from decimal import Decimal
@@ -509,3 +509,26 @@ class WorkOrderRawMaterialForm(forms.ModelForm):
             'raw_material': forms.Select(attrs={'class': 'form-select'}),
             'quantity': forms.NumberInput(attrs={'class': 'form-control', 'min': 1}),
         }
+
+
+class NoteForm(forms.ModelForm):
+    due_date = forms.DateField(
+        required=False,
+        widget=forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}, format='%Y-%m-%d'),
+        label="Data Scadenza / Promemoria"
+    )
+
+    class Meta:
+        model = Note
+        fields = ['title', 'category', 'priority', 'due_date', 'description', 'filament', 'raw_material', 'printer', 'work_order']
+        widgets = {
+            'title': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Es. PLA giallo SUNLU da ordinare'}),
+            'category': forms.Select(attrs={'class': 'form-select'}),
+            'priority': forms.Select(attrs={'class': 'form-select'}),
+            'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 3, 'placeholder': 'Dettagli, quantità da ordinare, link fornitore, appunti...'}),
+            'filament': forms.Select(attrs={'class': 'form-select'}),
+            'raw_material': forms.Select(attrs={'class': 'form-select'}),
+            'printer': forms.Select(attrs={'class': 'form-select'}),
+            'work_order': forms.Select(attrs={'class': 'form-select'}),
+        }
+

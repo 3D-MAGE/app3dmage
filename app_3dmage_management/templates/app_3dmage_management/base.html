@@ -48,13 +48,79 @@
                         <li class="nav-item"><a class="nav-link {% if page_title == 'Libreria Progetti' %}active{% endif %}" href="{% url 'projects_library' %}">Libreria</a></li>
                         <li class="nav-item"><a class="nav-link {% if page_title == 'Ordini di Lavoro' %}active{% endif %}" href="{% url 'project_dashboard' %}">Ordini</a></li>
                         <li class="nav-item"><a class="nav-link {% if page_title == 'Coda di Stampa' %}active{% endif %}" href="{% url 'print_queue_board' %}">Coda Stampa</a></li>
-                        <li class="nav-item"><a class="nav-link {% if page_title == 'Magazzino' %}active{% endif %}" href="{% url 'inventory_dashboard' %}">Magazzino</a></li>
-                        <li class="nav-item"><a class="nav-link {% if page_title == 'Vendite' %}active{% endif %}" href="{% url 'sales_dashboard' %}">Vendite</a></li>
                         <li class="nav-item"><a class="nav-link {% if page_title == 'Filamenti' %}active{% endif %}" href="{% url 'filament_dashboard' %}">Filamenti</a></li>
-                        <li class="nav-item"><a class="nav-link {% if page_title == 'Contabilità' %}active{% endif %}" href="{% url 'accounting_dashboard' %}">Contabilità</a></li>
+
+                        <!-- Dropdown Magazzino -->
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle {% if page_title == 'Magazzino' or page_title == 'Magazzino Materie Prime' %}active{% endif %}" href="#" id="magazzinoDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                Magazzino
+                            </a>
+                            <ul class="dropdown-menu dropdown-menu-dark" aria-labelledby="magazzinoDropdown">
+                                <li>
+                                    <a class="dropdown-item {% if page_title == 'Magazzino' %}active{% endif %}" href="{% url 'inventory_dashboard' %}">
+                                        <i class="bi bi-box-seam me-2"></i>Magazzino Prodotti
+                                    </a>
+                                </li>
+                                <li>
+                                    <a class="dropdown-item {% if page_title == 'Magazzino Materie Prime' %}active{% endif %}" href="{% url 'raw_materials_dashboard' %}">
+                                        <i class="bi bi-boxes me-2"></i>Materie Prime
+                                    </a>
+                                </li>
+                            </ul>
+                        </li>
+
+                        <!-- Dropdown Vendite & Contabilità -->
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle {% if page_title == 'Vendite' or page_title == 'Contabilità' %}active{% endif %}" href="#" id="financeDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                Vendite & Finanze
+                            </a>
+                            <ul class="dropdown-menu dropdown-menu-dark" aria-labelledby="financeDropdown">
+                                <li>
+                                    <a class="dropdown-item {% if page_title == 'Vendite' %}active{% endif %}" href="{% url 'sales_dashboard' %}">
+                                        <i class="bi bi-cart-check me-2"></i>Registro Vendite
+                                    </a>
+                                </li>
+                                <li>
+                                    <a class="dropdown-item {% if page_title == 'Contabilità' %}active{% endif %}" href="{% url 'accounting_dashboard' %}">
+                                        <i class="bi bi-wallet2 me-2"></i>Contabilità & Spese
+                                    </a>
+                                </li>
+                            </ul>
+                        </li>
+
                         <li class="nav-item"><a class="nav-link {% if page_title == 'Preventivi' %}active{% endif %}" href="{% url 'quote_calculator' %}">Preventivi</a></li>
                     </ul>
                     <ul class="navbar-nav align-items-center">
+                        <!-- Pulsante Note Rapide (Offcanvas) -->
+                        <li class="nav-item me-2">
+                            <button class="btn btn-outline-warning btn-sm position-relative d-inline-flex align-items-center justify-content-center p-0" type="button" data-bs-toggle="offcanvas" data-bs-target="#quickNotesOffcanvas" aria-controls="quickNotesOffcanvas" title="Note rapide" style="width: 34px; height: 34px;">
+                                <i class="bi bi-journal-text fs-6"></i>
+                                <span id="quickNotesBadge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-warning text-dark d-none" style="font-size: 0.65rem;">0</span>
+                            </button>
+                        </li>
+
+                        <!-- Dropdown Notifiche -->
+                        <li class="nav-item dropdown me-2">
+                            <button class="btn btn-outline-secondary btn-sm position-relative d-inline-flex align-items-center justify-content-center p-0 text-light" id="notificationsDropdown" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Notifiche" style="width: 34px; height: 34px;">
+                                <i class="bi bi-bell-fill fs-6"></i>
+                                <span id="notificationsBadge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger d-none" style="font-size: 0.65rem;">0</span>
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-dark dropdown-menu-end shadow-lg" aria-labelledby="notificationsDropdown" style="width: 340px; max-height: 440px; overflow-y: auto;">
+                                <li class="p-2 border-bottom border-secondary d-flex justify-content-between align-items-center">
+                                    <span class="fw-bold small text-uppercase text-light"><i class="bi bi-bell text-warning me-1"></i>Notifiche</span>
+                                    <button class="btn btn-link btn-sm text-warning p-0 text-decoration-none small" onclick="markAllNotificationsAsRead(event)">Segna tutte lette</button>
+                                </li>
+                                <div id="notificationsList">
+                                    <li class="p-3 text-center text-white-50 small">Nessuna nuova notifica</li>
+                                </div>
+                                <li class="p-2 border-top border-secondary text-center bg-dark">
+                                    <a href="{% url 'notifications_dashboard' %}" class="small text-warning text-decoration-none fw-semibold">
+                                        Vedi tutte le notifiche <i class="bi bi-arrow-right ms-1"></i>
+                                    </a>
+                                </li>
+                            </ul>
+                        </li>
+
                         <li class="nav-item dropdown">
                             <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                                 <i class="bi bi-person-circle me-1"></i> {{ user.username }}
@@ -92,6 +158,48 @@
     <main class="container-fluid my-4 flex-grow-1">
         {% block content %}{% endblock %}
     </main>
+
+    {% if user.is_authenticated %}
+    <!-- Offcanvas Note & Promemoria Rapidi -->
+    <div class="offcanvas offcanvas-end bg-dark-card text-white border-start border-secondary" tabindex="-1" id="quickNotesOffcanvas" aria-labelledby="quickNotesOffcanvasLabel" style="width: 360px;">
+        <div class="offcanvas-header border-bottom border-secondary justify-content-between">
+            <h5 class="offcanvas-title d-flex align-items-center mb-0 text-nowrap" id="quickNotesOffcanvasLabel">
+                <i class="bi bi-journal-text text-warning me-2"></i>Note Rapide
+            </h5>
+            <div class="d-flex align-items-center gap-2 ms-auto">
+                <a href="{% url 'notes_dashboard' %}" class="btn btn-sm btn-outline-warning d-inline-flex align-items-center gap-1 text-nowrap" title="Apri tutte le note">
+                    <i class="bi bi-box-arrow-up-right"></i>
+                    <span>Apri Note</span>
+                </a>
+                <button type="button" class="btn-close btn-close-white m-0 p-1" data-bs-dismiss="offcanvas" aria-label="Chiudi"></button>
+            </div>
+        </div>
+        <div class="offcanvas-body d-flex flex-column p-3">
+            <!-- Form Aggiunta Rapida -->
+            <form id="offcanvasQuickAddForm" class="mb-3">
+                {% csrf_token %}
+                <div class="input-group">
+                    <input type="text" id="offcanvasNoteTitle" name="title" class="form-control bg-dark text-white border-secondary" placeholder="Nuova nota rapida..." required autocomplete="off">
+                    <button class="btn btn-warning fw-bold" type="submit" title="Aggiungi nota">
+                        <i class="bi bi-plus-lg"></i>
+                    </button>
+                </div>
+            </form>
+
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="small text-uppercase text-white-50 fw-bold">Promemoria Attivi</span>
+                <span class="badge bg-warning text-dark" id="offcanvasActiveBadge">0</span>
+            </div>
+
+            <!-- Lista Note Rapide -->
+            <div class="flex-grow-1 overflow-auto" id="offcanvasNotesList" style="max-height: calc(100vh - 200px);">
+                <div class="text-center py-4 text-muted">
+                    <div class="spinner-border spinner-border-sm text-warning" role="status"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
 
     <div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 1100">
         <div id="appToast" class="toast align-items-center text-white border-0" role="alert" aria-live="assertive" aria-atomic="true">

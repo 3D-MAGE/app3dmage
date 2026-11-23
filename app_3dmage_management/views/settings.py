@@ -336,7 +336,11 @@ def api_get_costs(request):
             'id': f.id,
             'name': str(f),
             'cost_per_gram': float(cost_per_gram),
-            'color_hex': f.color_hex
+            'color_hex': f.color_hex,
+            'color_name': f.color_name or '',
+            'material': f.material,
+            'color_code': f.color_code,
+            'brand': f.brand,
         })
 
     printers_data = []

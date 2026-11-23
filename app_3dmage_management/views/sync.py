@@ -3,7 +3,7 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_GET, require_POST
-from ..models import WorkOrder, StockItem, GlobalSetting
+from ..models import WorkOrder, StockItem, GlobalSetting, get_app_version
 from decimal import Decimal
 
 @login_required
@@ -11,28 +11,13 @@ from decimal import Decimal
 def check_updates(request):
     """
     Check if the global app state has changed.
-    Expects a 'v' GET parameter (timestamp).
+    Expects a 'v' GET parameter (timestamp/counter).
     Returns 204 (No Content) if no change, or 200 with new version if change.
     """
     client_version = request.GET.get('v')
-    # Intelligent Polling Check
-    try:
-        setting = GlobalSetting.objects.get(key='app_last_updated')
-        # Check if value is valid decimal/string
-        if setting.value is None or str(setting.value) == '':
-           raise ValueError("Empty value")
-        server_version = str(setting.value)
-    except Exception:
-         # Corrupt data, reset it
-         from django.utils import timezone
-         ts = str(timezone.now().timestamp())
-         new_val = Decimal(ts)
-         # Avoid reading corrupt data
-         GlobalSetting.objects.filter(key='app_last_updated').delete()
-         GlobalSetting.objects.create(key='app_last_updated', value=new_val)
-         server_version = str(new_val)
+    server_version = get_app_version()
 
-    if client_version == server_version:
+    if client_version and client_version == server_version:
         return HttpResponse(status=204)
     
     return JsonResponse({'v': server_version})

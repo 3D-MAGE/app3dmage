@@ -21,6 +21,7 @@ All'interno di un **Progetto Master**, troviamo diverse entità:
 Le **Parti** sono raggruppamenti logici dei componenti fisici del progetto.
 *   *Esempio*: Un progetto "Robot" può essere diviso nelle parti "Gambe", "Busto", "Braccia", "Testa".
 *   *Scopo*: Servono a organizzare i file di stampa in modo ordinato.
+*   *Denominazione automatica*: Quando un progetto Master viene creato con 1 sola parte iniziale (opzione predefinita), la parte riceve automaticamente il **nome dell'oggetto** anziché il generico "Parte 1", mantenendo la struttura snella e intuitiva.
 
 ### **Output (Project Outputs)**
 Gli **Output** sono i prodotti finali che verranno effettivamente versati in magazzino al termine della produzione.
@@ -48,10 +49,13 @@ Quando crei un **Ordine di Lavoro** da un Master, l'app genera i compiti di stam
 *   **Stampato (Printed)**: Tutti i file sono stati stampati, ma gli oggetti non sono ancora stati "versati" in magazzino.
 *   **Completato (Done)**: Gli oggetti sono stati versati in magazzino e l'ordine è chiuso.
 
-### **File di Stampa (Print Files)**
-Sono le singole attività di stampa all'interno di un ordine. Ognuno ha il suo stato:
-*   `Todo` -> `In Stampa` -> `Stampato` o `Fallito`.
-*   Se un file fallisce, è possibile rimetterlo in coda per ritentare.
+### **File di Stampa (Print Files / G-Code)**
+Sono le singole attività di stampa all'interno di un ordine. Ognuno segue un ciclo di stati ben definito:
+*   **Da Preparare (`Prepare`)**: Stato preliminare facoltativo (prima di "Da Stampare"). Si usa per i file non ancora pronti per la produzione (es. slicing da ottimizzare, piatto o materiale da verificare). **I file "Da Preparare" NON vengono mostrati nella Coda di Stampa**, mantenendo pulita la vista delle macchine.
+*   **Da Stampare (`Todo`)**: Stato predefinito alla creazione. Il file è pronto e viene visualizzato nella colonna "In Coda" della rispettiva stampante nella Coda di Stampa.
+*   **In Stampa (`Printing`)**: Il file è attualmente in esecuzione sul piatto della stampante.
+*   **Stampato (`Done`)**: Stampa completata con successo. I pezzi prodotti vengono conteggiati nell'avanzamento.
+*   **Fallito (`Failed`)**: Stampa fallita. È possibile inserire i grammi di filamento sprecati e rimettere in coda una ristampa con 1 clic.
 
 ---
 
@@ -70,14 +74,45 @@ Quando un oggetto viene segnato come `Venduto`, è possibile specificare:
 
 ---
 
-## 5. Documentazione Economica & Calcoli
+## 5. Materie Prime & Componenti Esterni
+
+Oltre ai filamenti, molti progetti richiedono componenti fisici non stampabili (calamite, viti, inserti filettati, cuscinetti):
+*   **Magazzino Materie Prime** (nel menu *Magazzino > Materie Prime*): Permette di censire le materie prime, registrare gli acquisti/carichi con relativo costo e monitorare le giacenze attuali.
+*   **Associazione ai Progetti Master**: È possibile impostare il fabbisogno unitario di materie prime per ogni Master (es. "4x Calamita 10x2mm per ogni scatola").
+*   **Fabbisogno negli Ordini di Lavoro**: Quando viene creato un Ordine di Lavoro, il fabbisogno totale viene calcolato e precaricato automaticamente. Al completamento dell'ordine, le quantità utilizzate vengono scalate dalle giacenze di magazzino.
+
+---
+
+## 6. Note Rapide & Centro Notifiche
+
+### **Note Rapide (Offcanvas)**
+Accessibile in qualsiasi momento dall'icona del taccuino nella barra superiore (con badge contatore promemoria attivi):
+*   Aggiunta istantanea di appunti o promemoria con casella di spunta per completamento rapido.
+*   Suddivisione per categorie: *Acquisti*, *Manutenzione Stampanti*, *Produzione*, *Generale*.
+*   Possibilità di impostare data di scadenza e collegamenti specifici (a una stampante, a una bobina o a un ordine).
+*   Pannello esteso completo raggiungibile cliccando sull'icona di espansione interna.
+
+### **Centro Notifiche**
+Accessibile dall'icona a campanella nella barra superiore:
+*   Badge dinamico con conteggio avvisi non letti.
+*   **Avvisi automatici generati dal sistema**:
+    *   Bobine esaurite (0g) o prossime all'esaurimento (&le; 150g rimanenti);
+    *   Ordini di lavoro in ritardo sulla data di consegna prevista (con link diretto al dettaglio dell'ordine);
+    *   Promemoria scaduti o in scadenza nella giornata odierna.
+*   Pannello storico completo per archiviare o svuotare gli avvisi.
+
+---
+
+## 7. Documentazione Economica & Calcoli
 Nel menu **Impostazioni / Statistiche** (icona ingranaggio) è disponibile la pagina **Documentazione**, che illustra dettagliatamente:
 *   La struttura dei costi di produzione (materiale, elettricità, ammortamento usura, minuteria e manodopera).
 *   L'algoritmo non lineare di calcolo del prezzo consigliato e dei preventivi.
 *   La compensazione fiscale (regime forfettario 5%) e i margini di sicurezza.
 *   Le commissioni applicate ai diversi metodi di pagamento.
 
-## 5. Materiali e Hardware
+---
+
+## 8. Materiali e Hardware
 
 ### **Filamenti e Bobine (Filaments & Spools)**
 *   **Filamento**: Definisce il tipo di materiale (Marca, Colore, Materiale es: PLA Nero Prusa).
@@ -89,12 +124,12 @@ Nel menu **Impostazioni / Statistiche** (icona ingranaggio) è disponibile la pa
 
 ---
 
-## 6. Workflow Tipico
+## 9. Workflow Tipico
 
-1.  **Crea un Master**: Definisci il nome e aggiungi le **Parti**.
-2.  **Configura i Template**: Per ogni parte, aggiungi i file G-Code che vuoi stampare, associando stampante e consumo filamento.
+1.  **Crea un Master**: Definisci il nome e aggiungi le **Parti** (se c'è 1 sola parte, prende automaticamente il nome del progetto).
+2.  **Configura i Template & Materie Prime**: Aggiungi i file G-Code da stampare e le eventuali minuterie/accessori necessari.
 3.  **Definisci gli Output**: Specifica quali oggetti (e quanti) compongono un "set" completo di questo progetto.
 4.  **Crea un Ordine**: Dalla libreria Master, clicca su "Crea Ordine" e scegli quanti set produrre.
-5.  **Produci**: Vai nel dettaglio dell'Ordine e gestisci gli stati dei singoli file mentre le stampanti lavorano.
-6.  **Completa e Versa**: Clicca su "Completa" per trasformare la produzione in oggetti reali nel magazzino.
+5.  **Produci**: Gestisci gli stati dei file (`Da Preparare` -> `Da Stampare` -> `In Stampa`). I file "Da Preparare" non intasano la Coda di Stampa.
+6.  **Completa e Versa**: Clicca su "Completa" per trasformare la produzione in oggetti reali nel magazzino e scaricare le materie prime impiegate.
 7.  **Vendi**: Gestisci le vendite dal modulo Magazzino o Vendite per tracciare ricavi e profitti netti.

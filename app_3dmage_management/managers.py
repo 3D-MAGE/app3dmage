@@ -106,3 +106,70 @@ class WorkOrderManager(models.Manager):
 
     def with_annotations(self):
         return self.get_queryset().with_annotations()
+
+
+class RawMaterialQuerySet(models.QuerySet):
+    def with_stock_info(self):
+        from django.db.models import OuterRef, Subquery, IntegerField, DecimalField, F, Case, When, Value, ExpressionWrapper
+        from django.db.models.functions import Coalesce
+        from decimal import Decimal
+        from .models import RawMaterialPurchase, WorkOrderRawMaterial
+
+        purchased_sub = RawMaterialPurchase.objects.filter(
+            raw_material=OuterRef('pk')
+        ).values('raw_material').annotate(
+            total=Sum('quantity')
+        ).values('total')
+
+        cost_sub = RawMaterialPurchase.objects.filter(
+            raw_material=OuterRef('pk')
+        ).values('raw_material').annotate(
+            total=Sum('cost')
+        ).values('total')
+
+        used_sub = WorkOrderRawMaterial.objects.filter(
+            raw_material=OuterRef('pk'),
+            work_order__status='DONE'
+        ).values('raw_material').annotate(
+            total=Sum('quantity')
+        ).values('total')
+
+        pending_sub = WorkOrderRawMaterial.objects.filter(
+            raw_material=OuterRef('pk'),
+            work_order__status__in=['TODO', 'PRINTING', 'PRINTED']
+        ).values('raw_material').annotate(
+            total=Sum('quantity')
+        ).values('total')
+
+        return self.annotate(
+            annotated_total_purchased=Coalesce(Subquery(purchased_sub), Value(0), output_field=IntegerField()),
+            annotated_total_cost=Coalesce(Subquery(cost_sub), Decimal('0.00'), output_field=DecimalField()),
+            annotated_total_used=Coalesce(Subquery(used_sub), Value(0), output_field=IntegerField()),
+            annotated_total_pending=Coalesce(Subquery(pending_sub), Value(0), output_field=IntegerField()),
+        ).annotate(
+            annotated_remaining_quantity=Case(
+                When(annotated_total_purchased__gt=F('annotated_total_used'),
+                     then=F('annotated_total_purchased') - F('annotated_total_used')),
+                default=Value(0),
+                output_field=IntegerField()
+            )
+        ).annotate(
+            annotated_available_quantity=F('annotated_remaining_quantity') - F('annotated_total_pending'),
+            annotated_average_unit_cost=Case(
+                When(annotated_total_purchased=0, then=Decimal('0.00')),
+                default=ExpressionWrapper(
+                    F('annotated_total_cost') / F('annotated_total_purchased'),
+                    output_field=DecimalField(max_digits=10, decimal_places=2)
+                ),
+                output_field=DecimalField(max_digits=10, decimal_places=2)
+            )
+        )
+
+
+class RawMaterialManager(models.Manager):
+    def get_queryset(self):
+        return RawMaterialQuerySet(self.model, using=self._db)
+
+    def with_stock_info(self):
+        return self.get_queryset().with_stock_info()
+

@@ -25,6 +25,10 @@
         background-color: rgba(255, 255, 255, 0.15) !important;
         color: inherit !important;
     }
+    #filamentSearchInput::-webkit-search-cancel-button {
+        -webkit-appearance: none;
+        appearance: none;
+    }
 </style>
 
 <div class="d-flex justify-content-between align-items-center mb-4 mobile-stack">
@@ -35,89 +39,67 @@
     </div>
 </div>
 
-<div class="card bg-dark-card">
-    <div class="card-body">
-        <h5 class="card-title text-white mb-3">Filamenti Attivi</h5>
-        <div class="table-responsive">
-            <table class="table table-dark table-hover align-middle">
-                <thead>
-                    <tr>
-                        <th><a href="?sort=material&order={% if sort_by == 'material' and order == 'asc' %}desc{% else %}asc{% endif %}">Filamento</a></th>
-                        <th><a href="?sort=color_name&order={% if sort_by == 'color_name' and order == 'asc' %}desc{% else %}asc{% endif %}">Nome Colore</a></th>
-                        <th style="width: 40%;"><a href="?sort=annotated_remaining_weight&order={% if sort_by == 'annotated_remaining_weight' and order == 'asc' %}desc{% else %}asc{% endif %}">Grammi (Fisici / Virtuali)</a></th>
-                        {# NUOVA FUNZIONALITÀ: Aggiunta colonna Bobine con ordinamento #}
-                        <th class="text-center"><a href="?sort=annotated_active_spool_count&order={% if sort_by == 'annotated_active_spool_count' and order == 'asc' %}desc{% else %}asc{% endif %}">Bobine</a></th>
-                        <th class="text-end"><a href="?sort=annotated_total_used_weight&order={% if sort_by == 'annotated_total_used_weight' and order == 'asc' %}desc{% else %}asc{% endif %}">Usato (da Attivi)</a></th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for filament in active_filaments %}
-                    {% with total_weight=filament.annotated_total_initial_weight|default:0 %}
-                        {% if total_weight > 0 %}
-                            {% widthratio filament.annotated_remaining_weight total_weight 100 as remaining_percentage %}
-                        {% endif %}
-                        <tr style="cursor:pointer;" data-bs-toggle="modal" data-bs-target="#filamentDetailModal" data-filament-id="{{ filament.id }}">
-                            <td class="fw-bold"><span class="filament-pill" style="--bg: {{ filament.color_hex }}; background-color: var(--bg); --text: {{ filament.color_hex|contrast_color }};">{{ filament }}</span></td>
-                            <td>{{ filament.color_name }}</td>
-                            <td style="position: relative; min-width: 200px;">
-                                <div class="progress" style="height: 25px; background-color: #444;" title="{% if total_weight > 0 %}{{ remaining_percentage|floatformat:1 }}{% else %}0{% endif %}%">
-                                    <div class="progress-bar" role="progressbar" style="width: {% if total_weight > 0 %}{{ remaining_percentage }}{% else %}0{% endif %}%; background-color: {{ filament.color_hex }};"></div>
-                                    <strong class="justify-content-center align-items-center d-flex position-absolute w-100 h-100 top-0 start-0 text-white" style="text-shadow: 1px 1px 2px black;">
-                                        {{ filament.annotated_remaining_weight|floatformat:1 }}g fisici &nbsp;(&nbsp;{{ filament.annotated_available_weight|floatformat:1 }}g virtuali&nbsp;)
-                                    </strong>
-                                </div>
-                            </td>
-                            {# NUOVA FUNZIONALITÀ: Visualizzazione del conteggio delle bobine attive #}
-                            <td class="text-center">{{ filament.annotated_active_spool_count }}</td>
-                            <td class="text-end">{{ filament.annotated_total_used_weight|floatformat:2 }}g</td>
-                        </tr>
-                    {% endwith %}
-                    {% empty %}
-                    {# NUOVA FUNZIONALITÀ: Aggiornato colspan per la nuova colonna #}
-                    <tr><td colspan="5" class="text-center py-5"><p class="lead">Nessun filamento con bobine attive.</p></td></tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
+<div class="card bg-dark-card mb-4">
+    <div class="card-body p-3">
+        <form id="filamentFiltersForm" method="get" action="{% url 'filament_dashboard' %}">
+            <input type="hidden" name="material" id="filamentMaterialInput" value="{{ material_filter }}">
+            <input type="hidden" name="sort" id="filamentSortInput" value="{{ sort_by }}">
+            <input type="hidden" name="order" id="filamentOrderInput" value="{{ order }}">
 
-        <div class="accordion mt-5" id="accordionFilamentiEsauriti">
-            <div class="accordion-item bg-dark-card-lighter">
-                <h2 class="accordion-header" id="headingEsauriti">
-                    <button class="accordion-button collapsed bg-dark-subtle text-white-50" type="button" data-bs-toggle="collapse" data-bs-target="#collapseEsauriti" aria-expanded="false" aria-controls="collapseEsauriti">
-                        Filamenti Esauriti (Nessuna Bobina Attiva)
-                    </button>
-                </h2>
-                <div id="collapseEsauriti" class="accordion-collapse collapse" aria-labelledby="headingEsauriti" data-bs-parent="#accordionFilamentiEsauriti">
-                    <div class="accordion-body">
-                        <div class="table-responsive">
-                            <table class="table table-dark table-hover align-middle">
-                                <thead>
-                                    <tr>
-                                        <th>Filamento</th>
-                                        <th>Nome Colore</th>
-                                        <th class="text-end">Totale Usato Storico</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for filament in exhausted_filaments %}
-                                    <tr style="cursor:pointer;" data-bs-toggle="modal" data-bs-target="#filamentDetailModal" data-filament-id="{{ filament.id }}">
-                                        <td class="fw-bold">
-                                            <span class="filament-pill" style="--bg: {{ filament.color_hex }}; background-color: var(--bg); --text: {{ filament.color_hex|contrast_color }};">{{ filament }}</span>
-                                        </td>
-                                        <td>{{ filament.color_name }}</td>
-                                        <td class="text-end">{{ filament.total_grams_ever_used|floatformat:2 }}g</td>
-                                    </tr>
-                                    {% empty %}
-                                    <tr>
-                                        <td colspan="3" class="text-center text-muted py-4">Nessun filamento esaurito.</td>
-                                    </tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
-                        </div>
+            <div class="row g-2 align-items-end mb-3">
+                <div class="col-12 col-md-6 col-lg-5">
+                    <label for="filamentSearchInput" class="form-label text-white-50 small mb-1">Cerca per colore, codice, materiale o marca</label>
+                    <div class="input-group input-group-sm">
+                        <span class="input-group-text bg-dark border-secondary text-white-50"><i class="bi bi-search"></i></span>
+                        <input type="search" name="q" id="filamentSearchInput" class="form-control bg-dark text-white border-secondary" placeholder="Es. rosso, nero, 100, SUN, PLA rosso..." value="{{ search_query }}" autocomplete="off">
+                        <button type="button" id="clearFilamentSearchBtn" class="btn btn-outline-secondary {% if not search_query %}d-none{% endif %}" title="Pulisci ricerca" aria-label="Pulisci ricerca">
+                            <i class="bi bi-x-lg"></i>
+                        </button>
                     </div>
                 </div>
+                <div class="col-8 col-md-3 col-lg-3">
+                    <label for="filamentBrandSelect" class="form-label text-white-50 small mb-1">Marca</label>
+                    <select name="brand" id="filamentBrandSelect" class="form-select form-select-sm bg-dark text-white border-secondary">
+                        <option value="">Tutte le marche</option>
+                        {% for b in all_brands %}
+                        <option value="{{ b }}" {% if brand_filter|lower == b|lower %}selected{% endif %}>{{ b }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-4 col-md-3 col-lg-4 d-flex justify-content-md-end">
+                    <button type="button" id="resetFilamentFiltersBtn" class="btn btn-sm btn-outline-warning w-100 w-md-auto {% if not has_filters %}d-none{% endif %}">
+                        <i class="bi bi-arrow-counterclockwise me-1"></i>Azzera Filtri
+                    </button>
+                </div>
             </div>
+
+            <div class="d-flex flex-wrap align-items-center gap-2">
+                <span class="text-white-50 small fw-semibold me-1">Materiale:</span>
+                <div class="d-flex flex-wrap gap-2" role="group" aria-label="Filtra per materiale">
+                    <button type="button"
+                            class="btn btn-sm material-filter-btn {% if not material_filter %}btn-primary-custom{% else %}btn-outline-secondary text-light{% endif %}"
+                            data-material="">
+                        Tutti
+                        <span class="badge ms-1 {% if not material_filter %}bg-dark text-warning{% else %}bg-secondary{% endif %}">{{ total_active_all }}</span>
+                    </button>
+                    {% for m in material_filters %}
+                    <button type="button"
+                            class="btn btn-sm material-filter-btn {% if material_filter|upper == m.code|upper %}btn-primary-custom{% else %}btn-outline-secondary text-light{% endif %} {% if m.total_count == 0 %}opacity-50{% endif %}"
+                            data-material="{{ m.code }}">
+                        {{ m.label }}
+                        <span class="badge ms-1 {% if material_filter|upper == m.code|upper %}bg-dark text-warning{% else %}bg-secondary{% endif %}">{{ m.active_count }}</span>
+                    </button>
+                    {% endfor %}
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card bg-dark-card">
+    <div class="card-body">
+        <div id="filaments-tables-container">
+            {% include "app_3dmage_management/partials/filaments_tables.html" %}
         </div>
     </div>
 </div>

@@ -186,7 +186,7 @@ document.addEventListener('DOMContentLoaded', async function () {
         row.innerHTML = `
             <div class="row align-items-center">
                 <div class="col-md-5">
-                    <select class="form-select tom-select-filament" placeholder="Seleziona Filamento..."></select>
+                    <select class="form-select tom-select-filament" placeholder="Cerca codice, colore o materiale..."></select>
                 </div>
                 <div class="col-md-4">
                     <select class="form-select spool-select" disabled>
@@ -206,7 +206,9 @@ document.addEventListener('DOMContentLoaded', async function () {
         const instance = new TomSelect(selectElement, {
             valueField: 'id',
             labelField: 'name',
-            searchField: 'name',
+            searchField: ['name', 'color_name', 'material', 'color_code', 'brand'],
+            maxOptions: null,
+            placeholder: 'Cerca codice, colore o materiale...',
             options: window.allFilaments || [],
             create: false,
             render: {
@@ -214,15 +216,17 @@ document.addEventListener('DOMContentLoaded', async function () {
                 option: function (data, escape) {
                     const textColor = getTextColorForBg(data.color_hex);
                     const textShadow = textColor === '#FFFFFF' ? '1px 1px 2px rgba(0,0,0,0.5)' : 'none';
-                    return `<div style="color: ${textColor};">
-                                <span class="filament-pill" style="background-color: ${data.color_hex}; color: ${textColor}; text-shadow: ${textShadow};">${escape(data.name)}</span>
+                    const colorLabel = data.color_name ? `<span class="ms-2 small text-white-50">${escape(data.color_name)}</span>` : '';
+                    return `<div class="d-flex align-items-center">
+                                <span class="filament-pill mb-0" style="background-color: ${data.color_hex}; color: ${textColor}; text-shadow: ${textShadow};">${escape(data.name)}</span>
+                                ${colorLabel}
                             </div>`;
                 },
                 // MODIFICA: Renderizzazione personalizzata per l'elemento selezionato
                 item: function (data, escape) {
                     const textColor = getTextColorForBg(data.color_hex);
                     const textShadow = textColor === '#FFFFFF' ? '1px 1px 2px rgba(0,0,0,0.5)' : 'none';
-                    return `<div class="filament-pill" style="background-color: ${data.color_hex}; color: ${textColor}; text-shadow: ${textShadow};">
+                    return `<div class="filament-pill" title="${escape(data.color_name || '')}" style="background-color: ${data.color_hex}; color: ${textColor}; text-shadow: ${textShadow};">
                                 ${escape(data.name)}
                              </div>`;
                 }
@@ -481,7 +485,7 @@ document.addEventListener('DOMContentLoaded', async function () {
     function updatePrintFileSelectColor(select) {
         if (!select) return;
         const status = select.value.toLowerCase();
-        select.classList.remove('select-status-todo', 'select-status-printing', 'select-status-done', 'select-status-failed');
+        select.classList.remove('select-status-prepare', 'select-status-todo', 'select-status-printing', 'select-status-done', 'select-status-failed');
         select.classList.add(`select-status-${status}`);
     }
 

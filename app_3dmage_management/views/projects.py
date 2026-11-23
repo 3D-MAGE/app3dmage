@@ -16,7 +16,8 @@ from django.contrib import messages
 from ..models import (
     Project, MasterPrintFile, WorkOrder, PrintFile, StockItem, FilamentUsage, Spool, 
     Filament, MasterFilamentUsage, Printer, Category, ProjectPart,
-    RawMaterial, RawMaterialPurchase, ProjectRawMaterial, WorkOrderRawMaterial
+    RawMaterial, RawMaterialPurchase, ProjectRawMaterial, WorkOrderRawMaterial,
+    get_next_custom_id
 )
 from ..forms import (
     WorkOrderForm, PrintFileForm, PrintFileEditForm, CompleteWorkOrderForm, 
@@ -65,7 +66,7 @@ def project_detail(request, project_id):
         'edit_project_form': WorkOrderForm(instance=work_order),
         'add_print_file_form': print_file_form,
         'edit_print_file_form': PrintFileEditForm(work_order=work_order),
-        'can_be_completed': not work_order.print_files.filter(status__in=['TODO', 'PRINTING']).exists() and work_order.print_files.exists(),
+        'can_be_completed': not work_order.print_files.filter(status__in=['PREPARE', 'TODO', 'PRINTING']).exists() and work_order.print_files.exists(),
         'page_title': 'Ordine di Lavoro',
         'referer': referer,
         'order_raw_materials': work_order.raw_materials.all(),
@@ -219,18 +220,9 @@ def complete_project(request, project_id):
     if not outputs_data and not force_close:
         return redirect('project_detail', project_id=work_order.id)
 
-    # NUOVO: Generiamo il custom_id se non esiste
+    # Generiamo il custom_id progressivo se non esiste (considerando sia WorkOrder che StockItem)
     if not work_order.custom_id:
-        current_year_str = timezone.now().strftime('%y')
-        last_wo_this_year = WorkOrder.objects.filter(custom_id__startswith=current_year_str, custom_id__regex=r'^\d{5}$').order_by('-custom_id').first()
-        new_sequential = 1
-        if last_wo_this_year:
-            try:
-                last_sequential = int(last_wo_this_year.custom_id[2:])
-                new_sequential = last_sequential + 1
-            except (ValueError, IndexError):
-                pass
-        work_order.custom_id = f"{current_year_str}{new_sequential:03d}"
+        work_order.custom_id = get_next_custom_id()
 
     total_added_quantity = sum(item['quantity'] for item in outputs_data)
     
@@ -808,9 +800,10 @@ def add_master_project(request):
         # Creiamo le parti iniziali basandoci sulla scelta dell'utente
         initial_parts = form.cleaned_data.get('initial_parts_count', 1) or 1
         for i in range(initial_parts):
+            p_name = master_project.name if initial_parts == 1 else f"Parte {i+1}"
             ProjectPart.objects.create(
                 project=master_project,
-                name=f"Parte {i+1}",
+                name=p_name,
                 order=i+1
             )
         
@@ -853,10 +846,11 @@ def project_master_detail(request, pk):
         files = list(project.master_print_files.filter(project_parts=part).order_by('name'))
         for f in files:
             f.dtag = f.printer.tag if f.printer and f.printer.tag else "-"
+        display_name = f"{part.name} (x{part.pieces_per_item} per oggetto)" if part.pieces_per_item > 1 else part.name
         parts_with_files.append({
             'part': part,
             'files': files,
-            'display_name': part.name
+            'display_name': display_name
         })
     
     # 2. File senza parte
@@ -883,7 +877,15 @@ def project_master_detail(request, pk):
         'master_print_file_form': MasterPrintFileForm(),
         'all_filaments': Filament.objects.all().order_by('material', 'color_code'),
         'all_filaments_json': [
-            {'id': f.id, 'name': f"{f.material}-{f.color_code}-{f.brand}", 'color_hex': f.color_hex or '#555'}
+            {
+                'id': f.id,
+                'name': f"{f.material}-{f.color_code}-{f.brand}",
+                'color_hex': f.color_hex or '#555',
+                'color_name': f.color_name or '',
+                'material': f.material,
+                'color_code': f.color_code,
+                'brand': f.brand,
+            }
             for f in Filament.objects.all().order_by('material', 'color_code')
         ],
         'active_work_orders': active_work_orders,
@@ -933,23 +935,35 @@ def edit_master_project(request, pk):
         from ..models import ProjectPart
         part_names = request.POST.getlist('part_names[]')
         part_ids = request.POST.getlist('part_ids[]')
+        part_pieces = request.POST.getlist('part_pieces[]')
         provided_part_ids = [int(pid) for pid in part_ids if pid]
         
         # Elimina parti rimosse
         master_project.parts.exclude(id__in=provided_part_ids).delete()
         
+        valid_part_names = [p.strip() for p in part_names if p.strip()]
         for i, (p_id, p_name) in enumerate(zip(part_ids, part_names)):
-            if not p_name.strip(): continue
+            p_name = p_name.strip()
+            if not p_name and len(part_names) == 1:
+                p_name = master_project.name
+            elif not p_name:
+                continue
+            if len(valid_part_names) == 1 and p_name.lower() == 'parte 1':
+                p_name = master_project.name
+            pieces = int(part_pieces[i]) if i < len(part_pieces) and part_pieces[i] else 1
+            if pieces < 1: pieces = 1
+
             if p_id:
                 try:
                     part = ProjectPart.objects.get(id=p_id, project=master_project)
                     part.name = p_name
+                    part.pieces_per_item = pieces
                     part.order = i
                     part.save()
                 except ProjectPart.DoesNotExist:
-                    ProjectPart.objects.create(project=master_project, name=p_name, order=i)
+                    ProjectPart.objects.create(project=master_project, name=p_name, pieces_per_item=pieces, order=i)
             else:
-                ProjectPart.objects.create(project=master_project, name=p_name, order=i)
+                ProjectPart.objects.create(project=master_project, name=p_name, pieces_per_item=pieces, order=i)
 
         return redirect('project_master_detail', pk=project.id)
     
@@ -1180,6 +1194,7 @@ def create_from_template(request, pk):
             continue
             
         part_printer_map = batch.get('printers', {})
+        part_file_map = batch.get('files', {})
         
         for mpf in master_project.master_print_files.all():
             # Otteniamo le parti a cui appartiene il file (o una lista con None se non ne ha)
@@ -1190,22 +1205,36 @@ def create_from_template(request, pk):
             for part in file_parts:
                 part_id_str = str(part.id) if part else 'None'
                 selected_printer_id = part_printer_map.get(part_id_str)
+                selected_file_id = part_file_map.get(part_id_str)
                 
                 # Filtri Selezione Parte/Stampante nel lotto
                 if selected_printer_id == 'skip':
                     continue
-                
-                if selected_printer_id:
-                    # Se è stata scelta una stampante specifica per la parte in questo lotto,
-                    # il file deve corrispondere a quella stampante
+
+                if selected_file_id:
+                    # Se è stato selezionato un file G-code specifico per questa parte
+                    if str(mpf.id) != str(selected_file_id):
+                        continue
+                elif selected_printer_id:
+                    # Se è stata scelta una stampante specifica per la parte in questo lotto
                     if mpf.printer and str(mpf.printer_id) != str(selected_printer_id):
                         continue
-                elif mpf.printer:
+                elif mpf.printer and part_printer_map:
                     # Se il file richiede una stampante ma non è configurata nel lotto, lo saltiamo
                     continue
+                elif not part_printer_map and not part_file_map and part:
+                    part_files = [f for f in master_project.master_print_files.all() if part in f.project_parts.all()]
+                    if len(part_files) > 1:
+                        best_f = min(part_files, key=lambda f: (math.ceil(batch_qty / f.produced_quantity) if f.produced_quantity > 0 else 999, -f.produced_quantity))
+                        if mpf.id != best_f.id:
+                            continue
+
+                # Calcolo Fabbisogno Pezzi della Parte per questo lotto
+                pieces_per_item = part.pieces_per_item if (part and hasattr(part, 'pieces_per_item')) else 1
+                total_part_pieces_needed = batch_qty * pieces_per_item
 
                 # Calcolo Moltiplicatore per il file in questo lotto
-                file_multiplier = math.ceil(batch_qty / mpf.produced_quantity) if mpf.produced_quantity > 0 else 1
+                file_multiplier = math.ceil(total_part_pieces_needed / mpf.produced_quantity) if mpf.produced_quantity > 0 else 1
 
                 for i in range(file_multiplier):
                     batch_suffix = f" (Set {batch_idx + 1})" if len(batches) > 1 else ""
@@ -1351,6 +1380,7 @@ def manage_project_parts(request, pk):
     project = get_object_or_404(Project, pk=pk)
     part_names = request.POST.getlist('part_names[]')
     part_ids = request.POST.getlist('part_ids[]')
+    part_pieces = request.POST.getlist('part_pieces[]')
     
     # Simple logic: delete parts not in part_ids, update existing, add new
     existing_parts = project.parts.all()
@@ -1361,13 +1391,17 @@ def manage_project_parts(request, pk):
     
     for i, (p_id, p_name) in enumerate(zip(part_ids, part_names)):
         if not p_name.strip(): continue
+        pieces = int(part_pieces[i]) if i < len(part_pieces) and part_pieces[i] else 1
+        if pieces < 1: pieces = 1
+
         if p_id:
             part = ProjectPart.objects.get(id=p_id)
             part.name = p_name
+            part.pieces_per_item = pieces
             part.order = i
             part.save()
         else:
-            ProjectPart.objects.create(project=project, name=p_name, order=i)
+            ProjectPart.objects.create(project=project, name=p_name, pieces_per_item=pieces, order=i)
             
     return redirect('project_master_detail', pk=project.id)
 
@@ -1376,9 +1410,15 @@ def manage_project_parts(request, pk):
 def edit_project_part(request, part_id):
     part = get_object_or_404(ProjectPart, id=part_id)
     name = request.POST.get('name')
+    pieces = request.POST.get('pieces_per_item')
     if name:
         part.name = name
-        part.save()
+    if pieces:
+        try:
+            part.pieces_per_item = max(1, int(pieces))
+        except (ValueError, TypeError):
+            pass
+    part.save()
     return JsonResponse({'status': 'ok'})
 
 @require_POST
@@ -1500,6 +1540,7 @@ def add_parts_to_order(request, pk):
             continue
             
         part_printer_map = batch.get('printers', {})
+        part_file_map = batch.get('files', {})
         
         for mpf in master_project.master_print_files.all():
             file_parts = list(mpf.project_parts.all())
@@ -1509,17 +1550,25 @@ def add_parts_to_order(request, pk):
             for part in file_parts:
                 part_id_str = str(part.id) if part else 'None'
                 selected_printer_id = part_printer_map.get(part_id_str)
+                selected_file_id = part_file_map.get(part_id_str)
                 
                 if selected_printer_id == 'skip':
                     continue
-                
-                if selected_printer_id:
+
+                if selected_file_id:
+                    if str(mpf.id) != str(selected_file_id):
+                        continue
+                elif selected_printer_id:
                     if mpf.printer and str(mpf.printer_id) != str(selected_printer_id):
                         continue
-                elif mpf.printer:
+                elif mpf.printer and part_printer_map:
                     continue
 
-                file_multiplier = math.ceil(batch_qty / mpf.produced_quantity) if mpf.produced_quantity > 0 else 1
+                # Calcolo Fabbisogno Pezzi della Parte per questo lotto
+                pieces_per_item = part.pieces_per_item if (part and hasattr(part, 'pieces_per_item')) else 1
+                total_part_pieces_needed = batch_qty * pieces_per_item
+
+                file_multiplier = math.ceil(total_part_pieces_needed / mpf.produced_quantity) if mpf.produced_quantity > 0 else 1
 
                 # Trova max_num per non sovrascrivere o collidere coi nomi
                 base_name = mpf.name

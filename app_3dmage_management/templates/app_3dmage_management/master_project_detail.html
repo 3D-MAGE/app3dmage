@@ -54,7 +54,7 @@
     <div class="btn-group-mobile">
         <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#createOrderModal"
             data-project-id="{{ project.id }}" data-project-name="{{ project.name }}"
-            data-base-qty="{{ project.outputs.all|sum_quantities }}">
+            data-base-qty="1">
             <i class="bi bi-rocket-takeoff-fill me-1"></i> Crea Ordine di Lavoro
         </button>
         {% if active_work_orders %}
@@ -123,32 +123,25 @@
                     </div>
                     {% endif %}
                     <div class="col">
-                        <div class="info-label">Parti Previste</div>
-                        <div class="info-value">{{ project.parts.count }} part{{ project.parts.count|pluralize:"e,i" }}
-                        </div>
-                    </div>
-                    <div class="col">
-                        <div class="info-label">Pezzi per Set</div>
-                        <div class="info-value">
-                            <span class="text-info fw-bold">{{ project.outputs.all|sum_quantities }}</span>
-                        </div>
+                        <div class="info-label">Parti Oggetto</div>
+                        <div class="info-value text-info fw-bold">{{ project.parts.count }} part{{ project.parts.count|pluralize:"e,i" }}</div>
                     </div>
                 </div>
 
                 <div class="mt-2">
-                    <div class="info-label mb-2">Riepilogo Output (per 1 Set)</div>
+                    <div class="info-label mb-2">Composizione Oggetto (Parti Necessarie)</div>
                     <div class="p-2 rounded"
                         style="background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.05);">
                         <div class="row g-2">
-                            {% for output in project.outputs.all %}
+                            {% for part in project.parts.all %}
                             <div class="col-md-4 col-6">
                                 <div class="d-flex justify-content-between small px-2">
-                                    <span class="text-white-50 truncate-text">{{ output.name }}</span>
-                                    <span class="text-white fw-bold">x{{ output.quantity }}</span>
+                                    <span class="text-white-50 truncate-text">{{ part.name }}</span>
+                                    <span class="text-white fw-bold">x{{ part.pieces_per_item }}</span>
                                 </div>
                             </div>
                             {% empty %}
-                            <div class="col-12 text-center text-white-50 small">Nessun output definito.</div>
+                            <div class="col-12 text-center text-white-50 small">Nessuna parte definita per questo oggetto.</div>
                             {% endfor %}
                         </div>
                     </div>
@@ -410,14 +403,16 @@
                         </div>
 
                         <hr class="border-secondary">
-                        <h6 class="text-primary-custom mb-3"><i class="bi bi-puzzle-fill me-2"></i>Parti del Progetto
-                        </h6>
+                        <h6 class="text-primary-custom mb-3"><i class="bi bi-puzzle-fill me-2"></i>Parti dell'Oggetto (e Pezzi per Oggetto)</h6>
                         <div id="parts-container">
                             {% for part in project.parts.all %}
                             <div class="input-group mb-2 part-row">
                                 <input type="hidden" name="part_ids[]" value="{{ part.id }}">
                                 <input type="text" name="part_names[]" class="form-control bg-dark text-white"
-                                    value="{{ part.name }}" placeholder="Nome Parte">
+                                    value="{{ part.name }}" placeholder="Nome Parte" style="flex: 3;">
+                                <span class="input-group-text bg-dark border-secondary text-white-50">Qtà x Oggetto</span>
+                                <input type="number" name="part_pieces[]" class="form-control bg-dark text-white text-center"
+                                    value="{{ part.pieces_per_item }}" min="1" placeholder="Pz" style="max-width: 90px;">
                                 <button type="button" class="btn btn-outline-danger remove-part-btn"><i
                                         class="bi bi-trash"></i></button>
                             </div>
@@ -425,27 +420,6 @@
                         </div>
                         <button type="button" class="btn btn-sm btn-outline-primary mt-2" id="add-part-btn">
                             <i class="bi bi-plus-lg me-1"></i> Aggiungi Parte
-                        </button>
-
-                        <hr class="border-secondary">
-                        <h6 class="text-info mb-3"><i class="bi bi-printer-fill me-2"></i>Output di Stampa (Oggetti a
-                            Magazzino)</h6>
-                        <div id="outputs-container">
-                            {% for output in project.outputs.all %}
-                            <div class="input-group mb-2 output-row">
-                                <input type="hidden" name="output_ids[]" value="{{ output.id }}">
-                                <input type="text" name="output_names[]" class="form-control bg-dark text-white"
-                                    value="{{ output.name }}" placeholder="Nome Output" style="flex: 2;">
-                                <input type="number" name="output_quantities[]"
-                                    class="form-control bg-dark text-white text-center" value="{{ output.quantity }}"
-                                    min="1" placeholder="Qtà" style="max-width: 80px;">
-                                <button type="button" class="btn btn-outline-danger remove-output-btn"><i
-                                        class="bi bi-trash"></i></button>
-                            </div>
-                            {% endfor %}
-                        </div>
-                        <button type="button" class="btn btn-sm btn-outline-primary mt-2" id="add-output-btn">
-                            <i class="bi bi-plus-lg me-1"></i> Aggiungi Output
                         </button>
                     </div>
                 </div>
@@ -504,7 +478,7 @@
 
                     <div class="text-center mb-4">
                         <button type="button" class="btn btn-outline-primary btn-sm" id="btn-add-batch">
-                            <i class="bi bi-plus-circle me-1"></i> Dividi Stampe (Aggiungi Set)
+                            <i class="bi bi-plus-circle me-1"></i> Dividi Produzione (Aggiungi Lotto)
                         </button>
                     </div>
 
@@ -665,7 +639,7 @@
 
                     <div class="text-center mb-4">
                         <button type="button" class="btn btn-outline-primary btn-sm" id="btn-add-to-order-batch">
-                            <i class="bi bi-plus-circle me-1"></i> Dividi Stampe (Aggiungi Set)
+                            <i class="bi bi-plus-circle me-1"></i> Dividi Produzione (Aggiungi Lotto)
                         </button>
                     </div>
 
@@ -687,5 +661,5 @@
 
 <script src="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/js/tom-select.complete.min.js"></script>
 {{ all_filaments_json|json_script:"all-filaments-data" }}
-<script src="{% static 'js/master_project_detail.js' %}" defer></script>
+<script src="{% static 'js/master_project_detail.js' %}?v={% now 'U' %}" defer></script>
 {% endblock %}

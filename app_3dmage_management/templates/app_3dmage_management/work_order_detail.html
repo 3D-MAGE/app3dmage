@@ -33,9 +33,14 @@
     }
 
     /* Stili per il selettore di stato */
-    .select-status-todo {
+    .select-status-prepare {
         background-color: #6c757d !important;
         color: white !important;
+    }
+
+    .select-status-todo {
+        background-color: #ffa500 !important;
+        color: #000 !important;
     }
 
     .select-status-printing {
@@ -443,37 +448,20 @@
                     </div>
 
                     <div id="completion-outputs-list">
-                        {% for output in project.project.outputs.all %}
-                        <div class="row g-2 mb-3 align-items-center completion-output-row"
-                            data-output-name="{{ output.name }}">
-                            <div class="col-7">
-                                <label class="small text-white-50 d-block">{{ output.name }}</label>
-                                <input type="text" class="form-control bg-dark text-white output-name-input"
-                                    value="{{ output.name }}">
-                            </div>
-                            <div class="col-5">
-                                <label class="small text-white-50 d-block">Quantità (max {{ project|remaining_for_output:output }})</label>
-                                <input type="number" class="form-control bg-dark text-white output-qty-input"
-                                    value="{{ project|printed_ready_to_stock_for_output:output }}" min="0"
-                                    max="{{ project|remaining_for_output:output }}">
-                            </div>
-                        </div>
-                        {% empty %}
-                        <!-- Fallback se non ci sono output definiti -->
                         <div class="row g-2 mb-3 align-items-center completion-output-row"
                             data-output-name="{{ project.name }}">
                             <div class="col-7">
-                                <label class="small text-white-50 d-block">Nome Oggetto</label>
+                                <label class="small text-white-50 d-block">Nome Oggetto a Magazzino</label>
                                 <input type="text" class="form-control bg-dark text-white output-name-input"
                                     value="{{ project.name }}">
                             </div>
                             <div class="col-5">
-                                <label class="small text-white-50 d-block">Quantità</label>
+                                <label class="small text-white-50 d-block">Quantità Oggetti Finiti (max {{ project.remaining_objects }})</label>
                                 <input type="number" class="form-control bg-dark text-white output-qty-input"
-                                    value="{{ project.remaining_objects }}" min="0">
+                                    value="{% if project.completed_items > project.produced_quantity %}{{ project.completed_items|add:'-'|add:project.produced_quantity }}{% else %}{{ project.remaining_objects }}{% endif %}"
+                                    min="0" max="{{ project.remaining_objects }}">
                             </div>
                         </div>
-                        {% endfor %}
                     </div>
 
                     <div class="mb-3">

@@ -14,7 +14,7 @@ from ..forms import RawMaterialForm, RawMaterialPurchaseForm
 @login_required
 def raw_materials_dashboard(request):
     search_query = request.GET.get('q', '')
-    raw_materials_query = RawMaterial.objects.all()
+    raw_materials_query = RawMaterial.objects.with_stock_info()
 
     if search_query:
         raw_materials_query = raw_materials_query.filter(name__icontains=search_query)

@@ -5,34 +5,42 @@ from django.db.models import Sum, F, Case, When, IntegerField, Value
 from django.utils import timezone
 from django.conf import settings
 from decimal import Decimal
-from .managers import WorkOrderManager
+from .managers import WorkOrderManager, RawMaterialManager
 
-def bump_global_version():
-    """Update a global version timestamp to signal HTMX clients to refresh."""
+def get_app_version():
+    """Returns the current app version string safely."""
     from decimal import Decimal
     try:
-        # Use a safe string conversion for Decimal
-        # Use a safe string conversion for Decimal, modulo 100000 to fit in max_digits=10
-        ts = str(timezone.now().timestamp() % 100000)
-        new_val = Decimal(ts)
-        
-        # Robust update: Try to update directly first (efficient)
-        updated = GlobalSetting.objects.filter(key='app_last_updated').update(value=new_val)
-        
-        if updated == 0:
-            # If not found, create it
-            GlobalSetting.objects.create(key='app_last_updated', value=new_val)
-            
+        setting, _ = GlobalSetting.objects.get_or_create(
+            key='app_last_updated',
+            defaults={'value': Decimal('1.0000')}
+        )
+        if setting.value is None or str(setting.value).strip() == '':
+            setting.value = Decimal('1.0000')
+            setting.save(update_fields=['value'])
+        return str(setting.value)
     except Exception:
-        # If update/create failed (e.g. corruption causing issues even on update), 
-        # delete and recreate.
+        return '1.0000'
+
+def bump_global_version():
+    """Update global version counter to signal HTMX clients to refresh."""
+    from decimal import Decimal
+    try:
+        setting, _ = GlobalSetting.objects.get_or_create(
+            key='app_last_updated',
+            defaults={'value': Decimal('1.0000')}
+        )
+        current = int(setting.value or 1)
+        next_val = Decimal((current + 1) % 900000 + 1)
+        GlobalSetting.objects.filter(key='app_last_updated').update(value=next_val)
+        return str(next_val)
+    except Exception:
         try:
             GlobalSetting.objects.filter(key='app_last_updated').delete()
-            ts = str(timezone.now().timestamp() % 100000)
-            new_val = Decimal(ts)
-            GlobalSetting.objects.create(key='app_last_updated', value=new_val)
+            GlobalSetting.objects.create(key='app_last_updated', value=Decimal('2.0000'))
+            return '2.0000'
         except Exception:
-            pass # Last resort, prevent crash
+            return '1.0000'
 
 
 # Modello per le Categorie dei progetti
@@ -154,7 +162,7 @@ class Spool(models.Model):
     cost = models.DecimalField(max_digits=8, decimal_places=2, verbose_name="Costo (€)")
     purchase_date = models.DateField(default=timezone.now, verbose_name="Data Acquisto")
     purchase_link = models.URLField(max_length=512, blank=True, null=True, verbose_name="Link Acquisto")
-    is_active = models.BooleanField(default=True, verbose_name="Attiva")
+    is_active = models.BooleanField(default=True, verbose_name="Attiva", db_index=True)
 
     @property
     def remaining_weight(self):
@@ -318,9 +326,12 @@ class ProjectOutput(models.Model):
 class ProjectPart(models.Model):
     project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="parts", verbose_name="Progetto Master")
     name = models.CharField(max_length=100, verbose_name="Nome Parte")
+    pieces_per_item = models.PositiveIntegerField(default=1, verbose_name="Pezzi per Oggetto")
     order = models.PositiveIntegerField(default=1, verbose_name="Ordine")
 
     def __str__(self):
+        if self.pieces_per_item > 1:
+            return f"{self.project.name} - {self.name} (x{self.pieces_per_item})"
         return f"{self.project.name} - {self.name}"
 
     class Meta:
@@ -391,13 +402,13 @@ class WorkOrder(models.Model):
     project = models.ForeignKey(Project, on_delete=models.SET_NULL, null=True, blank=True, related_name="work_orders", verbose_name="Progetto Master")
     custom_id = models.CharField(max_length=10, null=True, blank=True, unique=True, verbose_name="ID Personalizzato")
     name = models.CharField(max_length=200, verbose_name="Nome Progetto")
-    created_at = models.DateTimeField(default=timezone.now, verbose_name="Creato il")
+    created_at = models.DateTimeField(default=timezone.now, verbose_name="Creato il", db_index=True)
     priority = models.CharField(max_length=10, choices=Priority.choices, default=Priority.MEDIUM, verbose_name="Priorità")
-    status = models.CharField(max_length=10, choices=Status.choices, default=Status.QUOTE, verbose_name="Status")
-    completed_at = models.DateTimeField(null=True, blank=True, verbose_name="Data Completamento")
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.QUOTE, verbose_name="Status", db_index=True)
+    completed_at = models.DateTimeField(null=True, blank=True, verbose_name="Data Completamento", db_index=True)
     category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Categoria")
     quantity = models.PositiveIntegerField(default=1, verbose_name="Quantità oggetti ordine")
-    delivery_date = models.DateField(null=True, blank=True, verbose_name="Data Consegna Prevista")
+    delivery_date = models.DateField(null=True, blank=True, verbose_name="Data Consegna Prevista", db_index=True)
     notes = models.TextField(blank=True, verbose_name="Annotazioni")
     actual_quantity = models.PositiveIntegerField(default=0)
     produced_quantity = models.PositiveIntegerField(default=0)
@@ -423,7 +434,7 @@ class WorkOrder(models.Model):
 
     @property
     def remaining_print_time(self):
-        total_seconds = self.print_files.filter(status='TODO').aggregate(total=Sum('print_time_seconds'))['total'] or 0
+        total_seconds = self.print_files.filter(status__in=['PREPARE', 'TODO']).aggregate(total=Sum('print_time_seconds'))['total'] or 0
         return str(datetime.timedelta(seconds=total_seconds))
 
     @property
@@ -489,20 +500,52 @@ class WorkOrder(models.Model):
 
     @property
     def total_objects_printed(self):
-        return self.print_files.aggregate(total=Sum('actual_quantity'))['total'] or 0
+        """Numero di oggetti finiti completi stampati, basato sul completamento di tutte le parti necessarie."""
+        return self.completed_items
+
+    @property
+    def completed_items(self):
+        """
+        Calcola quanti oggetti finiti completi sono stati realizzati.
+        Per ciascuna parte necessaria del Progetto Master:
+        - pezzi stampati (DONE) per quella parte
+        - divisi per i pezzi necessari per 1 oggetto (pieces_per_item)
+        L'oggetto intero è pronto solo quando TUTTE le parti sono disponibili (collo di bottiglia).
+        Se non ci sono parti definite, fa riferimento ai file DONE rispetto ai file totali.
+        """
+        if not self.project or not self.project.parts.exists():
+            # Senza parti: se tutti i file sono DONE, ha prodotto la quantità ordinata
+            valid_files = self.print_files.exclude(status='FAILED')
+            if not valid_files.exists():
+                return 0
+            done_files = valid_files.filter(status='DONE').count()
+            if done_files == valid_files.count():
+                return self.quantity
+            return int((done_files / valid_files.count()) * self.quantity)
+
+        # Con parti: calcoliamo i pezzi stampati per ogni parte
+        parts = self.project.parts.all()
+        completed_per_part = []
+        for part in parts:
+            pieces_needed = part.pieces_per_item or 1
+            # Somma di actual_quantity dei file DONE associati a questa parte
+            part_files = self.print_files.filter(project_part=part, status='DONE')
+            pieces_printed = part_files.aggregate(total=Sum('actual_quantity'))['total'] or 0
+            completed_per_part.append(pieces_printed // pieces_needed)
+
+        if not completed_per_part:
+            return 0
+        return min(self.quantity, min(completed_per_part))
 
     @property
     def total_expected_pieces(self):
-        """Calcola il numero totale di pezzi attesi per tutti gli output definiti nel progetto."""
-        if not self.project:
-            return self.quantity
-        total_pieces_per_set = self.project.outputs.aggregate(Sum('quantity'))['quantity__sum'] or 1
-        return self.quantity * total_pieces_per_set
+        """Oggetti finiti attesi dall'ordine (la quantità ordinata)."""
+        return self.quantity
 
     @property
     def remaining_objects(self):
-        """Pezzi totali attesi meno pezzi effettivamente aggiunti a magazzino."""
-        return max(0, self.total_expected_pieces - self.produced_quantity)
+        """Oggetti finiti rimanenti da versare a magazzino."""
+        return max(0, self.quantity - self.produced_quantity)
 
     @property
     def remaining_to_stock(self):
@@ -578,11 +621,11 @@ class WorkOrder(models.Model):
 
         if files.filter(status='PRINTING').exists():
             new_status = self.Status.PRINTING
-        elif not files.filter(status__in=['TODO', 'PRINTING']).exists():
+        elif not files.filter(status__in=['PREPARE', 'TODO', 'PRINTING']).exists():
             # Se tutti i file sono DONE o FAILED
             new_status = self.Status.PRINTED
         else:
-            # Ci sono dei TODO, ma niente in PRINTING
+            # Ci sono dei TODO o PREPARE, ma niente in PRINTING
             new_status = self.Status.TODO
         
         if self.status != new_status:
@@ -604,6 +647,7 @@ class WorkOrder(models.Model):
 # Modello per i singoli File di Stampa (.gcode)
 class PrintFile(models.Model):
     class Status(models.TextChoices):
+        PREPARE = 'PREPARE', 'Da Preparare'
         TODO = 'TODO', 'Da Stampare'
         PRINTING = 'PRINTING', 'In Stampa'
         DONE = 'DONE', 'Stampato'
@@ -618,7 +662,7 @@ class PrintFile(models.Model):
     plate = models.ForeignKey(Plate, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Piatto Usato")
     print_time_seconds = models.PositiveIntegerField(default=0, verbose_name="Tempo di Stampa (secondi)")
     spools = models.ManyToManyField('Spool', through='FilamentUsage', related_name="print_files_usage")
-    status = models.CharField(max_length=10, choices=Status.choices, default=Status.TODO, verbose_name="Status Stampa")
+    status = models.CharField(max_length=15, choices=Status.choices, default=Status.TODO, verbose_name="Status Stampa", db_index=True)
     queue_position = models.PositiveIntegerField(default=0, verbose_name="Posizione in Coda")
     produced_quantity = models.PositiveIntegerField(default=1, verbose_name="Oggetti per Stampa")
     actual_quantity = models.PositiveIntegerField(default=0, verbose_name="Oggetti Stampati Effettivi")
@@ -766,12 +810,12 @@ class StockItem(models.Model):
     custom_id = models.CharField(max_length=10, null=True, blank=True, verbose_name="ID Personalizzato")
     name = models.CharField(max_length=200, verbose_name="Nome Oggetto")
     quantity = models.PositiveIntegerField(default=1, verbose_name="Quantità")
-    status = models.CharField(max_length=20, choices=Status.choices, default=Status.POST_PROD, verbose_name="Stato")
-    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Aggiunto il")
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.POST_PROD, verbose_name="Stato", db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Aggiunto il", db_index=True)
     material_cost = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, verbose_name="Costo Materiali")
     labor_cost = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, verbose_name="Costo Manodopera")
     suggested_price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, verbose_name="Prezzo di Vendita Previsto")
-    sold_at = models.DateField(null=True, blank=True, verbose_name="Data Vendita")
+    sold_at = models.DateField(null=True, blank=True, verbose_name="Data Vendita", db_index=True)
     sale_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, verbose_name="Prezzo di Vendita")
     payment_method = models.ForeignKey(PaymentMethod, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Metodo di Pagamento")
     sold_to = models.CharField(max_length=100, blank=True, verbose_name="Venduto a (o rimborsato da)")
@@ -844,6 +888,38 @@ class StockItem(models.Model):
         ordering = ['-created_at']
 
 
+def get_next_custom_id(year=None):
+    """
+    Generates the next progressive custom_id for the given year (or current year).
+    Format: YYNNN (e.g., 26001, 26002, ...)
+    Accounts for both WorkOrder and StockItem custom_ids to prevent collisions.
+    """
+    if year is None:
+        year = timezone.now().year
+    elif isinstance(year, str):
+        year = int(year) if year.isdigit() else timezone.now().year
+    
+    year_prefix = f"{year % 100:02d}"
+    max_seq = 0
+    
+    # Check WorkOrder custom_ids
+    for cid in WorkOrder.objects.filter(custom_id__startswith=year_prefix).values_list('custom_id', flat=True):
+        if cid and cid.startswith(year_prefix):
+            suffix = cid[len(year_prefix):]
+            if suffix.isdigit():
+                max_seq = max(max_seq, int(suffix))
+                
+    # Check StockItem custom_ids
+    for cid in StockItem.objects.filter(custom_id__startswith=year_prefix).values_list('custom_id', flat=True):
+        if cid and cid.startswith(year_prefix):
+            suffix = cid[len(year_prefix):]
+            if suffix.isdigit():
+                max_seq = max(max_seq, int(suffix))
+                
+    new_seq = max_seq + 1
+    return f"{year_prefix}{new_seq:03d}"
+
+
 class ExpenseCategory(models.Model):
     name = models.CharField(max_length=100, unique=True, verbose_name="Nome Categoria Spesa")
 
@@ -913,8 +989,8 @@ class Notification(models.Model):
 
     message = models.CharField(max_length=255, verbose_name="Messaggio")
     level = models.CharField(max_length=10, choices=NotificationLevel.choices, default=NotificationLevel.INFO)
-    is_read = models.BooleanField(default=False, verbose_name="Letta")
-    created_at = models.DateTimeField(auto_now_add=True)
+    is_read = models.BooleanField(default=False, verbose_name="Letta", db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     related_url = models.CharField(max_length=255, blank=True, null=True)
 
     def __str__(self):
@@ -930,33 +1006,47 @@ class RawMaterial(models.Model):
     name = models.CharField(max_length=200, unique=True, verbose_name="Nome Materia Prima")
     notes = models.TextField(blank=True, verbose_name="Note")
 
+    objects = RawMaterialManager()
+
     def __str__(self):
         return self.name
 
     @property
     def total_purchased(self):
+        if hasattr(self, 'annotated_total_purchased'):
+            return self.annotated_total_purchased
         return self.purchases.aggregate(total=Sum('quantity'))['total'] or 0
 
     @property
     def total_used(self):
+        if hasattr(self, 'annotated_total_used'):
+            return self.annotated_total_used
         return self.work_order_usages.filter(work_order__status='DONE').aggregate(total=Sum('quantity'))['total'] or 0
 
     @property
     def total_pending(self):
+        if hasattr(self, 'annotated_total_pending'):
+            return self.annotated_total_pending
         return self.work_order_usages.filter(work_order__status__in=['TODO', 'PRINTING', 'PRINTED']).aggregate(total=Sum('quantity'))['total'] or 0
 
     @property
     def remaining_quantity(self):
         """Quantità rimanente in magazzino (comprata - consumata in ordini completati)."""
+        if hasattr(self, 'annotated_remaining_quantity'):
+            return self.annotated_remaining_quantity
         return max(0, self.total_purchased - self.total_used)
 
     @property
     def available_quantity(self):
         """Quantità disponibile (rimanente - impegnata in ordini attivi)."""
+        if hasattr(self, 'annotated_available_quantity'):
+            return self.annotated_available_quantity
         return self.remaining_quantity - self.total_pending
 
     @property
     def average_unit_cost(self):
+        if hasattr(self, 'annotated_average_unit_cost'):
+            return self.annotated_average_unit_cost
         total_qty = self.purchases.aggregate(total=Sum('quantity'))['total'] or 0
         if total_qty == 0:
             return Decimal('0.00')
@@ -973,7 +1063,7 @@ class RawMaterialPurchase(models.Model):
     raw_material = models.ForeignKey(RawMaterial, on_delete=models.CASCADE, related_name='purchases', verbose_name="Materia Prima")
     quantity = models.PositiveIntegerField(verbose_name="Quantità Acquistata")
     cost = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Costo Totale (€)")
-    purchase_date = models.DateField(default=timezone.now, verbose_name="Data Acquisto")
+    purchase_date = models.DateField(default=timezone.now, verbose_name="Data Acquisto", db_index=True)
     purchase_link = models.URLField(max_length=512, blank=True, null=True, verbose_name="Link Acquisto")
     payment_method = models.ForeignKey(PaymentMethod, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Pagato con")
     expense = models.OneToOneField(Expense, on_delete=models.SET_NULL, null=True, blank=True, related_name='raw_material_purchase')
@@ -1024,3 +1114,52 @@ class WorkOrderRawMaterial(models.Model):
         verbose_name = "Materia Prima Ordine"
         verbose_name_plural = "Materie Prime Ordine"
         unique_together = ('work_order', 'raw_material')
+
+
+class Note(models.Model):
+    class Category(models.TextChoices):
+        PURCHASE = 'PURCHASE', 'Acquisti / Forniture'
+        MAINTENANCE = 'MAINTENANCE', 'Manutenzione'
+        PRODUCTION = 'PRODUCTION', 'Produzione'
+        GENERAL = 'GENERAL', 'Generale'
+
+    class Priority(models.TextChoices):
+        LOW = 'LOW', 'Bassa'
+        MEDIUM = 'MEDIUM', 'Media'
+        HIGH = 'HIGH', 'Alta'
+        URGENT = 'URGENT', 'Urgente'
+
+    title = models.CharField(max_length=200, verbose_name="Titolo / Promemoria")
+    description = models.TextField(blank=True, verbose_name="Descrizione / Dettagli")
+    category = models.CharField(max_length=20, choices=Category.choices, default=Category.PURCHASE, verbose_name="Categoria", db_index=True)
+    priority = models.CharField(max_length=10, choices=Priority.choices, default=Priority.MEDIUM, verbose_name="Priorità")
+    due_date = models.DateField(null=True, blank=True, verbose_name="Data Scadenza / Promemoria", db_index=True)
+    is_completed = models.BooleanField(default=False, verbose_name="Completato", db_index=True)
+    completed_at = models.DateTimeField(null=True, blank=True, verbose_name="Completato il")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Creato il", db_index=True)
+
+    filament = models.ForeignKey(Filament, on_delete=models.SET_NULL, null=True, blank=True, related_name="reminder_notes", verbose_name="Filamento")
+    raw_material = models.ForeignKey(RawMaterial, on_delete=models.SET_NULL, null=True, blank=True, related_name="reminder_notes", verbose_name="Materia Prima")
+    printer = models.ForeignKey(Printer, on_delete=models.SET_NULL, null=True, blank=True, related_name="reminder_notes", verbose_name="Stampante")
+    work_order = models.ForeignKey(WorkOrder, on_delete=models.SET_NULL, null=True, blank=True, related_name="reminder_notes", verbose_name="Ordine di Lavoro")
+
+    def __str__(self):
+        return self.title
+
+    @property
+    def is_overdue(self):
+        if self.due_date and not self.is_completed:
+            return self.due_date < timezone.now().date()
+        return False
+
+    @property
+    def is_due_today(self):
+        if self.due_date and not self.is_completed:
+            return self.due_date == timezone.now().date()
+        return False
+
+    class Meta:
+        verbose_name = "Nota / Promemoria"
+        verbose_name_plural = "Note e Promemoria"
+        ordering = ['is_completed', '-created_at']
+

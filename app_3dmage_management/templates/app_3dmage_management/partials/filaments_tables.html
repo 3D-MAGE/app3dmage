@@ -1,0 +1,125 @@
+{% load app_filters %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h5 class="card-title text-white mb-0">
+        Filamenti Attivi
+        <span class="badge bg-secondary ms-2">{{ active_filaments|length }}</span>
+    </h5>
+</div>
+
+<div class="table-responsive">
+    <table class="table table-dark table-hover align-middle">
+        <thead>
+            <tr>
+                <th>
+                    <a href="?sort=material&order={% if sort_by == 'material' and order == 'asc' %}desc{% else %}asc{% endif %}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}{% if material_filter %}&material={{ material_filter|urlencode }}{% endif %}{% if brand_filter %}&brand={{ brand_filter|urlencode }}{% endif %}"
+                       class="filament-sort-link" data-sort="material" data-order="{% if sort_by == 'material' and order == 'asc' %}desc{% else %}asc{% endif %}">
+                        Filamento{% if sort_by == 'material' %} <i class="bi bi-arrow-{% if order == 'asc' %}up{% else %}down{% endif %} small"></i>{% endif %}
+                    </a>
+                </th>
+                <th>
+                    <a href="?sort=color_name&order={% if sort_by == 'color_name' and order == 'asc' %}desc{% else %}asc{% endif %}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}{% if material_filter %}&material={{ material_filter|urlencode }}{% endif %}{% if brand_filter %}&brand={{ brand_filter|urlencode }}{% endif %}"
+                       class="filament-sort-link" data-sort="color_name" data-order="{% if sort_by == 'color_name' and order == 'asc' %}desc{% else %}asc{% endif %}">
+                        Nome Colore{% if sort_by == 'color_name' %} <i class="bi bi-arrow-{% if order == 'asc' %}up{% else %}down{% endif %} small"></i>{% endif %}
+                    </a>
+                </th>
+                <th style="width: 40%;">
+                    <a href="?sort=annotated_remaining_weight&order={% if sort_by == 'annotated_remaining_weight' and order == 'asc' %}desc{% else %}asc{% endif %}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}{% if material_filter %}&material={{ material_filter|urlencode }}{% endif %}{% if brand_filter %}&brand={{ brand_filter|urlencode }}{% endif %}"
+                       class="filament-sort-link" data-sort="annotated_remaining_weight" data-order="{% if sort_by == 'annotated_remaining_weight' and order == 'asc' %}desc{% else %}asc{% endif %}">
+                        Grammi (Fisici / Virtuali){% if sort_by == 'annotated_remaining_weight' %} <i class="bi bi-arrow-{% if order == 'asc' %}up{% else %}down{% endif %} small"></i>{% endif %}
+                    </a>
+                </th>
+                <th class="text-center">
+                    <a href="?sort=annotated_active_spool_count&order={% if sort_by == 'annotated_active_spool_count' and order == 'asc' %}desc{% else %}asc{% endif %}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}{% if material_filter %}&material={{ material_filter|urlencode }}{% endif %}{% if brand_filter %}&brand={{ brand_filter|urlencode }}{% endif %}"
+                       class="filament-sort-link" data-sort="annotated_active_spool_count" data-order="{% if sort_by == 'annotated_active_spool_count' and order == 'asc' %}desc{% else %}asc{% endif %}">
+                        Bobine{% if sort_by == 'annotated_active_spool_count' %} <i class="bi bi-arrow-{% if order == 'asc' %}up{% else %}down{% endif %} small"></i>{% endif %}
+                    </a>
+                </th>
+                <th class="text-end">
+                    <a href="?sort=annotated_total_used_weight&order={% if sort_by == 'annotated_total_used_weight' and order == 'asc' %}desc{% else %}asc{% endif %}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}{% if material_filter %}&material={{ material_filter|urlencode }}{% endif %}{% if brand_filter %}&brand={{ brand_filter|urlencode }}{% endif %}"
+                       class="filament-sort-link" data-sort="annotated_total_used_weight" data-order="{% if sort_by == 'annotated_total_used_weight' and order == 'asc' %}desc{% else %}asc{% endif %}">
+                        Usato (da Attivi){% if sort_by == 'annotated_total_used_weight' %} <i class="bi bi-arrow-{% if order == 'asc' %}up{% else %}down{% endif %} small"></i>{% endif %}
+                    </a>
+                </th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for filament in active_filaments %}
+            {% with total_weight=filament.annotated_total_initial_weight|default:0 %}
+                {% if total_weight > 0 %}
+                    {% widthratio filament.annotated_remaining_weight total_weight 100 as remaining_percentage %}
+                {% endif %}
+                <tr style="cursor:pointer;" data-bs-toggle="modal" data-bs-target="#filamentDetailModal" data-filament-id="{{ filament.id }}">
+                    <td class="fw-bold"><span class="filament-pill" style="--bg: {{ filament.color_hex }}; background-color: var(--bg); --text: {{ filament.color_hex|contrast_color }};">{{ filament }}</span></td>
+                    <td>{{ filament.color_name }}</td>
+                    <td style="position: relative; min-width: 200px;">
+                        <div class="progress" style="height: 25px; background-color: #444;" title="{% if total_weight > 0 %}{{ remaining_percentage|floatformat:1 }}{% else %}0{% endif %}%">
+                            <div class="progress-bar" role="progressbar" style="width: {% if total_weight > 0 %}{{ remaining_percentage }}{% else %}0{% endif %}%; background-color: {{ filament.color_hex }};"></div>
+                            <strong class="justify-content-center align-items-center d-flex position-absolute w-100 h-100 top-0 start-0 text-white" style="text-shadow: 1px 1px 2px black;">
+                                {{ filament.annotated_remaining_weight|floatformat:1 }}g fisici &nbsp;(&nbsp;{{ filament.annotated_available_weight|floatformat:1 }}g virtuali&nbsp;)
+                            </strong>
+                        </div>
+                    </td>
+                    <td class="text-center">{{ filament.annotated_active_spool_count }}</td>
+                    <td class="text-end">{{ filament.annotated_total_used_weight|floatformat:2 }}g</td>
+                </tr>
+            {% endwith %}
+            {% empty %}
+            <tr>
+                <td colspan="5" class="text-center py-5">
+                    {% if has_filters %}
+                    <p class="lead text-light mb-2">Nessun filamento attivo corrisponde ai filtri selezionati.</p>
+                    <button type="button" class="btn btn-sm btn-outline-warning mt-2 reset-filament-filters-inline">
+                        <i class="bi bi-arrow-counterclockwise me-1"></i>Azzera filtri
+                    </button>
+                    {% else %}
+                    <p class="lead text-light mb-0">Nessun filamento con bobine attive.</p>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<div class="accordion mt-5" id="accordionFilamentiEsauriti">
+    <div class="accordion-item bg-dark-card-lighter">
+        <h2 class="accordion-header" id="headingEsauriti">
+            <button class="accordion-button {% if not has_filters or active_filaments or not exhausted_filaments %}collapsed{% endif %} bg-dark-subtle text-white" type="button" data-bs-toggle="collapse" data-bs-target="#collapseEsauriti" aria-expanded="{% if has_filters and not active_filaments and exhausted_filaments %}true{% else %}false{% endif %}" aria-controls="collapseEsauriti">
+                <span>Filamenti Esauriti (Nessuna Bobina Attiva)</span>
+                <span class="badge bg-secondary ms-2">{{ exhausted_filaments|length }}</span>
+            </button>
+        </h2>
+        <div id="collapseEsauriti" class="accordion-collapse collapse {% if has_filters and not active_filaments and exhausted_filaments %}show{% endif %}" aria-labelledby="headingEsauriti" data-bs-parent="#accordionFilamentiEsauriti">
+            <div class="accordion-body">
+                <div class="table-responsive">
+                    <table class="table table-dark table-hover align-middle">
+                        <thead>
+                            <tr>
+                                <th>Filamento</th>
+                                <th>Nome Colore</th>
+                                <th class="text-end">Totale Usato Storico</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for filament in exhausted_filaments %}
+                            <tr style="cursor:pointer;" data-bs-toggle="modal" data-bs-target="#filamentDetailModal" data-filament-id="{{ filament.id }}">
+                                <td class="fw-bold">
+                                    <span class="filament-pill" style="--bg: {{ filament.color_hex }}; background-color: var(--bg); --text: {{ filament.color_hex|contrast_color }};">{{ filament }}</span>
+                                </td>
+                                <td>{{ filament.color_name }}</td>
+                                <td class="text-end">{{ filament.total_grams_ever_used|floatformat:2 }}g</td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="3" class="text-center text-white-50 py-4">
+                                    {% if has_filters %}Nessun filamento esaurito corrisponde ai filtri selezionati.{% else %}Nessun filamento esaurito.{% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

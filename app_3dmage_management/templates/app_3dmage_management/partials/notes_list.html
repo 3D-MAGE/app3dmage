@@ -1,0 +1,117 @@
+{% load static %}
+{% load app_filters %}
+
+<div class="table-responsive">
+    <table class="table table-dark table-hover align-middle mb-0" id="notesTable">
+        <thead>
+            <tr>
+                <th style="width: 45px;" class="text-center">Stato</th>
+                <th>Titolo / Nota</th>
+                <th>Categoria</th>
+                <th>Priorità</th>
+                <th>Scadenza</th>
+                <th>Collegato a</th>
+                <th style="width: 110px;" class="text-end">Azioni</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for note in notes %}
+            <tr id="note-row-{{ note.id }}" class="{% if note.is_completed %}opacity-50 text-decoration-line-through{% endif %}">
+                <td class="text-center">
+                    <input type="checkbox" class="form-check-input note-toggle-cb"
+                           data-note-id="{{ note.id }}"
+                           {% if note.is_completed %}checked{% endif %}
+                           title="Segna come completata / da fare"
+                           style="cursor: pointer; width: 1.25rem; height: 1.25rem;">
+                </td>
+                <td>
+                    <div class="fw-bold {% if note.is_completed %}text-muted{% else %}text-white{% endif %} note-title"
+                         style="cursor: pointer;" onclick="openEditNoteModal({{ note.id }})">
+                        {{ note.title }}
+                    </div>
+                    {% if note.description %}
+                    <small class="text-muted d-block text-truncate" style="max-width: 380px;">
+                        {{ note.description }}
+                    </small>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if note.category == 'PURCHASE' %}
+                        <span class="badge bg-warning text-dark"><i class="bi bi-cart-plus me-1"></i>Acquisto</span>
+                    {% elif note.category == 'MAINTENANCE' %}
+                        <span class="badge bg-info text-dark"><i class="bi bi-tools me-1"></i>Manutenzione</span>
+                    {% elif note.category == 'PRODUCTION' %}
+                        <span class="badge bg-success"><i class="bi bi-gear-fill me-1"></i>Produzione</span>
+                    {% else %}
+                        <span class="badge bg-secondary"><i class="bi bi-bookmark me-1"></i>Generale</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if note.priority == 'LOW' %}
+                        <span class="badge bg-priority-low">Bassa</span>
+                    {% elif note.priority == 'MEDIUM' %}
+                        <span class="badge bg-priority-medium">Media</span>
+                    {% elif note.priority == 'HIGH' %}
+                        <span class="badge bg-priority-high">Alta</span>
+                    {% elif note.priority == 'URGENT' %}
+                        <span class="badge bg-priority-urgent">Urgente</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if note.due_date %}
+                        {% if not note.is_completed and note.due_date < today %}
+                            <span class="badge bg-danger text-white" title="Scaduta!">
+                                <i class="bi bi-exclamation-triangle-fill me-1"></i>{{ note.due_date|date:"d/m/Y" }}
+                            </span>
+                        {% elif not note.is_completed and note.due_date == today %}
+                            <span class="badge bg-warning text-dark" title="Scade oggi!">
+                                <i class="bi bi-clock-fill me-1"></i>Oggi
+                            </span>
+                        {% else %}
+                            <span class="text-muted small"><i class="bi bi-calendar3 me-1"></i>{{ note.due_date|date:"d/m/Y" }}</span>
+                        {% endif %}
+                    {% else %}
+                        <span class="text-muted small">-</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if note.filament %}
+                        <span class="filament-pill" style="--bg: {{ note.filament.color_hex }}; background-color: var(--bg); --text: {{ note.filament.color_hex|contrast_color }};">
+                            <i class="bi bi-palette me-1"></i>{{ note.filament }}
+                        </span>
+                    {% elif note.raw_material %}
+                        <span class="badge bg-dark-card-lighter text-light border border-secondary">
+                            <i class="bi bi-box-seam me-1"></i>{{ note.raw_material.name }}
+                        </span>
+                    {% elif note.printer %}
+                        <span class="badge bg-dark-card-lighter text-light border border-secondary">
+                            <i class="bi bi-printer me-1"></i>{{ note.printer.name }}
+                        </span>
+                    {% elif note.work_order %}
+                        <a href="{% url 'order_detail' note.work_order.id %}" class="badge bg-primary text-decoration-none">
+                            <i class="bi bi-receipt me-1"></i>Ordine #{{ note.work_order.id }}
+                        </a>
+                    {% else %}
+                        <span class="text-muted small">-</span>
+                    {% endif %}
+                </td>
+                <td class="text-end">
+                    <button class="btn btn-sm btn-outline-light me-1" onclick="openEditNoteModal({{ note.id }})" title="Modifica">
+                        <i class="bi bi-pencil"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="deleteNote({{ note.id }})" title="Elimina">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="7" class="text-center text-muted py-4">
+                    <i class="bi bi-check2-circle fs-2 d-block mb-2 text-secondary"></i>
+                    Nessuna nota trovata con i filtri selezionati.
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>

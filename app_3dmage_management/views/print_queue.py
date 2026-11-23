@@ -7,32 +7,15 @@ from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.db.models import Sum, Q, Prefetch
 
-from ..models import PrintFile, Printer, Plate, Spool, FilamentUsage
+from ..models import PrintFile, Printer, Plate, Spool, FilamentUsage, get_app_version
 
 @login_required
 def print_queue_board(request):
-    from ..models import GlobalSetting
-    from ..models import GlobalSetting
-    # Intelligent Polling Check
-    try:
-        setting = GlobalSetting.objects.get(key='app_last_updated')
-        if setting.value is None or str(setting.value) == '':
-            raise ValueError("Empty value")
-        current_server_version = str(setting.value)
-    except Exception:
-         # Corrupt data, reset it
-         from django.utils import timezone
-         from decimal import Decimal
-         ts = str(timezone.now().timestamp())
-         new_val = Decimal(ts)
-         # Avoid reading corrupt data
-         GlobalSetting.objects.filter(key='app_last_updated').delete()
-         GlobalSetting.objects.create(key='app_last_updated', value=new_val)
-         current_server_version = str(new_val)
+    current_server_version = get_app_version()
 
     if request.headers.get('HX-Request'):
         client_version = request.GET.get('v')
-        if client_version == current_server_version:
+        if client_version and client_version == current_server_version:
             return HttpResponse(status=204)
 
     active_print_files_qs = PrintFile.objects.filter(

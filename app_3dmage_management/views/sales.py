@@ -56,15 +56,19 @@ def sales_dashboard(request):
     filter_summary = ", ".join(filter_summary_parts)
     filters_applied = bool(filter_summary_parts)
     
-    valid_sort_fields = ['sold_at', 'name', 'annotated_net_revenue', 'annotated_production_cost', 'annotated_net_profit', 'sold_to']
+    valid_sort_fields = ['sold_at', 'name', 'quantity', 'annotated_net_revenue', 'annotated_production_cost', 'annotated_net_profit', 'sold_to']
     if sort_by not in valid_sort_fields:
         sort_by = 'sold_at'
     
     # We apply order_by here
     sold_items = sold_items_query.order_by(f'{order_prefix}{sort_by}')
 
-    total_sales = sold_items_query.aggregate(total=Coalesce(Sum('annotated_net_revenue'), Decimal('0.00')))['total']
-    total_profit = sold_items_query.aggregate(total=Coalesce(Sum('annotated_net_profit'), Decimal('0.00')))['total']
+    sales_totals = sold_items_query.aggregate(
+        total_sales=Coalesce(Sum('annotated_net_revenue'), Decimal('0.00')),
+        total_profit=Coalesce(Sum('annotated_net_profit'), Decimal('0.00'))
+    )
+    total_sales = sales_totals['total_sales']
+    total_profit = sales_totals['total_profit']
 
     context = {
         'sold_items': sold_items,

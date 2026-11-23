@@ -58,6 +58,7 @@ header {
 .bg-status-printing { background-color: #0dcaf0 !important; color: #000 !important; }
 .bg-status-printed { background-color: #198754 !important; }
 .bg-status-done { background-color: #0d6efd !important; }
+.bg-print-status-prepare { background-color: #6c757d !important; color: #fff !important; }
 .bg-print-status-todo { background-color: #ffa500 !important; }
 .bg-print-status-printing { background-color: #0dcaf0 !important; color: #000 !important; }
 .bg-print-status-done { background-color: #198754 !important; }
@@ -99,6 +100,7 @@ select.select-priority-medium { background-color: #198754 !important; }
 select.select-priority-high { background-color: #ffc107 !important; color: #1a1a1a !important;}
 select.select-priority-urgent { background-color: #dc3545 !important; }
 select.select-status-quote { background-color: #6c757d !important; }
+select.select-status-prepare { background-color: #6c757d !important; color: #ffffff !important; }
 select.select-status-todo { background-color: var(--primary-color) !important; color: #1a1a1a !important;}
 select.select-status-printing { background-color: #0dcaf0 !important; color: #1a1a1a !important;}
 select.select-status-printed { background-color: #198754 !important; }
@@ -377,6 +379,7 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); }
 
 /* --- Stili per i bottoni --- */
 #filament-count-selector .btn.active { background-color: var(--primary-color); border-color: var(--primary-color); color: black; }
+#status-btn-container .status-btn[data-status="PREPARE"].active { background-color: #6c757d; border-color: #6c757d; color: #ffffff; }
 #status-btn-container .status-btn[data-status="TODO"].active { background-color: #ffa500; border-color: #ffa500; color: #ffffff; }
 #status-btn-container .status-btn[data-status="PRINTING"].active { background-color: #0dcaf0; border-color: #0dcaf0; color: #ffffff; }
 #status-btn-container .status-btn[data-status="DONE"].active { background-color: #198754; border-color: #198754; color: #ffffff; }
@@ -666,4 +669,25 @@ body.no-scroll {
     background-color: var(--primary-color) !important;
     color: #000 !important;
 }
+
+/* Offcanvas Dark Theme Override */
+#quickNotesOffcanvas.offcanvas,
+#quickNotesOffcanvas .offcanvas-header,
+#quickNotesOffcanvas .offcanvas-body {
+    background-color: var(--dark-card) !important;
+    color: var(--text-light) !important;
+}
+#quickNotesOffcanvas {
+    --bs-offcanvas-bg: var(--dark-card) !important;
+    --bs-offcanvas-color: var(--text-light) !important;
+}
+#quickNotesOffcanvas .btn-close {
+    filter: invert(1) grayscale(100%);
+}
+
+/* Dropdown Notifiche Stili */
+#notificationsDropdown + .dropdown-menu {
+    border: 1px solid #444;
+}
+
 

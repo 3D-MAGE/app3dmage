@@ -65,6 +65,166 @@ document.addEventListener('DOMContentLoaded', async function() {
     }
     applyPillContrastColor();
 
+    // --- Live Ricerca & Filtri Filamenti ---
+    const filtersForm = document.getElementById('filamentFiltersForm');
+    const tablesContainer = document.getElementById('filaments-tables-container');
+    if (filtersForm && tablesContainer) {
+        const searchInput = document.getElementById('filamentSearchInput');
+        const clearSearchBtn = document.getElementById('clearFilamentSearchBtn');
+        const materialInput = document.getElementById('filamentMaterialInput');
+        const brandSelect = document.getElementById('filamentBrandSelect');
+        const sortInput = document.getElementById('filamentSortInput');
+        const orderInput = document.getElementById('filamentOrderInput');
+        const resetFiltersBtn = document.getElementById('resetFilamentFiltersBtn');
+        const materialBtns = filtersForm.querySelectorAll('.material-filter-btn');
+
+        let filterDebounceTimer = null;
+        let currentFilterController = null;
+
+        function updateMaterialButtonsUI(selectedMaterial) {
+            const targetMat = (selectedMaterial || '').toUpperCase();
+            materialBtns.forEach(btn => {
+                const btnMat = (btn.dataset.material || '').toUpperCase();
+                const isActive = btnMat === targetMat;
+                const badge = btn.querySelector('.badge');
+
+                btn.classList.toggle('btn-primary-custom', isActive);
+                btn.classList.toggle('btn-outline-secondary', !isActive);
+                btn.classList.toggle('text-light', !isActive);
+
+                if (badge) {
+                    badge.classList.toggle('bg-dark', isActive);
+                    badge.classList.toggle('text-warning', isActive);
+                    badge.classList.toggle('bg-secondary', !isActive);
+                }
+            });
+        }
+
+        function applyFilters() {
+            const q = searchInput ? searchInput.value.trim() : '';
+            const material = materialInput ? materialInput.value.trim() : '';
+            const brand = brandSelect ? brandSelect.value.trim() : '';
+            const sort = (sortInput && sortInput.value.trim()) ? sortInput.value.trim() : 'material';
+            const order = (orderInput && orderInput.value.trim()) ? orderInput.value.trim() : 'asc';
+
+            if (clearSearchBtn) {
+                clearSearchBtn.classList.toggle('d-none', !q);
+            }
+            if (resetFiltersBtn) {
+                resetFiltersBtn.classList.toggle('d-none', !(q || material || brand));
+            }
+
+            const params = new URLSearchParams();
+            if (q) params.set('q', q);
+            if (material) params.set('material', material);
+            if (brand) params.set('brand', brand);
+            if (!(sort === 'material' && order === 'asc')) {
+                params.set('sort', sort);
+                params.set('order', order);
+            }
+
+            const baseAction = filtersForm.getAttribute('action') || window.location.pathname;
+            const queryString = params.toString();
+            const targetUrl = queryString ? `${baseAction}?${queryString}` : baseAction;
+
+            window.history.replaceState(null, '', targetUrl);
+
+            if (currentFilterController) {
+                currentFilterController.abort();
+            }
+            currentFilterController = new AbortController();
+
+            fetch(targetUrl, {
+                headers: { 'HX-Request': 'true' },
+                signal: currentFilterController.signal
+            })
+            .then(res => {
+                if (!res.ok) throw new Error(`Errore HTTP ${res.status}`);
+                return res.text();
+            })
+            .then(html => {
+                tablesContainer.innerHTML = html;
+                applyPillContrastColor();
+            })
+            .catch(err => {
+                if (err.name !== 'AbortError') {
+                    console.error('Errore durante il filtro dei filamenti:', err);
+                }
+            });
+        }
+
+        function resetAllFilters() {
+            if (searchInput) searchInput.value = '';
+            if (materialInput) materialInput.value = '';
+            if (brandSelect) brandSelect.value = '';
+            updateMaterialButtonsUI('');
+            applyFilters();
+        }
+
+        filtersForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            clearTimeout(filterDebounceTimer);
+            applyFilters();
+        });
+
+        if (searchInput) {
+            searchInput.addEventListener('input', function() {
+                if (clearSearchBtn) {
+                    clearSearchBtn.classList.toggle('d-none', !searchInput.value.trim());
+                }
+                clearTimeout(filterDebounceTimer);
+                filterDebounceTimer = setTimeout(applyFilters, 200);
+            });
+        }
+
+        if (clearSearchBtn) {
+            clearSearchBtn.addEventListener('click', function() {
+                if (searchInput) {
+                    searchInput.value = '';
+                    searchInput.focus();
+                }
+                clearTimeout(filterDebounceTimer);
+                applyFilters();
+            });
+        }
+
+        materialBtns.forEach(btn => {
+            btn.addEventListener('click', function() {
+                const clickedMat = btn.dataset.material || '';
+                const currentMat = materialInput ? materialInput.value : '';
+                const nextMat = (clickedMat && clickedMat.toUpperCase() === currentMat.toUpperCase()) ? '' : clickedMat;
+                if (materialInput) materialInput.value = nextMat;
+                updateMaterialButtonsUI(nextMat);
+                applyFilters();
+            });
+        });
+
+        if (brandSelect) {
+            brandSelect.addEventListener('change', applyFilters);
+        }
+
+        if (resetFiltersBtn) {
+            resetFiltersBtn.addEventListener('click', resetAllFilters);
+        }
+
+        tablesContainer.addEventListener('click', function(e) {
+            const inlineResetBtn = e.target.closest('.reset-filament-filters-inline');
+            if (inlineResetBtn) {
+                e.preventDefault();
+                resetAllFilters();
+                return;
+            }
+
+            const sortLink = e.target.closest('.filament-sort-link');
+            if (sortLink) {
+                e.preventDefault();
+                if (sortInput) sortInput.value = sortLink.dataset.sort || 'material';
+                if (orderInput) orderInput.value = sortLink.dataset.order || 'asc';
+                applyFilters();
+            }
+        });
+    }
+
     const detailModalEl = document.getElementById('filamentDetailModal');
     if (!detailModalEl) return;
     const detailModal = new bootstrap.Modal(detailModalEl);
@@ -105,18 +265,24 @@ document.addEventListener('DOMContentLoaded', async function() {
             const selectEl = document.getElementById('id_spool_form_filament');
             if (selectEl && !addSpoolTomSelect) {
                 addSpoolTomSelect = new TomSelect(selectEl, {
-                    valueField: 'id', labelField: 'name', searchField: 'name',
-                    options: allFilamentsData, create: false,
+                    valueField: 'id',
+                    labelField: 'name',
+                    searchField: ['name', 'color_name', 'material', 'color_code', 'brand'],
+                    maxOptions: null,
+                    placeholder: 'Cerca codice, colore o materiale...',
+                    options: allFilamentsData,
+                    create: false,
                     render: {
                         option: function(data, escape) {
                             const textColor = getTextColorForBg(data.color_hex);
                             const textShadow = textColor === '#FFFFFF' ? '1px 1px 2px rgba(0,0,0,0.5)' : 'none';
-                            return `<div><span class="filament-pill" style="background-color: ${data.color_hex}; color: ${textColor}; text-shadow: ${textShadow};">${escape(data.name)}</span></div>`;
+                            const colorLabel = data.color_name ? `<span class="ms-2 small text-white-50">${escape(data.color_name)}</span>` : '';
+                            return `<div class="d-flex align-items-center"><span class="filament-pill mb-0" style="background-color: ${data.color_hex}; color: ${textColor}; text-shadow: ${textShadow};">${escape(data.name)}</span>${colorLabel}</div>`;
                         },
                         item: function(data, escape) {
                              const textColor = getTextColorForBg(data.color_hex);
                              const textShadow = textColor === '#FFFFFF' ? '1px 1px 2px rgba(0,0,0,0.5)' : 'none';
-                             return `<div class="filament-pill" style="background-color: ${data.color_hex}; color: ${textColor}; text-shadow: ${textShadow};">${escape(data.name)}</div>`;
+                             return `<div class="filament-pill" title="${escape(data.color_name || '')}" style="background-color: ${data.color_hex}; color: ${textColor}; text-shadow: ${textShadow};">${escape(data.name)}</div>`;
                         }
                     }
                 });

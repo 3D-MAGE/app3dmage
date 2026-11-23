@@ -79,7 +79,7 @@
                     <tr>
                         <th><a href="?sort=sold_at&order={% if sort_by == 'sold_at' and order == 'asc' %}desc{% else %}asc{% endif %}&{{ request.GET.urlencode|cut:'sort'|cut:'order' }}">Data Vendita</a></th>
                         <th><a href="?sort=name&order={% if sort_by == 'name' and order == 'asc' %}desc{% else %}asc{% endif %}&{{ request.GET.urlencode|cut:'sort'|cut:'order' }}">Oggetto</a></th>
-                        <th class="text-center">Qtà</th>
+                        <th class="text-center"><a href="?sort=quantity&order={% if sort_by == 'quantity' and order == 'asc' %}desc{% else %}asc{% endif %}&{{ request.GET.urlencode|cut:'sort'|cut:'order' }}">Qtà</a></th>
                         <th><a href="?sort=sold_to&order={% if sort_by == 'sold_to' and order == 'asc' %}desc{% else %}asc{% endif %}&{{ request.GET.urlencode|cut:'sort'|cut:'order' }}">Venduto a</a></th>
                         <th>Metodo Pag.</th>
                         <th>Note</th>

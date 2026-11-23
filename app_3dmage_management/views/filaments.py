@@ -5,7 +5,7 @@ from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
-from django.db.models import Sum, Count, F, OuterRef, Subquery, IntegerField, DecimalField, ExpressionWrapper, Case, When
+from django.db.models import Sum, Count, F, Q, OuterRef, Subquery, IntegerField, DecimalField, ExpressionWrapper, Case, When
 from django.db.models.functions import Coalesce
 from django.forms.models import model_to_dict
 
@@ -14,6 +14,9 @@ from ..forms import FilamentForm, SpoolForm, SpoolEditForm
 
 @login_required
 def filament_dashboard(request):
+    search_query = request.GET.get('q', '').strip()
+    material_filter = request.GET.get('material', '').strip()
+    brand_filter = request.GET.get('brand', '').strip()
     sort_by = request.GET.get('sort', 'material')
     order = request.GET.get('order', 'asc')
     order_prefix = '-' if order == 'desc' else ''
@@ -27,7 +30,61 @@ def filament_dashboard(request):
         annotated_active_spool_count=Coalesce(Subquery(active_spool_count_subquery, output_field=IntegerField()), 0)
     )
 
-    active_filaments_query = all_filaments.filter(annotated_active_spool_count__gt=0)
+    base_active_counts = dict(
+        all_filaments.filter(annotated_active_spool_count__gt=0)
+        .values_list('material')
+        .annotate(c=Count('id'))
+    )
+    base_total_counts = dict(
+        all_filaments.values_list('material').annotate(c=Count('id'))
+    )
+    total_active_all = sum(base_active_counts.values())
+    material_filters = [
+        {
+            'code': code,
+            'label': label,
+            'active_count': base_active_counts.get(code, 0),
+            'total_count': base_total_counts.get(code, 0),
+        }
+        for code, label in Filament.MATERIAL_CHOICES
+    ]
+    all_brands = list(
+        Filament.objects.exclude(brand='')
+        .values_list('brand', flat=True)
+        .distinct()
+        .order_by('brand')
+    )
+
+    filtered_filaments = all_filaments
+    if material_filter:
+        filtered_filaments = filtered_filaments.filter(material__iexact=material_filter)
+    if brand_filter:
+        filtered_filaments = filtered_filaments.filter(brand__iexact=brand_filter)
+    if search_query:
+        for word in search_query.split():
+            word_q = (
+                Q(color_name__icontains=word)
+                | Q(color_code__icontains=word)
+                | Q(material__icontains=word)
+                | Q(brand__icontains=word)
+                | Q(notes__icontains=word)
+            )
+            if '-' in word:
+                sub_parts = [p for p in word.split('-') if p]
+                if len(sub_parts) > 1:
+                    sub_q = Q()
+                    for sp in sub_parts:
+                        sub_q &= (
+                            Q(color_name__icontains=sp)
+                            | Q(color_code__icontains=sp)
+                            | Q(material__icontains=sp)
+                            | Q(brand__icontains=sp)
+                            | Q(notes__icontains=sp)
+                        )
+                    word_q |= sub_q
+            filtered_filaments = filtered_filaments.filter(word_q)
+
+    active_filaments_query = filtered_filaments.filter(annotated_active_spool_count__gt=0)
 
     active_initial_weight_subquery = Spool.objects.filter(
         filament=OuterRef('pk'), is_active=True
@@ -77,7 +134,7 @@ def filament_dashboard(request):
 
     active_filaments = active_filaments_query.order_by(*order_fields)
 
-    exhausted_filaments_query = all_filaments.filter(annotated_active_spool_count=0, spools__isnull=False).distinct()
+    exhausted_filaments_query = filtered_filaments.filter(annotated_active_spool_count=0, spools__isnull=False).distinct()
 
     total_used_weight_subquery = FilamentUsage.objects.filter(
         spool__filament=OuterRef('pk'), print_file__status__in=['DONE', 'FAILED']
@@ -95,8 +152,18 @@ def filament_dashboard(request):
         'spool_edit_form': SpoolEditForm(),
         'page_title': 'Filamenti',
         'sort_by': sort_by,
-        'order': order
+        'order': order,
+        'search_query': search_query,
+        'material_filter': material_filter,
+        'brand_filter': brand_filter,
+        'has_filters': bool(search_query or material_filter or brand_filter),
+        'material_filters': material_filters,
+        'total_active_all': total_active_all,
+        'all_brands': all_brands,
     }
+    if request.headers.get('HX-Request') == 'true':
+        return render(request, 'app_3dmage_management/partials/filaments_tables.html', context)
+
     return render(request, 'app_3dmage_management/filaments.html', context)
 
 
@@ -258,7 +325,18 @@ def api_get_all_filaments(request):
     # Mostra tutti i filamenti (permetti l'aggiunta di bobine anche a chi non ne ha)
     # Ordina per materiale e poi per codice colore
     filaments = Filament.objects.all().order_by('material', 'color_code')
-    data = [{'id': f.id, 'name': str(f), 'color_hex': f.color_hex} for f in filaments]
+    data = [
+        {
+            'id': f.id,
+            'name': str(f),
+            'color_hex': f.color_hex,
+            'color_name': f.color_name or '',
+            'material': f.material,
+            'color_code': f.color_code,
+            'brand': f.brand,
+        }
+        for f in filaments
+    ]
     return JsonResponse(data, safe=False)
 
 @login_required

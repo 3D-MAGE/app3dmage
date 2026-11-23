@@ -1,5 +1,6 @@
 from pathlib import Path
 import os
+import sys
 import dj_database_url
 import dotenv
 
@@ -15,15 +16,34 @@ if IS_PRODUCTION:
     # --- Produzione su PythonAnywhere ---
     SECRET_KEY = os.environ.get('SECRET_KEY', 'unsafe-default-key')
     DEBUG = False
-    DOMAIN = os.environ.get('PYTHONANYWHERE_DOMAIN')
-    ALLOWED_HOSTS = [DOMAIN, f"{DOMAIN}.pythonanywhere.com"]
-    CSRF_TRUSTED_ORIGINS = [f"https://{DOMAIN}.pythonanywhere.com"]
+    raw_domain = os.environ.get('PYTHONANYWHERE_DOMAIN', '').strip()
+    if raw_domain.endswith('.pythonanywhere.com'):
+        domain_full = raw_domain
+        domain_short = raw_domain.replace('.pythonanywhere.com', '')
+    else:
+        domain_full = f"{raw_domain}.pythonanywhere.com" if raw_domain else 'localhost'
+        domain_short = raw_domain or 'localhost'
+
+    ALLOWED_HOSTS = [h for h in set([domain_short, domain_full, f"www.{domain_full}"]) if h]
+    CSRF_TRUSTED_ORIGINS = [
+        f"https://{domain_full}",
+        f"https://{domain_short}",
+    ]
+    if raw_domain:
+        CSRF_TRUSTED_ORIGINS.append(f"https://{raw_domain}")
+
+    # Reverse proxy header for PythonAnywhere (Nginx -> WSGI)
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_BROWSER_XSS_FILTER = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
 else:
     # --- Locale ---
     SECRET_KEY = os.getenv('SECRET_KEY', 'dev-insecure-key')
     DEBUG = True
-    ALLOWED_HOSTS = []
-    CSRF_TRUSTED_ORIGINS = []
+    ALLOWED_HOSTS = ['*']
+    CSRF_TRUSTED_ORIGINS = ['http://127.0.0.1:8000', 'http://localhost:8000']
 
 # --- Sicurezza CSRF e Sessioni ---
 CSRF_COOKIE_SAMESITE = 'Lax'
@@ -104,7 +124,11 @@ AUTH_PASSWORD_VALIDATORS = [
 STATIC_URL = 'static/'
 STATICFILES_DIRS = []
 STATIC_ROOT = BASE_DIR / 'staticfiles'
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+if 'test' in sys.argv or 'test_coverage' in sys.argv:
+    STATICFILES_STORAGE = 'django.contrib.staticfiles.storage.StaticFilesStorage'
+else:
+    STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
 
 # --- Locale ---
 # --- Locale ---
